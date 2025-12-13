@@ -89,9 +89,12 @@ export class CameraController {
 
   /**
    * Zoomt zu einer Kategorie-Position
+   * Die Kamera bewegt sich zur Position der Genre-Gruppe und zoomt rein
    */
-  animateToCategoryPosition(x: number, y: number, duration: number = 1500) {
-    this.animateToTarget({ zoom: 1.5, x: -x * 0.5, y: -y * 0.5 }, duration);
+  animateToCategoryPosition(x: number, y: number, duration: number = 1500, zoom: number = 2.0) {
+    // Bei native Canvas zoom: Kamera bewegt sich ZUR Position (nicht negativ)
+    // Die Render-Funktion macht: translate(-cameraX, -cameraY), also positive Werte bewegen nach links/oben
+    this.animateToTarget({ zoom, x, y }, duration);
   }
 
   /**

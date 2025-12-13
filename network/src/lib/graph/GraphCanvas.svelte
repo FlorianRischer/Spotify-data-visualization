@@ -241,14 +241,18 @@
       reducedMotion: rm,
       dpr,
       now: performance.now(),
-      groups: (get(graphData)?.groups)
+      groups: (get(graphData)?.groups),
+      // Native canvas zoom
+      cameraZoom,
+      cameraX,
+      cameraY
     });
     
     frameId = requestAnimationFrame(loop);
   }
 
   function getNodeUnderMouse(x: number, y: number): string | null {
-    return hitTest(nodes, x, y, canvas.width, canvas.height, dpr);
+    return hitTest(nodes, x, y, canvas.width, canvas.height, dpr, cameraZoom, cameraX, cameraY);
   }
 
   function scheduleExpansion(nodeId: string) {
@@ -297,15 +301,18 @@
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
     
-    // Handle dragging
+    // Handle dragging - need to convert to world coordinates for node position
     if (draggedNodeId) {
       isDragging = true; // Mark as dragging on first move
       const pos = get(positionsStore);
-      const centerX = (x - width / 2 / dpr) * dpr;
-      const centerY = (y - height / 2 / dpr) * dpr;
+      // Convert screen to world coordinates (accounting for camera)
+      const centerX = rect.width / 2;
+      const centerY = rect.height / 2;
+      const worldX = ((x - centerX) / cameraZoom + cameraX) * dpr;
+      const worldY = ((y - centerY) / cameraZoom + cameraY) * dpr;
       pos[draggedNodeId] = {
-        x: centerX - dragOffset.x,
-        y: centerY - dragOffset.y
+        x: worldX - dragOffset.x,
+        y: worldY - dragOffset.y
       };
       positionsStore.set(pos);
       // Reset velocity to prevent physics interference
@@ -372,11 +379,14 @@
       const pos = get(positionsStore);
       const nodePos = pos[id];
       if (nodePos) {
-        const centerX = (x - width / 2 / dpr) * dpr;
-        const centerY = (y - height / 2 / dpr) * dpr;
+        // Convert screen to world coordinates (accounting for camera)
+        const centerX = rect.width / 2;
+        const centerY = rect.height / 2;
+        const worldX = ((x - centerX) / cameraZoom + cameraX) * dpr;
+        const worldY = ((y - centerY) / cameraZoom + cameraY) * dpr;
         dragOffset = {
-          x: centerX - nodePos.x,
-          y: centerY - nodePos.y
+          x: worldX - nodePos.x,
+          y: worldY - nodePos.y
         };
       }
     }
@@ -529,7 +539,7 @@
   });
 </script>
 
-<div class="canvas-wrapper" style="--camera-zoom: {cameraZoom}; --camera-x: {cameraX}px; --camera-y: {cameraY}px;">
+<div class="canvas-wrapper">
   <canvas
     bind:this={canvas}
     tabindex="0"
@@ -559,9 +569,6 @@
     cursor: grab;
     outline: none;
     border: none;
-    transform: scale(var(--camera-zoom, 1)) translate(var(--camera-x, 0px), var(--camera-y, 0px));
-    transform-origin: center;
-    transition: transform 0.1s ease-out;
   }
   
   .graph-canvas:active {

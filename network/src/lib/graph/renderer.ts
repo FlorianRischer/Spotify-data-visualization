@@ -24,6 +24,10 @@ export interface RenderOptions {
   dpr: number;
   now: number;
   groups?: ArtistGroup[]; // artist groups for visual clustering
+  // Camera state for zoom/pan
+  cameraZoom?: number;
+  cameraX?: number;
+  cameraY?: number;
 }
 
 // Color palette for genres
@@ -88,11 +92,16 @@ export function renderGraph(
   options: RenderOptions
 ) {
   const { hoveredId, focusedId, centeredNodeId, showConnections, animatingNodes, reducedMotion, dpr, now, groups } = options;
+  const cameraZoom = options.cameraZoom ?? 1;
+  const cameraX = options.cameraX ?? 0;
+  const cameraY = options.cameraY ?? 0;
   
   ctx.save();
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.translate(canvas.width / 2, canvas.height / 2);
-  ctx.scale(dpr, dpr);
+  ctx.scale(dpr * cameraZoom, dpr * cameraZoom);
+  // Apply camera pan (towards the target position)
+  ctx.translate(-cameraX, -cameraY);
 
   // Genre groups visualization removed - only physics-based grouping
 
@@ -215,17 +224,26 @@ export function hitTest(
   mouseY: number,
   canvasWidth: number,
   canvasHeight: number,
-  dpr: number
+  dpr: number,
+  cameraZoom: number = 1,
+  cameraX: number = 0,
+  cameraY: number = 0
 ): string | null {
-  const cx = (mouseX - canvasWidth / 2 / dpr) * dpr;
-  const cy = (mouseY - canvasHeight / 2 / dpr) * dpr;
+  // Convert screen coordinates to world coordinates
+  // Inverse of: translate(center) -> scale(dpr * zoom) -> translate(-cameraX, -cameraY)
+  const centerX = canvasWidth / 2 / dpr;
+  const centerY = canvasHeight / 2 / dpr;
+  
+  // Mouse relative to center, then unscale by zoom, then add camera offset
+  const worldX = ((mouseX - centerX) / cameraZoom + cameraX) * dpr;
+  const worldY = ((mouseY - centerY) / cameraZoom + cameraY) * dpr;
   
   // Check in reverse order (top-most first)
   for (let i = nodes.length - 1; i >= 0; i--) {
     const n = nodes[i];
     const r = (Math.max(8, n.size) * 0.4) + 8; // hit area slightly larger
-    const dx = cx - n.x;
-    const dy = cy - n.y;
+    const dx = worldX - n.x;
+    const dy = worldY - n.y;
     if (dx * dx + dy * dy <= r * r) {
       return n.id;
     }

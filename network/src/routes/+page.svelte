@@ -495,20 +495,6 @@
 </svelte:head>
 
 <main class="app">
-  <header class="header">
-    <div class="header-top">
-      <div>
-        <h1 class="title">Musical Brain Activity</h1>
-        <p class="subtitle">Explore your genre connections. Hover to reveal neighbors, click to pin genres.</p>
-      </div>
-      {#if !isLoading}
-        <button class="export-btn" on:click={exportCacheToJSON} title="Download artist cache to replace /static/artist-cache.json">
-          💾 Cache exportieren
-        </button>
-      {/if}
-    </div>
-  </header>
-
   {#if isLoading}
     <div class="loading-screen">
       <div class="loading-content">
@@ -545,69 +531,19 @@
 
   .app {
     min-height: 100vh;
-    padding: 24px;
+    padding: 0;
     background: radial-gradient(ellipse at 20% 10%, #1b2838 0%, #0d1117 50%);
-  }
-
-  .header {
-    margin-bottom: 24px;
-    max-width: 1400px;
-    margin-left: auto;
-    margin-right: auto;
-  }
-
-  .header-top {
     display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 24px;
-  }
-
-  .export-btn {
-    background: rgba(29, 185, 84, 0.15);
-    border: 1.5px solid #1db954;
-    color: #1db954;
-    padding: 8px 16px;
-    border-radius: 8px;
-    cursor: pointer;
-    font-size: 14px;
-    font-weight: 500;
-    transition: all 200ms ease;
-    white-space: nowrap;
-  }
-
-  .export-btn:hover {
-    background: rgba(29, 185, 84, 0.25);
-    transform: translateY(-2px);
-  }
-
-  .export-btn:active {
-    transform: translateY(0);
-    background: rgba(29, 185, 84, 0.3);
-  }
-
-  .title {
-    font-size: 2.2rem;
-    font-weight: 700;
-    color: #1db954;
-    margin: 0 0 8px 0;
-    letter-spacing: -0.02em;
-  }
-
-  .subtitle {
-    color: #8b949e;
-    margin: 0;
-    font-size: 15px;
-    max-width: 600px;
+    flex-direction: column;
   }
 
   .layout {
     display: flex;
     flex-direction: column;
-    gap: 16px;
-    max-width: 100%;
-    margin: 0 auto;
-    height: calc(100vh - 160px);
+    gap: 0;
+    width: 100%;
+    height: 100vh;
+    flex: 1;
   }
 
   .controls {

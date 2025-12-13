@@ -16,11 +16,22 @@
   let scrollContainer: HTMLDivElement;
   let initialized = false;
   let lastPhase: string = 'intro';
+  let lastFocusedCategory: GenreCategory | null = null;
 
   // Reaktive Variablen aus Store
   $: phase = $scrollyStore.phase;
   $: focusedCategory = $scrollyStore.focusedCategory;
   $: scrollProgress = $scrollyStore.scrollProgress;
+
+  // Reagiere auf Kategorie-Wechsel während Zoom-Phase
+  $: if (phase === 'zoom' && focusedCategory && focusedCategory !== lastFocusedCategory) {
+    const position = $scrollyStore.categoryPositions[focusedCategory];
+    if (position) {
+      console.log(`🎯 Zoom zu Kategorie: ${focusedCategory}`, position);
+      cameraController.animateToCategoryPosition(position.x, position.y, 1200, 2.5);
+      lastFocusedCategory = focusedCategory;
+    }
+  }
 
   onMount(() => {
     // Initialisiere Kategorie-Queue aus Graph-Daten
@@ -79,17 +90,10 @@
       lastPhase = newPhase;
     }
 
-    // Zoom-Phase: Kamera zu fokussierter Kategorie bewegen
-    if (newPhase === 'zoom' && currentState.focusedCategory) {
-      const position = currentState.categoryPositions[currentState.focusedCategory];
-      if (position && !cameraController.getIsAnimating()) {
-        cameraController.animateToCategoryPosition(position.x, position.y, 1500);
-      }
-    }
-
     // Summary-Phase: Zurück zur Übersicht
     if (newPhase === 'summary' && lastPhase === 'zoom') {
       cameraController.animateToOverview(1500);
+      lastFocusedCategory = null;
     }
   }
 
@@ -110,6 +114,13 @@
     // Summary: Reset Genre-Gruppierung optional
     if (newPhase === 'summary') {
       cameraController.animateToOverview(1500);
+      lastFocusedCategory = null;
+    }
+    
+    // Intro: Reset
+    if (newPhase === 'intro') {
+      cameraController.animateToOverview(1000);
+      lastFocusedCategory = null;
     }
   }
 </script>
