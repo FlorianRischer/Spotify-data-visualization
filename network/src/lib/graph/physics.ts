@@ -79,13 +79,18 @@ export function createCategoryBasedGenreAnchors(
     categoriesMap.get(category)!.push(node);
   }
   
-  // Sortiere Kategorien für konsistente Positionen
-  const categories = Array.from(categoriesMap.keys()).sort();
+  // Sortiere Kategorien nach Größe (absteigend) - größte zuerst
+  // Dies entspricht der Anordnung in der Zoom-Phase
+  const categories = Array.from(categoriesMap.entries())
+    .sort((a, b) => b[1].length - a[1].length) // Absteigend nach Anzahl
+    .map(entry => entry[0]);
+  
   const categoryCount = categories.length;
   
   // Position jede Kategorie auf dem Kreis
+  // Start bei 12 Uhr (-π/2) und gehe im Uhrzeigersinn
   for (let catIdx = 0; catIdx < categoryCount; catIdx++) {
-    const categoryAngle = (catIdx / categoryCount) * Math.PI * 2;
+    const categoryAngle = -Math.PI / 2 + (catIdx / categoryCount) * Math.PI * 2;
     const categoryX = Math.cos(categoryAngle) * radius;
     const categoryY = Math.sin(categoryAngle) * radius;
     

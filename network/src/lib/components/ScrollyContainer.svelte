@@ -17,6 +17,8 @@
   let initialized = false;
   let lastPhase: string = 'intro';
   let lastFocusedCategory: GenreCategory | null = null;
+  let lastCameraAnimationTime = 0;
+  const MIN_ANIMATION_INTERVAL = 1500; // Mindestabstand zwischen Animationen
 
   // Reaktive Variablen aus Store
   $: phase = $scrollyStore.phase;
@@ -25,11 +27,16 @@
 
   // Reagiere auf Kategorie-Wechsel während Zoom-Phase
   $: if (phase === 'zoom' && focusedCategory && focusedCategory !== lastFocusedCategory) {
-    const position = $scrollyStore.categoryPositions[focusedCategory];
-    if (position) {
-      console.log(`🎯 Zoom zu Kategorie: ${focusedCategory}`, position);
-      cameraController.animateToCategoryPosition(position.x, position.y, 1200, 2.5);
-      lastFocusedCategory = focusedCategory;
+    const now = performance.now();
+    // Nur animieren wenn genug Zeit seit letzter Animation vergangen ist
+    if (now - lastCameraAnimationTime >= MIN_ANIMATION_INTERVAL) {
+      const position = $scrollyStore.categoryPositions[focusedCategory];
+      if (position) {
+        console.log(`🎯 Zoom zu Kategorie: ${focusedCategory}`, position);
+        cameraController.animateToCategoryPosition(position.x, position.y, 1200, 2.5);
+        lastCameraAnimationTime = now;
+        lastFocusedCategory = focusedCategory;
+      }
     }
   }
 
@@ -177,7 +184,10 @@
   .scrolly-container {
     position: relative;
     width: 100%;
-    background: linear-gradient(180deg, rgba(13, 17, 23, 1) 0%, rgba(22, 27, 34, 1) 100%);
+    background: 
+      radial-gradient(ellipse at 50% 0%, rgba(29, 185, 84, 0.15) 0%, transparent 50%),
+      radial-gradient(ellipse at 50% 100%, rgba(0, 217, 255, 0.1) 0%, transparent 50%),
+      linear-gradient(180deg, rgba(13, 17, 23, 1) 0%, rgba(22, 27, 34, 1) 100%);
   }
 
   .scroll-spacer {
@@ -191,8 +201,9 @@
     min-height: 100vh;
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
     padding: 40px;
+    padding-left: 60px;
     opacity: 0.3;
     transition: opacity 0.5s ease;
   }
@@ -202,20 +213,20 @@
   }
 
   .section-content {
-    text-align: center;
+    text-align: left;
     color: rgba(255, 255, 255, 0.95);
-    max-width: 600px;
-    padding: 40px;
-    background: rgba(0, 0, 0, 0.3);
-    border-radius: 20px;
+    max-width: 350px;
+    padding: 30px;
+    background: rgba(0, 0, 0, 0.4);
+    border-radius: 12px;
     backdrop-filter: blur(10px);
     pointer-events: auto;
     z-index: 10;
   }
 
   .section-content h1 {
-    font-size: 3.5rem;
-    margin: 0 0 20px 0;
+    font-size: 2rem;
+    margin: 0 0 15px 0;
     font-weight: 700;
     background: linear-gradient(135deg, #1db954, #00d9ff);
     -webkit-background-clip: text;
@@ -224,22 +235,22 @@
   }
 
   .section-content h2 {
-    font-size: 2.5rem;
-    margin: 0 0 15px 0;
+    font-size: 1.5rem;
+    margin: 0 0 12px 0;
     font-weight: 600;
     color: #00d9ff;
   }
 
   .section-content p {
-    font-size: 1.2rem;
+    font-size: 0.9rem;
     margin: 0;
     opacity: 0.8;
-    line-height: 1.6;
+    line-height: 1.5;
   }
 
   .scroll-hint {
-    margin-top: 30px;
-    font-size: 1rem;
+    margin-top: 20px;
+    font-size: 0.85rem;
     opacity: 0.6;
     animation: bounce 2s infinite;
   }
@@ -262,11 +273,11 @@
   /* Responsive */
   @media (max-width: 768px) {
     .section-content h1 {
-      font-size: 2.5rem;
+      font-size: 1.5rem;
     }
 
     .section-content h2 {
-      font-size: 1.8rem;
+      font-size: 1.2rem;
     }
 
     .section-content p {

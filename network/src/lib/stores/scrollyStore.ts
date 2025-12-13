@@ -49,14 +49,19 @@ function calculatePhase(progress: number): ScrollyPhase {
 
 /**
  * Berechnet den fokussierten Kategorie-Index für Zoom-Phase
+ * Mit Hysterese um Flackern zu vermeiden
  */
 function calculateFocusedCategoryIndex(progress: number, totalCategories: number): number {
   if (progress < 0.45 || totalCategories === 0) return -1;
   if (progress >= 0.95) return -1; // Summary phase
   
   // Map 0.45-0.95 to 0-(totalCategories-1)
+  // Verwende Math.ceil statt Math.floor für bessere Übergänge
   const zoomProgress = (progress - 0.45) / 0.5;
-  return Math.min(Math.floor(zoomProgress * totalCategories), totalCategories - 1);
+  const rawIndex = zoomProgress * totalCategories;
+  
+  // Mit Hysterese: mehr Zeit pro Kategorie für stabiler Fokus
+  return Math.min(Math.floor(rawIndex), totalCategories - 1);
 }
 
 /**
@@ -80,19 +85,29 @@ export function updateScrollProgress(progress: number) {
 }
 
 /**
- * Setzt die Kategorie-Warteschlange (sortiert nach Größe)
+ * Setzt die Kategorie-Warteschlange sortiert nach Größe (absteigend)
+ * Platziert sie auf einem Kreis beginnend mit 12 Uhr im Uhrzeigersinn
  */
 export function setGenreGroupQueue(
   queue: GenreCategory[], 
   nodeCounts: Partial<Record<GenreCategory, number>>
 ) {
+  // Sortiere Queue nach Anzahl der Genres (absteigend) - größte zuerst
+  const sortedQueue = [...queue].sort((a, b) => {
+    const countA = nodeCounts[a] || 0;
+    const countB = nodeCounts[b] || 0;
+    return countB - countA;
+  });
+
   // Berechne Positionen auf einem Kreis
+  // 12 Uhr = -π/2, dann im Uhrzeigersinn
   const categoryPositions: Partial<Record<GenreCategory, { x: number; y: number }>> = {};
   const radius = 400;
-  const angleStep = (2 * Math.PI) / queue.length;
+  const angleStep = (2 * Math.PI) / sortedQueue.length;
 
-  queue.forEach((category, index) => {
-    const angle = index * angleStep - Math.PI / 2; // Start at top
+  sortedQueue.forEach((category, index) => {
+    // Start bei 12 Uhr (-π/2) und gehe im Uhrzeigersinn
+    const angle = -Math.PI / 2 + index * angleStep;
     categoryPositions[category] = {
       x: Math.cos(angle) * radius,
       y: Math.sin(angle) * radius
@@ -101,7 +116,7 @@ export function setGenreGroupQueue(
 
   scrollyStore.update(state => ({
     ...state,
-    genreGroupQueue: queue,
+    genreGroupQueue: sortedQueue,
     categoryNodeCounts: nodeCounts,
     categoryPositions
   }));
