@@ -1,0 +1,14 @@
+{
+  "name": "c7c4e3821cdfff8a",
+  "main": "c7c4e3821cdfff8a@1515.js",
+  "version": "1515.0.0",
+  "homepage": "https://observablehq.com/d/c7c4e3821cdfff8a",
+  "author": {
+    "name": "Information Design ",
+    "url": "https://observablehq.com/@information-design13"
+  },
+  "type": "module",
+  "peerDependencies": {
+    "@observablehq/runtime": "4 - 5"
+  }
+}

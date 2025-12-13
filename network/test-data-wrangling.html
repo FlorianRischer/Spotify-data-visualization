@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Data Wrangling Test</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #1a1a2e;
+      color: #eee;
+    }
+    h1 { color: #1DB954; }
+    h2 { color: #667eea; border-bottom: 2px solid #667eea; padding-bottom: 10px; }
+    .test-section {
+      background: #16213e;
+      border-radius: 12px;
+      padding: 20px;
+      margin: 20px 0;
+    }
+    .success { color: #1DB954; }
+    .error { color: #e74c3c; }
+    .info { color: #3498db; }
+    pre {
+      background: #0f0f23;
+      padding: 15px;
+      border-radius: 8px;
+      overflow-x: auto;
+      font-size: 13px;
+    }
+    button {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 16px;
+      margin: 5px;
+    }
+    button:hover { opacity: 0.9; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    #log {
+      background: #0f0f23;
+      padding: 15px;
+      border-radius: 8px;
+      max-height: 400px;
+      overflow-y: auto;
+      font-family: monospace;
+      font-size: 13px;
+    }
+    .log-entry { margin: 5px 0; padding: 5px; border-left: 3px solid #667eea; padding-left: 10px; }
+  </style>
+</head>
+<body>
+  <h1>🎵 Data Wrangling Test</h1>
+  
+  <div class="test-section">
+    <h2>📦 Test Controls</h2>
+    <button onclick="runAllTests()">🚀 Alle Tests ausführen</button>
+    <button onclick="testDataLoading()">📂 Daten laden</button>
+    <button onclick="testArtistAnalysis()">🎤 Artist Analyse</button>
+    <button onclick="testTimeAnalysis()">⏰ Zeit Analyse</button>
+    <button onclick="testSpotifyAPI()">🎧 Spotify API (Genre)</button>
+    <button onclick="clearLog()">🗑️ Log leeren</button>
+  </div>
+
+  <div class="test-section">
+    <h2>📋 Test Log</h2>
+    <div id="log"></div>
+  </div>
+
+  <div class="test-section">
+    <h2>📊 Ergebnisse</h2>
+    <div id="results"></div>
+  </div>
+
+  <script type="module">
+    // Import der Funktionen
+    import {
+      getSpotifyToken,
+      searchArtist,
+      getArtistIds,
+      getArtists,
+      getUniqueArtists,
+      getArtistSongsAnalysis,
+      getGenreAnalysis,
+      getGenrePlotData,
+      getArtistGenreTable,
+      getGenreConnections,
+      getTopGenres,
+      getFilteredConnections,
+      getGenreNodes,
+      getTimeAnalysis,
+      getYearAnalysis,
+      getFilteredDailyData,
+      loadAllData,
+      createDatasets
+    } from './dataWrangling.js';
+
+    // Globale Variablen für Tests
+    let allData = [];
+    let spotifyToken = null;
+    let artistsWithGenres = [];
+
+    // Log Funktion
+    function log(message, type = 'info') {
+      const logDiv = document.getElementById('log');
+      const entry = document.createElement('div');
+      entry.className = `log-entry ${type}`;
+      entry.innerHTML = `[${new Date().toLocaleTimeString()}] ${message}`;
+      logDiv.appendChild(entry);
+      logDiv.scrollTop = logDiv.scrollHeight;
+    }
+
+    // Results anzeigen
+    function showResults(title, data) {
+      const resultsDiv = document.getElementById('results');
+      resultsDiv.innerHTML += `
+        <h3>${title}</h3>
+        <pre>${JSON.stringify(data, null, 2)}</pre>
+      `;
+    }
+
+    // Clear Log
+    window.clearLog = function() {
+      document.getElementById('log').innerHTML = '';
+      document.getElementById('results').innerHTML = '';
+    }
+
+    // Test: Daten laden
+    window.testDataLoading = async function() {
+      log('📂 Starte Daten-Ladetest...', 'info');
+      
+      try {
+        // Lade eine JSON Datei direkt
+        const response = await fetch('./spotify-data/Streaming_History_Audio_2025_11.json');
+        const data = await response.json();
+        allData = data;
+        
+        log(`✅ ${data.length} Tracks geladen`, 'success');
+        
+        // Test getArtists
+        const artists = getArtists(data);
+        log(`✅ getArtists(): ${artists.length} unique Artists gefunden`, 'success');
+        
+        // Test getUniqueArtists
+        const uniqueArtists = getUniqueArtists(data);
+        log(`✅ getUniqueArtists(): ${uniqueArtists.length} unique Artists`, 'success');
+        
+        // Zeige Beispiel-Daten
+        showResults('Beispiel Track', data[0]);
+        showResults('Top 5 Artists (nach Song-Anzahl)', 
+          artists.sort((a, b) => b.songs.length - a.songs.length).slice(0, 5).map(a => ({
+            artist: a.artist,
+            songCount: a.songs.length
+          }))
+        );
+        
+        return true;
+      } catch (error) {
+        log(`❌ Fehler: ${error.message}`, 'error');
+        return false;
+      }
+    }
+
+    // Test: Artist Analyse
+    window.testArtistAnalysis = async function() {
+      log('🎤 Starte Artist Analyse...', 'info');
+      
+      if (allData.length === 0) {
+        log('⚠️ Keine Daten geladen. Lade zuerst Daten...', 'error');
+        await testDataLoading();
+      }
+      
+      try {
+        const artists = getArtists(allData);
+        const analysis = getArtistSongsAnalysis(artists, allData);
+        
+        log(`✅ getArtistSongsAnalysis(): ${analysis.length} Artists analysiert`, 'success');
+        
+        // Top 5 Artists
+        const top5 = analysis.slice(0, 5).map(a => ({
+          artist: a.artist,
+          totalPlays: a.totalPlays,
+          totalSongs: a.totalSongs,
+          topSong: a.topSongs[0]?.title
+        }));
+        
+        showResults('Top 5 Artists nach Plays', top5);
+        
+        return true;
+      } catch (error) {
+        log(`❌ Fehler: ${error.message}`, 'error');
+        return false;
+      }
+    }
+
+    // Test: Zeit Analyse
+    window.testTimeAnalysis = async function() {
+      log('⏰ Starte Zeit Analyse...', 'info');
+      
+      if (allData.length === 0) {
+        log('⚠️ Keine Daten geladen. Lade zuerst Daten...', 'error');
+        await testDataLoading();
+      }
+      
+      try {
+        // Test getTimeAnalysis (24h)
+        const timeAnalysis = getTimeAnalysis(allData);
+        log(`✅ getTimeAnalysis(): 24h Analyse erstellt`, 'success');
+        
+        // Finde Peak Hour
+        const peakHour = timeAnalysis.reduce((max, h) => 
+          h.trackCount > max.trackCount ? h : max, timeAnalysis[0]
+        );
+        log(`📊 Peak Hour: ${peakHour.hourLabel} mit ${peakHour.trackCount} Tracks`, 'info');
+        
+        // Test getYearAnalysis
+        const yearAnalysis = getYearAnalysis(allData);
+        log(`✅ getYearAnalysis(): ${yearAnalysis.totalDays} Tage analysiert`, 'success');
+        log(`📅 Zeitraum: ${yearAnalysis.dateRange.start?.toLocaleDateString()} - ${yearAnalysis.dateRange.end?.toLocaleDateString()}`, 'info');
+        
+        // Test getFilteredDailyData
+        const filtered = getFilteredDailyData(yearAnalysis.daily, 7);
+        log(`✅ getFilteredDailyData(): ${filtered.length} Tage gefiltert`, 'success');
+        
+        showResults('24h Analyse (Auszug)', timeAnalysis.slice(8, 14));
+        showResults('Year Stats', yearAnalysis.stats);
+        
+        return true;
+      } catch (error) {
+        log(`❌ Fehler: ${error.message}`, 'error');
+        return false;
+      }
+    }
+
+    // Test: Spotify API
+    window.testSpotifyAPI = async function() {
+      log('🎧 Starte Spotify API Test...', 'info');
+      
+      if (allData.length === 0) {
+        await testDataLoading();
+      }
+      
+      try {
+        // Token holen
+        log('🔑 Hole Spotify Token...', 'info');
+        spotifyToken = await getSpotifyToken();
+        log(`✅ Token erhalten: ${spotifyToken.substring(0, 30)}...`, 'success');
+        
+        // Suche einen Artist
+        const testArtist = 'Drake';
+        log(`🔍 Suche Artist: ${testArtist}`, 'info');
+        const artistInfo = await searchArtist(testArtist, spotifyToken);
+        
+        if (artistInfo) {
+          log(`✅ Artist gefunden: ${artistInfo.name}`, 'success');
+          log(`🎭 Genres: ${artistInfo.genres.join(', ')}`, 'info');
+          showResults(`Artist Info: ${testArtist}`, artistInfo);
+        }
+        
+        // Hole IDs für erste 5 unique Artists
+        const uniqueArtists = getUniqueArtists(allData).slice(0, 5);
+        log(`🔄 Hole Genre-Infos für ${uniqueArtists.length} Artists...`, 'info');
+        
+        artistsWithGenres = await getArtistIds(uniqueArtists, spotifyToken);
+        log(`✅ ${artistsWithGenres.length} Artists mit Genres gefunden`, 'success');
+        
+        // Genre Analyse
+        if (artistsWithGenres.length > 0) {
+          const genreAnalysis = getGenreAnalysis(artistsWithGenres);
+          log(`✅ getGenreAnalysis(): ${genreAnalysis.totalGenres} unique Genres`, 'success');
+          
+          showResults('Artists mit Genres', artistsWithGenres.map(a => ({
+            name: a.originalName,
+            genres: a.genres || []
+          })));
+          
+          showResults('Top Genres', genreAnalysis.topGenres.slice(0, 10));
+        }
+        
+        return true;
+      } catch (error) {
+        log(`❌ Fehler: ${error.message}`, 'error');
+        console.error(error);
+        return false;
+      }
+    }
+
+    // Alle Tests
+    window.runAllTests = async function() {
+      clearLog();
+      log('🚀 Starte alle Tests...', 'info');
+      
+      const results = {
+        dataLoading: await testDataLoading(),
+        artistAnalysis: await testArtistAnalysis(),
+        timeAnalysis: await testTimeAnalysis(),
+        spotifyAPI: await testSpotifyAPI()
+      };
+      
+      log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'info');
+      log('📊 TEST ZUSAMMENFASSUNG:', 'info');
+      Object.entries(results).forEach(([test, passed]) => {
+        log(`${passed ? '✅' : '❌'} ${test}: ${passed ? 'PASSED' : 'FAILED'}`, passed ? 'success' : 'error');
+      });
+    }
+
+    // Initial Log
+    log('👋 Bereit zum Testen! Klicke auf einen Button um zu starten.', 'info');
+  </script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+node_modules
+build
+dist
+.vercel
+.env
+.svelte-kit
+.vscode
+.DS_Store
+
+/../generated/prisma

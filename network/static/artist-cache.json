@@ -1,0 +1,3 @@
+{
+  "_info": "Diese Datei wird automatisch mit Artist-Genre-Daten gefüllt. Führe scripts/precompute-genres.js aus um sie zu generieren, oder exportiere den Browser-Cache mit scripts/export-cache-to-json.js"
+}

@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Spotify Genre Pie Chart</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      min-height: 100vh;
+      color: #eee;
+      padding: 40px 20px;
+    }
+    
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    
+    header {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+    
+    h1 {
+      font-size: 2.5rem;
+      color: #1DB954;
+      margin-bottom: 10px;
+    }
+    
+    .subtitle {
+      color: #888;
+      font-size: 1.1rem;
+    }
+    
+    .chart-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 40px;
+      justify-content: center;
+      align-items: flex-start;
+    }
+    
+    .pie-wrapper {
+      background: rgba(22, 33, 62, 0.8);
+      border-radius: 20px;
+      padding: 30px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    }
+    
+    #pie-chart {
+      display: block;
+    }
+    
+    .legend-container {
+      background: rgba(22, 33, 62, 0.8);
+      border-radius: 20px;
+      padding: 30px;
+      min-width: 350px;
+      max-height: 600px;
+      overflow-y: auto;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    }
+    
+    .legend-title {
+      font-size: 1.3rem;
+      color: #667eea;
+      margin-bottom: 20px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid #667eea;
+    }
+    
+    .legend-item {
+      display: flex;
+      align-items: center;
+      padding: 10px 12px;
+      margin: 5px 0;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    
+    .legend-item:hover {
+      background: rgba(102, 126, 234, 0.2);
+      transform: translateX(5px);
+    }
+    
+    .legend-item.active {
+      background: rgba(102, 126, 234, 0.3);
+      border-left: 4px solid #1DB954;
+    }
+    
+    .legend-color {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      margin-right: 15px;
+      flex-shrink: 0;
+    }
+    
+    .legend-info {
+      flex: 1;
+    }
+    
+    .legend-name {
+      font-weight: 600;
+      font-size: 0.95rem;
+      text-transform: capitalize;
+    }
+    
+    .legend-stats {
+      font-size: 0.8rem;
+      color: #888;
+      margin-top: 3px;
+    }
+    
+    .legend-percentage {
+      font-weight: bold;
+      color: #1DB954;
+      margin-left: 10px;
+      font-size: 0.95rem;
+    }
+    
+    /* Tooltip */
+    .tooltip {
+      position: absolute;
+      background: rgba(15, 15, 35, 0.95);
+      border: 1px solid #667eea;
+      border-radius: 12px;
+      padding: 15px 20px;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.2s;
+      z-index: 1000;
+      min-width: 200px;
+      box-shadow: 0 5px 20px rgba(0, 0, 0, 0.4);
+    }
+    
+    .tooltip-title {
+      font-size: 1.1rem;
+      font-weight: bold;
+      color: #1DB954;
+      text-transform: capitalize;
+      margin-bottom: 10px;
+    }
+    
+    .tooltip-stat {
+      display: flex;
+      justify-content: space-between;
+      margin: 5px 0;
+      font-size: 0.9rem;
+    }
+    
+    .tooltip-label {
+      color: #888;
+    }
+    
+    .tooltip-value {
+      color: #fff;
+      font-weight: 600;
+    }
+    
+    /* Loading State */
+    .loading {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 400px;
+      color: #888;
+    }
+    
+    .spinner {
+      width: 60px;
+      height: 60px;
+      border: 4px solid rgba(102, 126, 234, 0.3);
+      border-top-color: #1DB954;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-bottom: 20px;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    /* Status Info */
+    .status-bar {
+      background: rgba(22, 33, 62, 0.8);
+      border-radius: 12px;
+      padding: 15px 25px;
+      margin-bottom: 30px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 30px;
+      justify-content: center;
+    }
+    
+    .status-item {
+      text-align: center;
+    }
+    
+    .status-value {
+      font-size: 1.5rem;
+      font-weight: bold;
+      color: #1DB954;
+    }
+    
+    .status-label {
+      font-size: 0.85rem;
+      color: #888;
+    }
+    
+    /* Scrollbar styling */
+    .legend-container::-webkit-scrollbar {
+      width: 8px;
+    }
+    
+    .legend-container::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 4px;
+    }
+    
+    .legend-container::-webkit-scrollbar-thumb {
+      background: #667eea;
+      border-radius: 4px;
+    }
+    
+    .legend-container::-webkit-scrollbar-thumb:hover {
+      background: #764ba2;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🎵 Genre Distribution</h1>
+      <p class="subtitle">Deine Spotify-Hörgewohnheiten nach Genre visualisiert</p>
+    </header>
+    
+    <div class="status-bar" id="status-bar">
+      <div class="status-item">
+        <div class="status-value" id="total-hours">--</div>
+        <div class="status-label">Stunden gehört</div>
+      </div>
+      <div class="status-item">
+        <div class="status-value" id="total-tracks">--</div>
+        <div class="status-label">Tracks gespielt</div>
+      </div>
+      <div class="status-item">
+        <div class="status-value" id="total-genres">--</div>
+        <div class="status-label">Genres</div>
+      </div>
+      <div class="status-item">
+        <div class="status-value" id="total-artists">--</div>
+        <div class="status-label">Artists mit Genres</div>
+      </div>
+    </div>
+    
+    <div class="chart-container">
+      <div class="pie-wrapper">
+        <div id="chart-area">
+          <div class="loading">
+            <div class="spinner"></div>
+            <p>Lade Daten & hole Genre-Informationen...</p>
+            <p style="font-size: 0.8rem; margin-top: 10px;" id="loading-status">Initialisiere...</p>
+          </div>
+        </div>
+      </div>
+      
+      <div class="legend-container" id="legend-container">
+        <h3 class="legend-title">🎭 Top 15 Genres</h3>
+        <div id="legend"></div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="tooltip" id="tooltip"></div>
+  
+  <script type="module">
+    import {
+      getSpotifyToken,
+      getArtistIds,
+      getUniqueArtists,
+      getGenreAnalysis,
+      getGenrePlotData,
+      loadAllData
+    } from './dataWrangling.js';
+    
+    // Konfiguration
+    const CONFIG = {
+      width: 500,
+      height: 500,
+      innerRadius: 80,
+      outerRadius: 220,
+      labelRadius: 250,
+      colors: [
+        '#1DB954', '#667eea', '#764ba2', '#f093fb', '#f5576c',
+        '#4facfe', '#00f2fe', '#43e97b', '#fa709a', '#fee140',
+        '#30cfd0', '#c471f5', '#6a11cb', '#2575fc', '#ff6b6b'
+      ]
+    };
+    
+    // Globale Variablen
+    let genreData = [];
+    let allData = [];
+    
+    // Update Loading Status
+    function updateLoadingStatus(message) {
+      const statusEl = document.getElementById('loading-status');
+      if (statusEl) statusEl.textContent = message;
+    }
+    
+    // Lade alle Spotify JSON Dateien
+    async function loadSpotifyData() {
+      const files = [
+        './spotify-data/Streaming_History_Audio_2018-2020_0.json',
+        './spotify-data/Streaming_History_Audio_2020-2021_1.json',
+        './spotify-data/Streaming_History_Audio_2021_2.json',
+        './spotify-data/Streaming_History_Audio_2021_3.json',
+        './spotify-data/Streaming_History_Audio_2021-2022_4.json',
+        './spotify-data/Streaming_History_Audio_2022_5.json',
+        './spotify-data/Streaming_History_Audio_2022-2023_6.json',
+        './spotify-data/Streaming_History_Audio_2023_7.json',
+        './spotify-data/Streaming_History_Audio_2023-2024_8.json',
+        './spotify-data/Streaming_History_Audio_2024_9.json',
+        './spotify-data/Streaming_History_Audio_2024-2025_10.json',
+        './spotify-data/Streaming_History_Audio_2025_11.json'
+      ];
+      
+      updateLoadingStatus('Lade Streaming History...');
+      return await loadAllData(files);
+    }
+    
+    // Verarbeite Daten und erstelle Genre-Statistiken
+    async function processGenreData(data) {
+      updateLoadingStatus('Hole Spotify Token...');
+      const token = await getSpotifyToken();
+      
+      updateLoadingStatus('Extrahiere unique Artists...');
+      const uniqueArtists = getUniqueArtists(data);
+      console.log(`${uniqueArtists.length} unique Artists gefunden`);
+      
+      // Limitiere Artists für schnelleres Laden (kann erhöht werden)
+      const artistsToFetch = uniqueArtists.slice(0, 200);
+      updateLoadingStatus(`Hole Genre-Infos für ${artistsToFetch.length} Artists...`);
+      
+      const artistsWithGenres = await getArtistIds(artistsToFetch, token);
+      console.log(`${artistsWithGenres.length} Artists mit Genres gefunden`);
+      
+      updateLoadingStatus('Analysiere Genres...');
+      const genreAnalysis = getGenreAnalysis(artistsWithGenres);
+      const genrePlotData = getGenrePlotData(data, genreAnalysis);
+      
+      return {
+        plotData: genrePlotData,
+        analysis: genreAnalysis,
+        artistCount: artistsWithGenres.length
+      };
+    }
+    
+    // Erstelle den Pie Chart
+    function createPieChart(data) {
+      const { width, height, innerRadius, outerRadius, colors } = CONFIG;
+      
+      // Entferne Loading
+      document.getElementById('chart-area').innerHTML = '';
+      
+      // Erstelle SVG
+      const svg = d3.select('#chart-area')
+        .append('svg')
+        .attr('id', 'pie-chart')
+        .attr('width', width)
+        .attr('height', height)
+        .append('g')
+        .attr('transform', `translate(${width / 2}, ${height / 2})`);
+      
+      // Berechne Gesamtstunden für Prozentberechnung
+      const totalHours = d3.sum(data, d => d.totalHours);
+      
+      // Pie Generator
+      const pie = d3.pie()
+        .value(d => d.totalHours)
+        .sort(null)
+        .padAngle(0.02);
+      
+      // Arc Generator
+      const arc = d3.arc()
+        .innerRadius(innerRadius)
+        .outerRadius(outerRadius)
+        .cornerRadius(4);
+      
+      // Hover Arc (größer)
+      const arcHover = d3.arc()
+        .innerRadius(innerRadius - 5)
+        .outerRadius(outerRadius + 15)
+        .cornerRadius(6);
+      
+      // Color Scale
+      const color = d3.scaleOrdinal()
+        .domain(data.map(d => d.genre))
+        .range(colors);
+      
+      // Tooltip
+      const tooltip = d3.select('#tooltip');
+      
+      // Erstelle Pie Segmente
+      const arcs = svg.selectAll('.arc')
+        .data(pie(data))
+        .enter()
+        .append('g')
+        .attr('class', 'arc');
+      
+      // Pfade
+      arcs.append('path')
+        .attr('d', arc)
+        .attr('fill', d => color(d.data.genre))
+        .attr('stroke', '#1a1a2e')
+        .attr('stroke-width', 2)
+        .style('cursor', 'pointer')
+        .style('transition', 'all 0.3s ease')
+        .on('mouseover', function(event, d) {
+          // Vergrößere Segment
+          d3.select(this)
+            .transition()
+            .duration(200)
+            .attr('d', arcHover);
+          
+          // Zeige Tooltip
+          const percentage = ((d.data.totalHours / totalHours) * 100).toFixed(1);
+          tooltip
+            .style('opacity', 1)
+            .style('left', (event.pageX + 15) + 'px')
+            .style('top', (event.pageY - 10) + 'px')
+            .html(`
+              <div class="tooltip-title">${d.data.genre}</div>
+              <div class="tooltip-stat">
+                <span class="tooltip-label">Hörzeit:</span>
+                <span class="tooltip-value">${d.data.totalHours.toFixed(1)} Stunden</span>
+              </div>
+              <div class="tooltip-stat">
+                <span class="tooltip-label">Tracks:</span>
+                <span class="tooltip-value">${d.data.trackCount.toLocaleString()}</span>
+              </div>
+              <div class="tooltip-stat">
+                <span class="tooltip-label">Anteil:</span>
+                <span class="tooltip-value">${percentage}%</span>
+              </div>
+              <div class="tooltip-stat">
+                <span class="tooltip-label">Ø pro Track:</span>
+                <span class="tooltip-value">${d.data.avgMinutesPerTrack.toFixed(1)} min</span>
+              </div>
+            `);
+          
+          // Highlight Legend Item
+          d3.selectAll('.legend-item')
+            .classed('active', false);
+          d3.select(`#legend-${d.data.genre.replace(/\s+/g, '-')}`)
+            .classed('active', true);
+        })
+        .on('mousemove', function(event) {
+          tooltip
+            .style('left', (event.pageX + 15) + 'px')
+            .style('top', (event.pageY - 10) + 'px');
+        })
+        .on('mouseout', function() {
+          d3.select(this)
+            .transition()
+            .duration(200)
+            .attr('d', arc);
+          
+          tooltip.style('opacity', 0);
+          
+          d3.selectAll('.legend-item')
+            .classed('active', false);
+        });
+      
+      // Center Text
+      svg.append('text')
+        .attr('text-anchor', 'middle')
+        .attr('dy', '-0.5em')
+        .attr('fill', '#888')
+        .attr('font-size', '14px')
+        .text('Gesamt');
+      
+      svg.append('text')
+        .attr('text-anchor', 'middle')
+        .attr('dy', '1em')
+        .attr('fill', '#1DB954')
+        .attr('font-size', '24px')
+        .attr('font-weight', 'bold')
+        .text(`${totalHours.toFixed(0)}h`);
+      
+      // Erstelle Legende
+      createLegend(data, color, totalHours);
+      
+      return { svg, arc, arcHover, color, totalHours };
+    }
+    
+    // Erstelle Legende
+    function createLegend(data, color, totalHours) {
+      const legendContainer = d3.select('#legend');
+      legendContainer.html('');
+      
+      data.forEach((d, i) => {
+        const percentage = ((d.totalHours / totalHours) * 100).toFixed(1);
+        
+        const item = legendContainer.append('div')
+          .attr('class', 'legend-item')
+          .attr('id', `legend-${d.genre.replace(/\s+/g, '-')}`)
+          .on('mouseover', function() {
+            // Highlight entsprechendes Pie Segment
+            d3.selectAll('.arc path')
+              .style('opacity', 0.4);
+            d3.selectAll('.arc path')
+              .filter(arcData => arcData.data.genre === d.genre)
+              .style('opacity', 1)
+              .attr('transform', 'scale(1.05)');
+          })
+          .on('mouseout', function() {
+            d3.selectAll('.arc path')
+              .style('opacity', 1)
+              .attr('transform', 'scale(1)');
+          });
+        
+        item.append('div')
+          .attr('class', 'legend-color')
+          .style('background-color', color(d.genre));
+        
+        const info = item.append('div')
+          .attr('class', 'legend-info');
+        
+        info.append('div')
+          .attr('class', 'legend-name')
+          .text(d.genre);
+        
+        info.append('div')
+          .attr('class', 'legend-stats')
+          .text(`${d.totalHours.toFixed(1)}h • ${d.trackCount.toLocaleString()} Tracks`);
+        
+        item.append('span')
+          .attr('class', 'legend-percentage')
+          .text(`${percentage}%`);
+      });
+    }
+    
+    // Update Status Bar
+    function updateStatusBar(data, analysis, artistCount) {
+      const totalHours = d3.sum(data, d => d.totalHours);
+      const totalTracks = d3.sum(data, d => d.trackCount);
+      
+      document.getElementById('total-hours').textContent = totalHours.toFixed(0);
+      document.getElementById('total-tracks').textContent = totalTracks.toLocaleString();
+      document.getElementById('total-genres').textContent = analysis.totalGenres;
+      document.getElementById('total-artists').textContent = artistCount;
+    }
+    
+    // Main Init
+    async function init() {
+      try {
+        // Lade Daten
+        allData = await loadSpotifyData();
+        console.log(`${allData.length} Tracks geladen`);
+        
+        // Verarbeite Genres
+        const { plotData, analysis, artistCount } = await processGenreData(allData);
+        genreData = plotData;
+        
+        console.log('Genre Plot Data:', genreData);
+        
+        // Erstelle Chart
+        createPieChart(genreData);
+        
+        // Update Status
+        updateStatusBar(genreData, analysis, artistCount);
+        
+      } catch (error) {
+        console.error('Fehler:', error);
+        document.getElementById('chart-area').innerHTML = `
+          <div class="loading">
+            <p style="color: #e74c3c;">❌ Fehler beim Laden der Daten</p>
+            <p style="font-size: 0.85rem; margin-top: 10px;">${error.message}</p>
+          </div>
+        `;
+      }
+    }
+    
+    // Start
+    init();
+  </script>
+</body>
+</html>
