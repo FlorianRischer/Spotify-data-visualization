@@ -93,20 +93,6 @@ export function renderGraph(
   ctx.translate(canvas.width / 2, canvas.height / 2);
   ctx.scale(dpr, dpr);
 
-  // Draw vinyl record with center hole
-  // Outer circle background (vinyl look)
-  ctx.fillStyle = "rgba(30, 30, 30, 0.3)";
-  ctx.beginPath();
-  ctx.arc(0, 0, 350, 0, Math.PI * 2);
-  ctx.fill();
-  
-  // Clear center hole (no fill, transparent)
-  ctx.clearRect(-25, -25, 50, 50);
-  ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
-  ctx.beginPath();
-  ctx.arc(0, 0, 25, 0, Math.PI * 2);
-  ctx.fill();
-
   // Genre groups visualization removed - only physics-based grouping
 
   // Draw edges if enabled

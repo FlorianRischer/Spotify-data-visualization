@@ -10,6 +10,8 @@ import type {
   GraphBuildOptions,
   GraphData
 } from "./types";
+import { getGenreCategory } from "./genreMapping";
+import { getCategoryColor } from "./categoryColors";
 
 const DEFAULT_OPTIONS: Required<Pick<GraphBuildOptions, "topK" | "sizeScale" | "minSize" | "maxSize">> = {
   topK: 3,
@@ -40,6 +42,11 @@ function buildNodes(genreStats: GenreStat[], opts: Required<typeof DEFAULT_OPTIO
   return genreStats.map((g) => {
     const base = Math.sqrt(g.totalMinutes) * opts.sizeScale;
     const size = clamp(base, opts.minSize, opts.maxSize);
+    const category = g.category || getGenreCategory(g.label);
+    
+    // Verwende kategoriebasierte Farbe wenn keine eigene Farbe definiert
+    const color = g.color || getCategoryColor(category);
+    
     return {
       id: g.id,
       label: g.label,
@@ -47,9 +54,10 @@ function buildNodes(genreStats: GenreStat[], opts: Required<typeof DEFAULT_OPTIO
       totalMinutes: g.totalMinutes,
       size,
       degree: 0,
-      color: g.color,
+      color,
       topArtist: g.topArtist,
-      topArtistMinutes: g.topArtistMinutes
+      topArtistMinutes: g.topArtistMinutes,
+      category
     };
   });
 }

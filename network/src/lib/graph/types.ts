@@ -11,6 +11,7 @@ export interface GenreStat {
   color?: string;
   topArtist?: string; // Name of artist with most time played in this genre
   topArtistMinutes?: number; // Minutes of the top artist
+  category?: string; // Genre category/group
 }
 
 export interface ArtistGenre {
@@ -36,6 +37,7 @@ export interface GenreNode {
   pinned?: boolean;
   topArtist?: string; // Name of artist with most time played in this genre
   topArtistMinutes?: number; // Minutes of the top artist
+  category?: string; // Genre category/group (e.g., "Hip Hop & Rap", "Electronic & Dance")
 }
 
 export interface GenreEdge {

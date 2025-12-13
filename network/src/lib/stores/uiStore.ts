@@ -95,9 +95,11 @@ export const CONFIG = {
 interface UIState {
   showArtistGroups: boolean; // Controls genre grouping visualization
   showConnections: boolean; // Controls edge visibility
+  showGenreGrouping: boolean; // Controls category-based genre clustering (activates genre anchors)
 }
 
 export const uiStore = writable<UIState>({
   showArtistGroups: false,
-  showConnections: false
+  showConnections: false,
+  showGenreGrouping: false
 });

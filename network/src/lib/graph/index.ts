@@ -4,6 +4,22 @@ export { computeLayout, computeForceLayout, computeTreeLayout, seedFromString } 
 export { renderGraph, hitTest } from "./renderer";
 export { transformSpotifyData, loadStreamingHistory, createDemoGraphInput } from "./dataLoader";
 export { sampleInput } from "./sampleData";
+export { createGenreAnchors, createCategoryBasedGenreAnchors, stepPhysics } from "./physics";
+export { 
+  getGenreCategory, 
+  getGenresByCategory, 
+  getAllCategories, 
+  createGenreCategoryMap,
+  GENRE_MAPPING 
+} from "./genreMapping";
+export {
+  getCategoryColor,
+  getCategoryColorLight,
+  getCategoryColorDark,
+  hexToRgba,
+  getCategoryColorScheme,
+  CATEGORY_COLORS
+} from "./categoryColors";
 
 // Types
 export type {
@@ -29,3 +45,16 @@ export type {
   LayoutResult,
   LayoutOptions
 } from "./layoutEngine";
+
+export type {
+  GenreAnchor
+} from "./physics";
+
+export type {
+  GenreCategory,
+  GenreInfo
+} from "./genreMapping";
+
+export type {
+  CategoryColorScheme
+} from "./categoryColors";

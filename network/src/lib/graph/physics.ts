@@ -1,5 +1,6 @@
 // Simple physics engine for genre nodes
 import type { GenreNode, GenreEdge, ArtistGroup } from "$lib/graph/types";
+import type { GenreCategory } from "$lib/graph/genreMapping";
 
 export interface PhysicsState {
   vx: Record<string, number>;
@@ -14,6 +15,14 @@ export interface PhysicsParams {
   jitter: number; // small random jitter to keep motion alive
   maxSpeed: number; // clamp velocity
   groupAttraction?: number; // strength of artist group attraction (optional)
+  genreAnchorStrength?: number; // strength of attraction to genre anchor points (0-1, 0=disabled)
+}
+
+// Genre-Ankerpunkte auf Kreis verteilt
+export interface GenreAnchor {
+  genreId: string;
+  x: number;
+  y: number;
 }
 
 export function createPhysicsState(nodeIds: string[]): PhysicsState {
@@ -26,6 +35,96 @@ export function createPhysicsState(nodeIds: string[]): PhysicsState {
   return { vx, vy };
 }
 
+/**
+ * Erstellt Ankerpunkte für Genres, die gleichmäßig auf einem Kreis verteilt sind
+ * Dies ermöglicht schnelle und eindeutige Genre-Gruppierungen
+ */
+export function createGenreAnchors(genreIds: string[], radius: number = 350): GenreAnchor[] {
+  const anchors: GenreAnchor[] = [];
+  const count = genreIds.length;
+  
+  for (let i = 0; i < count; i++) {
+    const angle = (i / count) * Math.PI * 2;
+    const x = Math.cos(angle) * radius;
+    const y = Math.sin(angle) * radius;
+    anchors.push({
+      genreId: genreIds[i],
+      x,
+      y
+    });
+  }
+  
+  return anchors;
+}
+
+/**
+ * Erstellt Ankerpunkte für Genres mit Kategorien-Clustering
+ * Genres in der gleichen Kategorie werden zusammen positioniert
+ * Die Kategorien sind gleichmäßig auf dem Kreis verteilt
+ */
+export function createCategoryBasedGenreAnchors(
+  nodes: GenreNode[],
+  radius: number = 350
+): GenreAnchor[] {
+  const anchors: GenreAnchor[] = [];
+  
+  // Gruppiere Genres nach Kategorie
+  const categoriesMap = new Map<string, GenreNode[]>();
+  
+  for (const node of nodes) {
+    const category = node.category || "Specialty & Other";
+    if (!categoriesMap.has(category)) {
+      categoriesMap.set(category, []);
+    }
+    categoriesMap.get(category)!.push(node);
+  }
+  
+  // Sortiere Kategorien für konsistente Positionen
+  const categories = Array.from(categoriesMap.keys()).sort();
+  const categoryCount = categories.length;
+  
+  // Position jede Kategorie auf dem Kreis
+  for (let catIdx = 0; catIdx < categoryCount; catIdx++) {
+    const categoryAngle = (catIdx / categoryCount) * Math.PI * 2;
+    const categoryX = Math.cos(categoryAngle) * radius;
+    const categoryY = Math.sin(categoryAngle) * radius;
+    
+    const category = categories[catIdx];
+    const genresInCategory = categoriesMap.get(category)!;
+    const genreCount = genresInCategory.length;
+    
+    // Positioniere Genres um ihre Kategorie-Position
+    // Bei nur einem Genre ist es genau auf dem Kreis
+    // Bei mehreren Genres bilden sie einen kleinen Cluster
+    const clusterRadius = Math.min(40, 200 / genreCount); // Kleinere Cluster für große Kategorien
+    
+    for (let genreIdx = 0; genreIdx < genreCount; genreIdx++) {
+      const genre = genresInCategory[genreIdx];
+      
+      if (genreCount === 1) {
+        // Einzelnes Genre: exakt auf dem Kreis
+        anchors.push({
+          genreId: genre.id,
+          x: categoryX,
+          y: categoryY
+        });
+      } else {
+        // Mehrere Genres: kleine Cluster um die Kategorie-Position
+        const angle = (genreIdx / genreCount) * Math.PI * 2;
+        const x = categoryX + Math.cos(angle) * clusterRadius;
+        const y = categoryY + Math.sin(angle) * clusterRadius;
+        anchors.push({
+          genreId: genre.id,
+          x,
+          y
+        });
+      }
+    }
+  }
+  
+  return anchors;
+}
+
 export function stepPhysics(
   nodes: GenreNode[],
   edges: GenreEdge[],
@@ -35,9 +134,10 @@ export function stepPhysics(
   params: PhysicsParams,
   dt = 1 / 60,
   bounds?: { width: number; height: number },
-  groups?: ArtistGroup[]
+  groups?: ArtistGroup[],
+  genreAnchors?: GenreAnchor[]
 ) {
-  const { repulsion, spring, restLength, damping, jitter, maxSpeed, groupAttraction = 0 } = params;
+  const { repulsion, spring, restLength, damping, jitter, maxSpeed, groupAttraction = 0, genreAnchorStrength = 0 } = params;
   
   // Node-node repulsion
   for (let i = 0; i < nodes.length; i++) {
@@ -142,6 +242,32 @@ export function stepPhysics(
         state.vx[genreId] += fx * dt;
         state.vy[genreId] += fy * dt;
       }
+    }
+  }
+  
+  // Genre anchor attraction (strong pull to predefined positions for fast grouping)
+  if (genreAnchorStrength > 0 && genreAnchors && genreAnchors.length > 0) {
+    const anchorMap = new Map(genreAnchors.map(a => [a.genreId, a]));
+    
+    for (const n of nodes) {
+      const anchor = anchorMap.get(n.id);
+      if (!anchor) continue;
+      
+      const pos = positions[n.id];
+      if (!pos) continue;
+      
+      const dx = anchor.x - pos.x;
+      const dy = anchor.y - pos.y;
+      const d = Math.sqrt(dx * dx + dy * dy) + 1e-6;
+      
+      // Strong attraction to anchor point - pulls node towards its genre position
+      // Force is proportional to distance for smooth approach
+      const forceMag = genreAnchorStrength * d * 0.5;
+      const fx = (dx / d) * forceMag;
+      const fy = (dy / d) * forceMag;
+      
+      state.vx[n.id] += fx * dt;
+      state.vy[n.id] += fy * dt;
     }
   }
   

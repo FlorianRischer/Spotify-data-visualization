@@ -22,7 +22,7 @@
     uiStore
   } from "$lib/stores/uiStore";
   import { renderGraph, hitTest, type RenderNode, type RenderEdge } from "./renderer";
-  import { stepPhysics, createPhysicsState } from "$lib/graph/physics";
+  import { stepPhysics, createPhysicsState, createGenreAnchors, createCategoryBasedGenreAnchors, type GenreAnchor } from "$lib/graph/physics";
   import { positions as positionsStore } from "$lib/stores";
 
   let canvas: HTMLCanvasElement;
@@ -43,6 +43,7 @@
   let rm = false;
   let animMap = new Map<string, { startTime: number; duration: number }>();
   let physicsState = createPhysicsState([]);
+  let genreAnchors: GenreAnchor[] = []; // Vordefinierte Genre-Positionen
   
   // Drag state
   let draggedNodeId: string | null = null;
@@ -53,6 +54,8 @@
   let startAnimationTime: number | null = null;
   let initialPositions: Record<string, { x: number; y: number }> | null = null;
   const START_ANIMATION_DURATION = 5000; // 5 seconds spiral + deceleration
+  const TRANSITION_DURATION = 3000; // 3 seconds smooth transition to physics
+  let transitionStartTime: number | null = null; // Startet wenn Animation endet
   
   const physicsParams = {
     repulsion: 180,  // moderiert für sanftere Abstoßung
@@ -61,7 +64,8 @@
     damping: 0.75,   // erhöhte Dämpfung für smootheres Schweben
     jitter: 0.05,    // deutlich weniger Jitter für glatte Bewegung
     maxSpeed: 2.2,   // etwas höher für freiere Bewegung
-    groupAttraction: 3.5 // stärkere Anziehung für schnellere Zusammenführung
+    groupAttraction: 3.5, // stärkere Anziehung für schnellere Zusammenführung
+    genreAnchorStrength: 2.5 // Starke Anziehung zu Genre-Ankerpunkten für schnelle Gruppierung
   } as const;
 
   function getSpiralPosition(
@@ -114,26 +118,43 @@
       // Fetch and mutate positions from store
       const pos = get(positionsStore);
       
-      // Handle start animation
+      // Handle start animation and smooth transition to physics
+      let transitionProgress = 0; // 0 = animation, 1 = full physics
+      
       if (startAnimationTime !== null) {
         const elapsed = performance.now() - startAnimationTime;
-        const progress = Math.min(1, elapsed / START_ANIMATION_DURATION);
+        const animProgress = Math.min(1, elapsed / START_ANIMATION_DURATION);
         
-        if (progress < 1) {
+        if (animProgress < 1) {
           // Still animating: apply spiral motion
           const centerX = 0;
           const centerY = 0;
           
           for (let i = 0; i < nodes.length; i++) {
             const nodeId = nodes[i].id;
-            const spiralPos = getSpiralPosition(centerX, centerY, i, nodes.length, progress);
+            const spiralPos = getSpiralPosition(centerX, centerY, i, nodes.length, animProgress);
             pos[nodeId] = spiralPos;
           }
+          // Reset physics state to prevent jerky movement during animation
+          physicsState = createPhysicsState(nodes.map(n => n.id));
         } else {
-          // Animation complete
+          // Animation complete - start smooth transition
           startAnimationTime = null;
           initialPositions = null;
+          transitionStartTime = performance.now();
         }
+      } else if (transitionStartTime !== null) {
+        // Smooth transition phase: gradually enable physics forces
+        const elapsed = performance.now() - transitionStartTime;
+        transitionProgress = Math.min(1, elapsed / TRANSITION_DURATION);
+        
+        if (transitionProgress >= 1) {
+          // Transition complete
+          transitionStartTime = null;
+        }
+      } else {
+        // Normal physics mode
+        transitionProgress = 1;
       }
       
       // Ensure physics state has all ids
@@ -151,10 +172,32 @@
       const graphState = get(graphData);
       const groups = uiState.showArtistGroups ? graphState?.groups : undefined;
       
-      stepPhysics(nodes, edges, pos, radii, physicsState, physicsParams, 1/60, {
+      // Erstelle kategoriebasierte Genre-Ankerpunkte nur wenn Toggle aktiv ist
+      // Ansonsten schweben Nodes frei herum (genreAnchors bleibt leer)
+      if (uiState.showGenreGrouping && genreAnchors.length === 0 && nodes.length > 0) {
+        // Genre-Gruppierung aktiviert: erstelle Ankerpunkte
+        genreAnchors = createCategoryBasedGenreAnchors(nodes as any, 350);
+      } else if (!uiState.showGenreGrouping && genreAnchors.length > 0) {
+        // Genre-Gruppierung deaktiviert: entferne Ankerpunkte
+        genreAnchors = [];
+      }
+      
+      // Angepasste Physics-Parameter für sanften Übergang
+      // Wenn Genre-Gruppierung aktiv ist: verwende genreAnchorStrength, sonst 0
+      const activeGenreAnchorStrength = uiState.showGenreGrouping ? physicsParams.genreAnchorStrength : 0;
+      
+      const transitionPhysicsParams = {
+        ...physicsParams,
+        // Erhöhe Damping während Übergang für sanftere Bewegung
+        damping: 0.75 + (1 - transitionProgress) * 0.15,
+        // Erhöhe genreAnchorStrength graduell während Übergang (nur wenn aktiv)
+        genreAnchorStrength: activeGenreAnchorStrength * transitionProgress
+      };
+      
+      stepPhysics(nodes, edges, pos, radii, physicsState, transitionPhysicsParams, 1/60, {
         width: canvas.width / dpr,
         height: canvas.height / dpr
-      }, groups);
+      }, groups, genreAnchors);
       // Persist positions back to store so derived edges update
       positionsStore.set(pos);
     }

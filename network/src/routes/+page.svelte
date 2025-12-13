@@ -20,8 +20,8 @@
   const CACHE_VERSION = "v1"; // Keep v1 to preserve existing user cache!
   const CACHE_VERSION_LEGACY = ["v1", "v2"]; // Accept both versions
   const MIN_ARTISTS_NEEDED = 50; // Minimum für den Graph
-  const FETCH_MORE_ARTISTS = true; // Wenn true, werden API calls gemacht um mehr Artists zu holen
-  const MAX_API_CALLS_PER_SESSION = 200; // Maximale API calls pro Session
+  const FETCH_MORE_ARTISTS = false; // Wenn true, werden API calls gemacht um mehr Artists zu holen
+  const MAX_API_CALLS_PER_SESSION = 5000; // Maximale API calls pro Session
 
   // -----------------------
   // Normalisierung (WICHTIG!)
@@ -331,94 +331,9 @@
 
     console.log(`📊 After builtin mappings: ${successCount} artists with genres`);
 
-    // 3) Prüfe ob ALLE fehlenden Artists in der precomputed Cache sind
-    const missing = uniqueArtists.filter((rawName) => !cache.has(normKey(rawName)));
-
-    // Wenn alle gefunden sind oder keine API-Calls gewünscht: FERTIG
-    if (missing.length === 0 || !FETCH_MORE_ARTISTS) {
-      console.log(`✅ All ${artistsWithGenres.length} artists have genres! No API calls needed.`);
-      saveLocalCache(cache);
-      return artistsWithGenres;
-    }
-
-    console.log(`⚠️ Missing ${missing.length} artists: ${missing.join(", ")}`);
-
-    // 4) Nur falls nötig: API-Calls für fehlende Artists
-    // Hole Token für API-Calls
-    let token: string | null = null;
-    try {
-      const tokenResponse = await fetch('/api/spotify-token');
-      if (tokenResponse.ok) {
-        const tokenData = await tokenResponse.json();
-        token = tokenData.access_token;
-        console.log('✅ Spotify token obtained for API calls');
-      }
-    } catch (e) {
-      console.warn('❌ Could not get Spotify token, skipping API calls');
-    }
-
-    if (!token) {
-      console.log("⚠️ No token available, cannot fetch from API");
-      saveLocalCache(cache);
-      return artistsWithGenres;
-    }
-
-    const limit = Math.min(missing.length, MAX_API_CALLS_PER_SESSION);
-    console.log(`📡 Fetching ${missing.length} missing artists via API (max ${limit})...`);
-
-    const DELAY_MS = 450;
-    let apiCalls = 0;
-    let rateLimitHits = 0;
-
-    for (const rawName of missing) {
-      if (apiCalls >= limit) {
-        console.log(`🛑 Reached max API calls (${limit})`);
-        break;
-      }
-
-      const progress = Math.round((apiCalls / limit) * 100);
-      loadingStatus = `Lade fehlende Genres von Spotify... ${apiCalls}/${limit} (${progress}%)`;
-
-      const result = await searchArtist(rawName, token);
-      apiCalls++;
-
-      if (result?.rateLimited) {
-        rateLimitHits++;
-
-        const waitMs = (result.retryAfter || 30) * 1000;
-        console.warn(`⚠️ Rate limited (${rateLimitHits}), waiting ${Math.round(waitMs / 1000)}s...`);
-        await new Promise((resolve) => setTimeout(resolve, waitMs));
-        // versuche danach weiter (kein notFound speichern!)
-        continue;
-      } else {
-        rateLimitHits = 0;
-      }
-
-      const key = normKey(rawName);
-
-      if (result?.id && Array.isArray(result.genres) && result.genres.length > 0) {
-        const artistData = { originalName: rawName, ...result };
-        artistsWithGenres.push(artistData);
-        cache.set(key, artistData);
-        successCount++;
-      } else {
-        // Negative caching
-        cache.set(key, { originalName: rawName, notFound: true });
-      }
-
-      // Periodisch speichern
-      if (apiCalls % 50 === 0) {
-        saveLocalCache(cache);
-        console.log(`💾 Checkpoint: ${successCount} artists with genres`);
-      }
-
-      await new Promise((resolve) => setTimeout(resolve, DELAY_MS));
-    }
-
-    // Final cache save
+    // ✅ API-Calls sind vollständig deaktiviert - nur gecachte Daten verwenden
+    console.log(`✅ Using cached data only. No API calls. Found ${artistsWithGenres.length} artists with genres.`);
     saveLocalCache(cache);
-
-    console.log(`✅ Final result: ${artistsWithGenres.length} artists with genres (apiCalls=${apiCalls})`);
     return artistsWithGenres;
   }
 

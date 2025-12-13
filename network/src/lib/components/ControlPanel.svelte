@@ -6,25 +6,25 @@
   $: edgeCount = $graphData?.edges.length ?? 0;
   $: visibleNodeCount = $visibleState?.nodes.size ?? 0;
   $: visibleEdgeCount = $visibleState?.edges.size ?? 0;
-  $: showArtistGroups = $uiStore.showArtistGroups ?? false;
   $: showConnections = $uiStore.showConnections ?? false;
+  $: showGenreGrouping = $uiStore.showGenreGrouping ?? false;
   
   function resetView() {
     // Trigger re-initialization if needed
     window.location.reload();
   }
   
-  function toggleArtistGroups() {
-    uiStore.update(state => ({
-      ...state,
-      showArtistGroups: !state.showArtistGroups
-    }));
-  }
-  
   function toggleConnections() {
     uiStore.update(state => ({
       ...state,
       showConnections: !state.showConnections
+    }));
+  }
+  
+  function toggleGenreGrouping() {
+    uiStore.update(state => ({
+      ...state,
+      showGenreGrouping: !state.showGenreGrouping
     }));
   }
   
@@ -48,11 +48,11 @@
   <div class="controls">
     <button 
       class="btn" 
-      class:active={showArtistGroups}
-      on:click={toggleArtistGroups}
-      title="Genre-Gruppen anzeigen"
+      class:active={showGenreGrouping}
+      on:click={toggleGenreGrouping}
+      title="Genres nach Kategorie gruppieren"
     >
-      🎵 Genre-Gruppen
+      📊 Genre Kategorien
     </button>
     <button 
       class="btn" 
