@@ -17,6 +17,7 @@ export interface RenderEdge extends GenreEdge {
 export interface RenderOptions {
   hoveredId: string | null;
   focusedId: string | null;
+  centeredNodeId?: string | null;
   showConnections: boolean;
   animatingNodes: Map<string, { startTime: number; duration: number }>;
   reducedMotion: boolean;
@@ -86,7 +87,7 @@ export function renderGraph(
   edges: RenderEdge[],
   options: RenderOptions
 ) {
-  const { hoveredId, focusedId, showConnections, animatingNodes, reducedMotion, dpr, now, groups } = options;
+  const { hoveredId, focusedId, centeredNodeId, showConnections, animatingNodes, reducedMotion, dpr, now, groups } = options;
   
   ctx.save();
   ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -125,32 +126,51 @@ export function renderGraph(
     
     const isHovered = hoveredId === n.id;
     const isFocused = focusedId === n.id;
-    const r = Math.max(8, n.size) * scale * 0.4;
+    const isCentered = centeredNodeId === n.id;
+    const hasCenteredNode = !!centeredNodeId;
+    
+    // Size multiplier for centered node
+    const sizeMultiplier = isCentered ? 2.5 : 1;
+    // Dim other nodes when one is centered
+    const dimFactor = hasCenteredNode && !isCentered ? 0.3 : 1;
+    
+    const r = Math.max(8, n.size) * scale * 0.4 * sizeMultiplier;
     const color = getNodeColor(n, i);
     
-    // Shadow/glow for hovered
-    if (isHovered && !reducedMotion) {
+    // Shadow/glow for hovered or centered
+    if ((isHovered || isCentered) && !reducedMotion) {
       ctx.beginPath();
-      ctx.fillStyle = `${color}44`;
-      ctx.arc(n.x / dpr, n.y / dpr, r + 12, 0, Math.PI * 2);
+      const glowSize = isCentered ? 25 : 12;
+      ctx.fillStyle = isCentered ? `${color}66` : `${color}44`;
+      ctx.arc(n.x / dpr, n.y / dpr, r + glowSize, 0, Math.PI * 2);
       ctx.fill();
     }
     
     // Main circle
     ctx.beginPath();
-    ctx.fillStyle = isHovered ? color : `rgba(223, 230, 255, ${opacity.toFixed(3)})`;
-    ctx.strokeStyle = `rgba(0,0,0,${(0.2 * opacity).toFixed(3)})`;
+    const nodeOpacity = opacity * dimFactor;
+    ctx.fillStyle = (isHovered || isCentered) ? color : `rgba(223, 230, 255, ${nodeOpacity.toFixed(3)})`;
+    ctx.strokeStyle = `rgba(0,0,0,${(0.2 * nodeOpacity).toFixed(3)})`;
     ctx.lineWidth = 1;
     ctx.arc(n.x / dpr, n.y / dpr, r, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
     
     // Hover ring
-    if (isHovered) {
+    if (isHovered && !isCentered) {
       ctx.beginPath();
       ctx.strokeStyle = `${color}aa`;
       ctx.lineWidth = 3;
       ctx.arc(n.x / dpr, n.y / dpr, r + 5, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    
+    // Centered node special ring
+    if (isCentered) {
+      ctx.beginPath();
+      ctx.strokeStyle = `${color}`;
+      ctx.lineWidth = 4;
+      ctx.arc(n.x / dpr, n.y / dpr, r + 8, 0, Math.PI * 2);
       ctx.stroke();
     }
     
@@ -174,10 +194,11 @@ export function renderGraph(
       ctx.setLineDash([]);
     }
     
-    // Label for larger or hovered nodes
-    if (r > 14 || isHovered) {
-      ctx.font = `${isHovered ? "bold " : ""}${Math.max(10, Math.min(14, r * 0.6))}px -apple-system, BlinkMacSystemFont, sans-serif`;
-      ctx.fillStyle = `rgba(255, 255, 255, ${(opacity * 0.9).toFixed(3)})`;
+    // Label for larger, hovered, or centered nodes
+    if (r > 14 || isHovered || isCentered) {
+      const fontSize = isCentered ? Math.max(16, Math.min(24, r * 0.5)) : Math.max(10, Math.min(14, r * 0.6));
+      ctx.font = `${(isHovered || isCentered) ? "bold " : ""}${fontSize}px -apple-system, BlinkMacSystemFont, sans-serif`;
+      ctx.fillStyle = `rgba(255, 255, 255, ${(opacity * dimFactor * 0.9).toFixed(3)})`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText(n.label, n.x / dpr, n.y / dpr + r + 14);

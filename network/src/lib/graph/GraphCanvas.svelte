@@ -21,6 +21,7 @@
     CONFIG,
     uiStore
   } from "$lib/stores/uiStore";
+  import { scrollyStore, setIntroComplete } from "$lib/stores/scrollyStore";
   import { renderGraph, hitTest, type RenderNode, type RenderEdge } from "./renderer";
   import { stepPhysics, createPhysicsState, createGenreAnchors, createCategoryBasedGenreAnchors, type GenreAnchor } from "$lib/graph/physics";
   import { positions as positionsStore } from "$lib/stores";
@@ -49,6 +50,17 @@
   let draggedNodeId: string | null = null;
   let dragOffset = { x: 0, y: 0 };
   let isDragging = false;
+  
+  // Camera state for scrolly-telling
+  let cameraZoom = 1;
+  let cameraX = 0;
+  let cameraY = 0;
+  
+  // Centered/focused node state
+  let centeredNodeId: string | null = null;
+  let centerAnimationStart: number | null = null;
+  let centerAnimationDuration = 800; // ms
+  let originalNodePosition: { x: number; y: number } | null = null;
   
   // Animation state
   let startAnimationTime: number | null = null;
@@ -198,12 +210,32 @@
         width: canvas.width / dpr,
         height: canvas.height / dpr
       }, groups, genreAnchors);
+      
+      // Animate centered node to center
+      if (centeredNodeId && centerAnimationStart !== null) {
+        const elapsed = performance.now() - centerAnimationStart;
+        const progress = Math.min(1, elapsed / centerAnimationDuration);
+        const eased = 1 - Math.pow(1 - progress, 3); // easeOutCubic
+        
+        if (originalNodePosition && pos[centeredNodeId]) {
+          // Interpolate to center (0, 0)
+          pos[centeredNodeId] = {
+            x: originalNodePosition.x * (1 - eased),
+            y: originalNodePosition.y * (1 - eased)
+          };
+          // Freeze velocity
+          physicsState.vx[centeredNodeId] = 0;
+          physicsState.vy[centeredNodeId] = 0;
+        }
+      }
+      
       // Persist positions back to store so derived edges update
       positionsStore.set(pos);
     }
     renderGraph(ctx, canvas, nodes, edges, {
       hoveredId,
       focusedId,
+      centeredNodeId,
       showConnections: get(uiStore).showConnections,
       animatingNodes: animMap,
       reducedMotion: rm,
@@ -351,12 +383,43 @@
   }
   
   function handleMouseUp(event: MouseEvent) {
-    // If we didn't actually drag, treat as click (pin toggle)
+    // If we didn't actually drag, treat as click
     if (draggedNodeId && !isDragging) {
-      togglePin(draggedNodeId);
+      // Toggle centered state
+      if (centeredNodeId === draggedNodeId) {
+        // Click on already centered node: uncenter
+        unCenterNode();
+      } else {
+        // Center this node
+        centerNode(draggedNodeId);
+      }
     }
     draggedNodeId = null;
     isDragging = false;
+  }
+  
+  function centerNode(nodeId: string) {
+    const pos = get(positionsStore);
+    const nodePos = pos[nodeId];
+    if (nodePos) {
+      originalNodePosition = { ...nodePos };
+      centeredNodeId = nodeId;
+      centerAnimationStart = performance.now();
+      focusedNodeId.set(nodeId);
+    }
+  }
+  
+  function unCenterNode() {
+    if (centeredNodeId && originalNodePosition) {
+      // Animate back to original position
+      const pos = get(positionsStore);
+      pos[centeredNodeId] = { ...originalNodePosition };
+      positionsStore.set(pos);
+    }
+    centeredNodeId = null;
+    centerAnimationStart = null;
+    originalNodePosition = null;
+    focusedNodeId.set(null);
   }
 
   function handleKeyDown(event: KeyboardEvent) {
@@ -437,6 +500,12 @@
     unsubs.push(focusedNodeId.subscribe((id) => { focusedId = id; }));
     unsubs.push(reducedMotion.subscribe((v) => { rm = v; }));
     unsubs.push(animatingNodes.subscribe((m) => { animMap = m; }));
+    // Subscribe to scrolly camera state
+    unsubs.push(scrollyStore.subscribe((state) => {
+      cameraZoom = state.cameraZoom;
+      cameraX = state.cameraX;
+      cameraY = state.cameraY;
+    }));
     
     // ResizeObserver
     const resizeObs = new ResizeObserver(() => {
@@ -460,30 +529,39 @@
   });
 </script>
 
-<canvas
-  bind:this={canvas}
-  tabindex="0"
-  aria-label="Musical Brain Activity Graph - Navigate with Tab, Enter to pin, Escape to exit"
-  on:mousemove={handleMouseMove}
-  on:mouseleave={handleMouseLeave}
-  on:mousedown={handleMouseDown}
-  on:mouseup={handleMouseUp}
-  on:keydown={handleKeyDown}
-  class="graph-canvas"
-></canvas>
+<div class="canvas-wrapper" style="--camera-zoom: {cameraZoom}; --camera-x: {cameraX}px; --camera-y: {cameraY}px;">
+  <canvas
+    bind:this={canvas}
+    tabindex="0"
+    aria-label="Musical Brain Activity Graph - Navigate with Tab, Enter to pin, Escape to exit"
+    on:mousemove={handleMouseMove}
+    on:mouseleave={handleMouseLeave}
+    on:mousedown={handleMouseDown}
+    on:mouseup={handleMouseUp}
+    on:keydown={handleKeyDown}
+    class="graph-canvas"
+  ></canvas>
+</div>
 
 <style>
+  .canvas-wrapper {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    flex: 1;
+  }
+
   .graph-canvas {
     width: 100%;
     height: 100%;
-    min-height: 500px;
     display: block;
-    background: linear-gradient(135deg, #0d1117 0%, #161b22 100%);
-    border-radius: 12px;
+    background: transparent;
     cursor: grab;
     outline: none;
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+    border: none;
+    transform: scale(var(--camera-zoom, 1)) translate(var(--camera-x, 0px), var(--camera-y, 0px));
+    transform-origin: center;
+    transition: transform 0.1s ease-out;
   }
   
   .graph-canvas:active {
@@ -491,6 +569,6 @@
   }
   
   .graph-canvas:focus {
-    box-shadow: 0 0 0 3px rgba(29, 185, 84, 0.4), 0 12px 30px rgba(0, 0, 0, 0.35);
+    box-shadow: 0 0 0 3px rgba(29, 185, 84, 0.4);
   }
 </style>

@@ -1,6 +1,8 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { GraphCanvas, ControlPanel, Tooltip } from "$lib/components";
+  import ScrollyContainer from "$lib/components/ScrollyContainer.svelte";
+  import ProgressIndicator from "$lib/components/ProgressIndicator.svelte";
   import { graphData, initVisible, setPositions } from "$lib/stores";
   import { uiStore } from "$lib/stores/uiStore";
   import { buildGraph, computeForceLayout, transformSpotifyData, loadStreamingHistory } from "$lib/graph";
@@ -515,16 +517,19 @@
       </div>
     </div>
   {:else}
-    <div class="layout">
-      <div class="controls">
-        <ControlPanel />
+    <ScrollyContainer>
+      <div class="layout">
+        <div class="controls">
+          <ControlPanel />
+        </div>
+
+        <section class="graph-container">
+          <GraphCanvas />
+        </section>
       </div>
-
-      <section class="graph-container">
-        <GraphCanvas />
-      </section>
-    </div>
-
+    </ScrollyContainer>
+    
+    <ProgressIndicator />
     <Tooltip />
   {/if}
 </main>
@@ -611,11 +616,9 @@
 
   .graph-container {
     flex: 1;
-    background: rgba(255, 255, 255, 0.02);
-    border-radius: 14px;
+    background: transparent;
     padding: 0;
     overflow: hidden;
-    min-height: 600px;
   }
 
   .loading-screen {
