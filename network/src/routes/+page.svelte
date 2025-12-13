@@ -29,30 +29,41 @@
   }
 
   /**
-   * Lädt vorberechnete Artist-Genre-Daten aus statischer JSON
+   * Lädt vorberechnete Artist-Genre-Daten aus /static/ (erste Wahl: die exportierte Datei)
+   * Fallback zu standard artist-cache.json
    * Dies ist die bevorzugte Methode laut PRD ("Vorberechnung")
    */
   async function loadPrecomputedCache(): Promise<Map<string, any>> {
-    try {
-      const response = await fetch("/artist-cache.json");
-      if (response.ok) {
-        const data = await response.json();
+    // Try /artist-cache-2025-12-13.json first (main exported cache)
+    const dataSources = [
+      "/artist-cache-2025-12-13.json",
+      "/artist-cache.json" // fallback to old cache
+    ];
 
-        // Filter out placeholder entries
-        const validEntries = Object.entries(data).filter(
-          ([key, val]: [string, any]) => key !== "_info" && val && typeof val === "object" && val.id
-        );
+    for (const source of dataSources) {
+      try {
+        const response = await fetch(source);
+        if (response.ok) {
+          const data = await response.json();
 
-        if (validEntries.length > 0) {
-          // Normalize keys
-          const normalizedEntries = validEntries.map(([key, val]) => [normKey(key), val]);
-          console.log("📂 Loaded precomputed cache with", normalizedEntries.length, "artists");
-          return new Map(normalizedEntries);
+          // Filter out placeholder entries
+          const validEntries = Object.entries(data).filter(
+            ([key, val]: [string, any]) => key !== "_info" && val && typeof val === "object" && val.id
+          );
+
+          if (validEntries.length > 0) {
+            // Normalize keys
+            const normalizedEntries: Array<[string, any]> = validEntries.map(([key, val]) => [normKey(key), val]);
+            console.log(`📂 Loaded precomputed cache from ${source} with`, normalizedEntries.length, "artists");
+            return new Map(normalizedEntries);
+          }
         }
+      } catch (e) {
+        console.log(`📂 Source ${source} not available`);
       }
-    } catch (e) {
-      console.log("📂 No precomputed cache available");
     }
+
+    console.log("📂 No precomputed cache available from any source");
     return new Map();
   }
 
@@ -74,7 +85,7 @@
           });
 
           // Normalize keys
-          const normalizedEntries = validEntries.map(([key, val]) => [normKey(key), val]);
+          const normalizedEntries: Array<[string, any]> = validEntries.map(([key, val]) => [normKey(key), val]);
 
           console.log("💾 Loaded", normalizedEntries.length, "artists from localStorage");
           return new Map(normalizedEntries);
@@ -100,6 +111,51 @@
       console.log("💾 Saved", cache.size, "artists to localStorage");
     } catch (e) {
       console.warn("Failed to save cache:", e);
+    }
+  }
+
+  /**
+   * Exportiert den lokalen Cache als artist-cache.json zum Download
+   * Kann dann in /static/artist-cache.json kopiert werden
+   */
+  function exportCacheToJSON() {
+    try {
+      const cached = localStorage.getItem(CACHE_KEY);
+      if (!cached) {
+        console.warn("❌ No cache found to export");
+        alert("Kein Cache zum Exportieren vorhanden. Lade erst Genres.");
+        return;
+      }
+
+      const { data } = JSON.parse(cached);
+      
+      // Add metadata
+      const exportData = {
+        _info: {
+          exportDate: new Date().toISOString(),
+          artistCount: Object.keys(data).length,
+          instructions: "Copy this file to /static/artist-cache.json to use as precomputed cache"
+        },
+        ...data
+      };
+
+      // Create blob and download
+      const json = JSON.stringify(exportData, null, 2);
+      const blob = new Blob([json], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `artist-cache-${new Date().toISOString().split("T")[0]}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      console.log(`✅ Downloaded cache with ${exportData._info.artistCount} artists`);
+      alert(`✅ Cache mit ${exportData._info.artistCount} Artists heruntergeladen!\n\nDie Datei in /static/artist-cache.json kopieren um API-Calls zu sparen.`);
+    } catch (e) {
+      console.error("Failed to export cache:", e);
+      alert(`❌ Export fehlgeschlagen: ${e}`);
     }
   }
 
@@ -273,15 +329,19 @@
 
     console.log(`📊 After builtin mappings: ${successCount} artists with genres`);
 
-    // 3) API: fehlende Artists holen (bis Limit)
+    // 3) Prüfe ob ALLE fehlenden Artists in der precomputed Cache sind
     const missing = uniqueArtists.filter((rawName) => !cache.has(normKey(rawName)));
 
-    if (!FETCH_MORE_ARTISTS || missing.length === 0) {
-      console.log("ℹ️ No API fetch needed");
+    // Wenn alle gefunden sind oder keine API-Calls gewünscht: FERTIG
+    if (missing.length === 0 || !FETCH_MORE_ARTISTS) {
+      console.log(`✅ All ${artistsWithGenres.length} artists have genres! No API calls needed.`);
       saveLocalCache(cache);
       return artistsWithGenres;
     }
 
+    console.log(`⚠️ Missing ${missing.length} artists: ${missing.join(", ")}`);
+
+    // 4) Nur falls nötig: API-Calls für fehlende Artists
     // Hole Token für API-Calls
     let token: string | null = null;
     try {
@@ -302,7 +362,7 @@
     }
 
     const limit = Math.min(missing.length, MAX_API_CALLS_PER_SESSION);
-    console.log(`📡 Fetching up to ${limit} missing artists via API...`);
+    console.log(`📡 Fetching ${missing.length} missing artists via API (max ${limit})...`);
 
     const DELAY_MS = 450;
     let apiCalls = 0;
@@ -315,13 +375,14 @@
       }
 
       const progress = Math.round((apiCalls / limit) * 100);
-      loadingStatus = `Lade Genres von Spotify... ${apiCalls}/${limit} (${progress}%)`;
+      loadingStatus = `Lade fehlende Genres von Spotify... ${apiCalls}/${limit} (${progress}%)`;
 
       const result = await searchArtist(rawName, token);
       apiCalls++;
 
       if (result?.rateLimited) {
         rateLimitHits++;
+
         const waitMs = (result.retryAfter || 30) * 1000;
         console.warn(`⚠️ Rate limited (${rateLimitHits}), waiting ${Math.round(waitMs / 1000)}s...`);
         await new Promise((resolve) => setTimeout(resolve, waitMs));
@@ -499,8 +560,17 @@
 
 <main class="app">
   <header class="header">
-    <h1 class="title">Musical Brain Activity</h1>
-    <p class="subtitle">Explore your genre connections. Hover to reveal neighbors, click to pin genres.</p>
+    <div class="header-top">
+      <div>
+        <h1 class="title">Musical Brain Activity</h1>
+        <p class="subtitle">Explore your genre connections. Hover to reveal neighbors, click to pin genres.</p>
+      </div>
+      {#if !isLoading}
+        <button class="export-btn" on:click={exportCacheToJSON} title="Download artist cache to replace /static/artist-cache.json">
+          💾 Cache exportieren
+        </button>
+      {/if}
+    </div>
   </header>
 
   {#if isLoading}
@@ -547,6 +617,36 @@
     margin-right: auto;
   }
 
+  .header-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 24px;
+  }
+
+  .export-btn {
+    background: rgba(29, 185, 84, 0.15);
+    border: 1.5px solid #1db954;
+    color: #1db954;
+    padding: 8px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 200ms ease;
+    white-space: nowrap;
+  }
+
+  .export-btn:hover {
+    background: rgba(29, 185, 84, 0.25);
+    transform: translateY(-2px);
+  }
+
+  .export-btn:active {
+    transform: translateY(0);
+    background: rgba(29, 185, 84, 0.3);
+  }
+
   .title {
     font-size: 2.2rem;
     font-weight: 700;
@@ -579,8 +679,9 @@
     flex: 1;
     background: rgba(255, 255, 255, 0.02);
     border-radius: 14px;
-    padding: 8px;
+    padding: 0;
     overflow: hidden;
+    min-height: 600px;
   }
 
   .loading-screen {

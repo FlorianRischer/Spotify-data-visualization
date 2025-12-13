@@ -26,8 +26,8 @@
 
   let canvas: HTMLCanvasElement;
   let ctx: CanvasRenderingContext2D | null = null;
-  let width = 900;
-  let height = 620;
+  let width = 1200;
+  let height = 800;
   let dpr = 1;
   
   let frameId: number | null = null;

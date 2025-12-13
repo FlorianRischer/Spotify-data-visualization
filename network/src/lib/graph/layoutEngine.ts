@@ -65,8 +65,17 @@ export function computeLayout(
   return { positions };
 }
 
-// Lightweight deterministic force simulation (no external deps)
-// Not physics-accurate like d3-force, but good enough for medium graphs.
+// ============================================================================
+// HIERARCHICAL MAGNETIC FORCE SIMULATION
+// ============================================================================
+// Physics Model:
+// 1. Size-aware collision force: prevents overlap using effective radius
+// 2. Inverse-weighted repulsion: small nodes repel stronger (∝ 1/size * 1/dist²)
+// 3. Center gravitation for large nodes: keeps important genres in core
+// 4. Weak edge forces: show connections but don't dominate
+// 5. Damping & cooling: creates stable, non-chaotic motion
+// ============================================================================
+
 export function computeForceLayout(
   nodes: GenreNode[],
   edges: GenreEdge[],
@@ -76,12 +85,14 @@ export function computeForceLayout(
   const rand = mulberry32(seed);
   const center = opts.center ?? { x: 0, y: 0 };
   const iterations = opts.iterations ?? 200;
-  const chargeStrength = opts.chargeStrength ?? -200; // negative repulsion
-  const linkDistance = opts.linkDistance ?? 140;
-  const linkStrength = opts.linkStrength ?? 0.1;
-
-  // init positions on a noisy ring
-  const radius = opts.radius ?? 320;
+  
+  // Physics parameters (tuned for hierarchical, non-overlapping layout)
+  const linkDistance = opts.linkDistance ?? 220; // increased from 140 for larger graph
+  const linkStrength = opts.linkStrength ?? 0.05; // weak edges
+  
+  // Init positions on a noisy ring
+  // Default radius = 500px → ~1000px horizontal spread
+  const radius = opts.radius ?? 500;
   const n = Math.max(nodes.length, 1);
   const positions: Record<string, { x: number; y: number; vx: number; vy: number }> = {};
   nodes.forEach((node, idx) => {
@@ -95,20 +106,56 @@ export function computeForceLayout(
   const nodeIndex = new Map<string, number>();
   nodes.forEach((n, i) => nodeIndex.set(n.id, i));
 
+  // Normalize node sizes for repulsion weighting
+  const maxSize = Math.max(...nodes.map(n => n.size), 1);
+  const minSize = Math.min(...nodes.map(n => n.size), 1);
+  const sizeRange = Math.max(maxSize - minSize, 1);
+  
+  // Normalize totalMinutes for center gravity
+  const maxMinutes = Math.max(...nodes.map(n => n.totalMinutes), 1);
+
   for (let iter = 0; iter < iterations; iter += 1) {
-    // charge (repulsion)
+    // === PHASE 1: SIZE-AWARE COLLISION & INVERSE-WEIGHTED REPULSION ===
+    // Small nodes repel strongly; large nodes less so
+    // This makes smaller genres "bounce" toward periphery naturally
     for (let i = 0; i < nodes.length; i += 1) {
       const ni = nodes[i];
       const pi = positions[ni.id];
+      
       for (let j = i + 1; j < nodes.length; j += 1) {
         const nj = nodes[j];
         const pj = positions[nj.id];
+        
         const dx = pi.x - pj.x;
         const dy = pi.y - pj.y;
         const dist2 = dx * dx + dy * dy + 0.01;
-        const force = chargeStrength / dist2;
-        const fx = force * dx;
-        const fy = force * dy;
+        const dist = Math.sqrt(dist2);
+        
+        // Collision radius: based on node size (bigger nodes = bigger radius)
+        const radiusFactor = 0.5; // adjust collision bubble size
+        const ri = radiusFactor * ni.size;
+        const rj = radiusFactor * nj.size;
+        const minDist = ri + rj;
+        
+        // Inverse-weighted repulsion: small nodes repel more
+        // Normalize sizes to 0-1 range, invert: small→1, large→0
+        const sizePriority_i = (maxSize - ni.size) / sizeRange + 0.5; // small nodes get ~1.0-1.5
+        const sizePriority_j = (maxSize - nj.size) / sizeRange + 0.5;
+        const repulsionFactor = sizePriority_i * sizePriority_j;
+        
+        // Repulsion force: increases as distance decreases below minDist
+        let force = 0;
+        if (dist < minDist) {
+          // Exponential push-away for collision avoidance
+          force = repulsionFactor * (minDist - dist) * (minDist - dist) * 0.08;
+        } else {
+          // Gentle repulsion at distance (prevents clustering)
+          force = repulsionFactor * 300 / dist2;
+        }
+        
+        const fx = force * (dx / dist);
+        const fy = force * (dy / dist);
+        
         pi.vx += fx;
         pi.vy += fy;
         pj.vx -= fx;
@@ -116,53 +163,82 @@ export function computeForceLayout(
       }
     }
 
-    // links (attraction)
+    // === PHASE 2: WEAK EDGE FORCES (show connections, don't dominate) ===
+    // Build edge count per node for dynamic link distance
+    const edgeCountPerNode = new Map<string, number>();
+    edges.forEach(e => {
+      edgeCountPerNode.set(e.source, (edgeCountPerNode.get(e.source) ?? 0) + 1);
+      edgeCountPerNode.set(e.target, (edgeCountPerNode.get(e.target) ?? 0) + 1);
+    });
+    
     for (const e of edges) {
       const a = positions[e.source];
       const b = positions[e.target];
       if (!a || !b) continue;
+      
       const dx = b.x - a.x;
       const dy = b.y - a.y;
       const dist = Math.sqrt(dx * dx + dy * dy) + 0.01;
-      const desired = linkDistance;
+      
+      // Adjust link distance based on edge count
+      // If node has < 5 edges, increase link distance proportionally
+      const edgesA = edgeCountPerNode.get(e.source) ?? 1;
+      const edgesB = edgeCountPerNode.get(e.target) ?? 1;
+      const minEdges = Math.min(edgesA, edgesB);
+      
+      // Scale: if minEdges < 5, multiply distance by factor
+      // minEdges=1: factor=1.8, minEdges=5: factor=1.0
+      const isolationFactor = minEdges < 5 ? 1.0 + (5 - minEdges) * 0.16 : 1.0;
+      const desired = linkDistance * isolationFactor;
       const diff = dist - desired;
-      const strength = linkStrength;
+      
+      // Weak link force (prioritize repulsion over attraction)
+      const strength = linkStrength * 0.5;
       const fx = (dx / dist) * diff * strength;
       const fy = (dy / dist) * diff * strength;
+      
       a.vx += fx;
       a.vy += fy;
       b.vx -= fx;
       b.vy -= fy;
     }
 
-    // radial restraint: pull high-degree nodes to center, push low-degree to periphery
-    const maxDegree = Math.max(...nodes.map(n => n.degree), 1);
+    // === PHASE 3: SOFT CENTER GRAVITATION FOR LARGE NODES ===
+    // Large genres (high totalMinutes) gently pulled to center
+    // Small genres influenced weakly
     for (let i = 0; i < nodes.length; i += 1) {
       const node = nodes[i];
       const pos = positions[node.id];
-      const degreeRatio = node.degree / maxDegree;
-      const targetRadius = radius * (0.2 + 0.8 * (1 - degreeRatio)); // high-degree → center (0.2*radius), low-degree → periphery (1.0*radius)
-      const currentRadius = Math.sqrt(pos.x * pos.x + pos.y * pos.y);
-      const radiusDiff = currentRadius - targetRadius;
-      if (currentRadius > 0.01) {
-        const radialForce = radiusDiff * 0.002; // gentle force
-        const fx = (pos.x / currentRadius) * radialForce;
-        const fy = (pos.y / currentRadius) * radialForce;
-        pos.vx -= fx;
-        pos.vy -= fy;
+      
+      // Center pull proportional to node importance (totalMinutes ^ 1.2)
+      const importance = Math.pow(node.totalMinutes / maxMinutes, 1.2);
+      const centerStrength = importance * 0.04; // gentle pull for large nodes
+      
+      const dx = center.x - pos.x;
+      const dy = center.y - pos.y;
+      const dist = Math.sqrt(dx * dx + dy * dy) + 0.01;
+      
+      if (dist > 1) {
+        const fx = (dx / dist) * centerStrength;
+        const fy = (dy / dist) * centerStrength;
+        pos.vx += fx;
+        pos.vy += fy;
       }
     }
 
-    // integrate + damping + centering
-    const damping = 0.9;
+    // === PHASE 4: VELOCITY DAMPING (cooling) & INTEGRATION ===
+    // Higher damping in later iterations = freezing effect
+    const coolingFactor = Math.pow(0.95, iter / 50); // gradually increase damping
+    const damping = 0.85 * coolingFactor; // 0.85 → 0.4 over iterations
+    
     for (const p of Object.values(positions)) {
+      // Apply damping (friction / air resistance)
       p.vx *= damping;
       p.vy *= damping;
+      
+      // Update positions
       p.x += p.vx;
       p.y += p.vy;
-      // weak centering
-      p.x += (center.x - p.x) * 0.002;
-      p.y += (center.y - p.y) * 0.002;
     }
   }
 
