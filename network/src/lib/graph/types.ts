@@ -53,11 +53,19 @@ export interface AdjacencyEntry {
   kind: EdgeKind;
 }
 
+export interface ArtistGroup {
+  artistId: string;
+  artistName: string;
+  genreIds: string[]; // genres this artist spans
+  color?: string; // semi-transparent background color
+}
+
 export interface GraphData {
   nodes: GenreNode[];
   edges: GenreEdge[];
   adjacency: Record<string, AdjacencyEntry[]>;
   topK: string[]; // ordered list of top genres by metric
+  groups?: ArtistGroup[]; // artist-based groupings for visual clustering
 }
 
 export interface GraphBuildInput {
@@ -71,4 +79,5 @@ export interface GraphBuildOptions {
   sizeScale?: number; // multiplier on sqrt(totalMinutes)
   minSize?: number;
   maxSize?: number;
+  groupByArtist?: boolean; // group genres by similar artists
 }

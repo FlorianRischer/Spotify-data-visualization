@@ -1,5 +1,5 @@
 // Simple physics engine for genre nodes
-import type { GenreNode, GenreEdge } from "$lib/graph/types";
+import type { GenreNode, GenreEdge, ArtistGroup } from "$lib/graph/types";
 
 export interface PhysicsState {
   vx: Record<string, number>;
@@ -13,6 +13,7 @@ export interface PhysicsParams {
   damping: number; // velocity damping (0..1)
   jitter: number; // small random jitter to keep motion alive
   maxSpeed: number; // clamp velocity
+  groupAttraction?: number; // strength of artist group attraction (optional)
 }
 
 export function createPhysicsState(nodeIds: string[]): PhysicsState {
@@ -33,9 +34,10 @@ export function stepPhysics(
   state: PhysicsState,
   params: PhysicsParams,
   dt = 1 / 60,
-  bounds?: { width: number; height: number }
+  bounds?: { width: number; height: number },
+  groups?: ArtistGroup[]
 ) {
-  const { repulsion, spring, restLength, damping, jitter, maxSpeed } = params;
+  const { repulsion, spring, restLength, damping, jitter, maxSpeed, groupAttraction = 0 } = params;
   
   // Node-node repulsion
   for (let i = 0; i < nodes.length; i++) {
@@ -100,6 +102,47 @@ export function stepPhysics(
     state.vy[e.source] += fy * dt;
     state.vx[e.target] -= fx * dt;
     state.vy[e.target] -= fy * dt;
+  }
+  
+  // Artist group attractions (smooth pull towards group center when enabled)
+  if (groupAttraction > 0 && groups && groups.length > 0) {
+    for (const group of groups) {
+      if (group.genreIds.length < 2) continue;
+      
+      // Calculate center of group
+      let cx = 0, cy = 0;
+      let count = 0;
+      for (const genreId of group.genreIds) {
+        const pos = positions[genreId];
+        if (pos) {
+          cx += pos.x;
+          cy += pos.y;
+          count++;
+        }
+      }
+      
+      if (count === 0) continue;
+      cx /= count;
+      cy /= count;
+      
+      // Pull each node in the group towards the center
+      for (const genreId of group.genreIds) {
+        const pos = positions[genreId];
+        if (!pos) continue;
+        
+        const dx = cx - pos.x;
+        const dy = cy - pos.y;
+        const d = Math.sqrt(dx * dx + dy * dy) + 1e-6;
+        
+        // Smooth attraction force that decreases with distance
+        const forceMag = groupAttraction * (d * 0.1); // proportional to distance
+        const fx = (dx / d) * forceMag;
+        const fy = (dy / d) * forceMag;
+        
+        state.vx[genreId] += fx * dt;
+        state.vy[genreId] += fy * dt;
+      }
+    }
   }
   
   // Integrate velocities, apply damping, jitter, clamp, and boundary checks

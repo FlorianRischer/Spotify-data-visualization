@@ -17,6 +17,7 @@ export {
   unpinNode,
   togglePin,
   reset,
+  showAllNodes,
   pruneUnpinned,
   setPositions
 } from "./graphStore";

@@ -1,5 +1,5 @@
 // Canvas Renderer — draws graph with animations, LOD, painter's order
-import type { GenreNode, GenreEdge } from "$lib/graph/types";
+import type { GenreNode, GenreEdge, ArtistGroup } from "$lib/graph/types";
 
 export interface RenderNode extends GenreNode {
   x: number;
@@ -17,10 +17,12 @@ export interface RenderEdge extends GenreEdge {
 export interface RenderOptions {
   hoveredId: string | null;
   focusedId: string | null;
+  showConnections: boolean;
   animatingNodes: Map<string, { startTime: number; duration: number }>;
   reducedMotion: boolean;
   dpr: number;
   now: number;
+  groups?: ArtistGroup[]; // artist groups for visual clustering
 }
 
 // Color palette for genres
@@ -47,6 +49,36 @@ function getAnimationProgress(
   return Math.min(1, elapsed / anim.duration);
 }
 
+// Compute convex hull of points using gift wrapping
+function convexHull(points: Array<{ x: number; y: number }>): Array<{ x: number; y: number }> {
+  if (points.length < 3) return points;
+  
+  // Find leftmost point
+  let left = 0;
+  for (let i = 1; i < points.length; i++) {
+    if (points[i].x < points[left].x || (points[i].x === points[left].x && points[i].y < points[left].y)) {
+      left = i;
+    }
+  }
+  
+  const hull: Array<{ x: number; y: number }> = [];
+  let current = left;
+  
+  do {
+    hull.push(points[current]);
+    let next = (current + 1) % points.length;
+    
+    for (let i = 0; i < points.length; i++) {
+      const cross = (points[next].x - points[current].x) * (points[i].y - points[current].y) -
+                    (points[next].y - points[current].y) * (points[i].x - points[current].x);
+      if (cross > 0) next = i;
+    }
+    current = next;
+  } while (current !== left);
+  
+  return hull;
+}
+
 export function renderGraph(
   ctx: CanvasRenderingContext2D,
   canvas: HTMLCanvasElement,
@@ -54,29 +86,45 @@ export function renderGraph(
   edges: RenderEdge[],
   options: RenderOptions
 ) {
-  const { hoveredId, focusedId, animatingNodes, reducedMotion, dpr, now } = options;
+  const { hoveredId, focusedId, showConnections, animatingNodes, reducedMotion, dpr, now, groups } = options;
   
   ctx.save();
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.translate(canvas.width / 2, canvas.height / 2);
   ctx.scale(dpr, dpr);
 
-  // LOD: reduce alpha if too many edges
-  const edgeAlphaBase = edges.length > 400 ? 0.08 : 0.18;
+  // Draw vinyl record with center hole
+  // Outer circle background (vinyl look)
+  ctx.fillStyle = "rgba(30, 30, 30, 0.3)";
+  ctx.beginPath();
+  ctx.arc(0, 0, 350, 0, Math.PI * 2);
+  ctx.fill();
   
-  // Draw edges first (painter's order)
-  ctx.lineCap = "round";
-  for (const e of edges) {
-    const isHighlighted = hoveredId === e.source || hoveredId === e.target;
-    const alpha = isHighlighted ? 0.5 : edgeAlphaBase + Math.min(0.2, e.weight * 0.015);
-    const width = isHighlighted ? 3 : Math.min(5, 1 + e.weight * 0.2);
-    
-    ctx.strokeStyle = `rgba(130, 148, 255, ${alpha.toFixed(3)})`;
-    ctx.lineWidth = width;
-    ctx.beginPath();
-    ctx.moveTo(e.x1 / dpr, e.y1 / dpr);
-    ctx.lineTo(e.x2 / dpr, e.y2 / dpr);
-    ctx.stroke();
+  // Clear center hole (no fill, transparent)
+  ctx.clearRect(-25, -25, 50, 50);
+  ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
+  ctx.beginPath();
+  ctx.arc(0, 0, 25, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Genre groups visualization removed - only physics-based grouping
+
+  // Draw edges if enabled
+  if (showConnections) {
+    const edgeAlphaBase = edges.length > 400 ? 0.08 : 0.18;
+    ctx.lineCap = "round";
+    for (const e of edges) {
+      const isHighlighted = hoveredId === e.source || hoveredId === e.target;
+      const alpha = isHighlighted ? 0.5 : edgeAlphaBase + Math.min(0.2, e.weight * 0.015);
+      const width = isHighlighted ? 3 : Math.min(5, 1 + e.weight * 0.2);
+      
+      ctx.strokeStyle = `rgba(130, 148, 255, ${alpha.toFixed(3)})`;
+      ctx.lineWidth = width;
+      ctx.beginPath();
+      ctx.moveTo(e.x1 / dpr, e.y1 / dpr);
+      ctx.lineTo(e.x2 / dpr, e.y2 / dpr);
+      ctx.stroke();
+    }
   }
 
   // Sort nodes by size (smaller first, so larger draw on top)

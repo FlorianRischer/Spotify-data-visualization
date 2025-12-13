@@ -2,10 +2,12 @@
   import { onMount } from "svelte";
   import { GraphCanvas, ControlPanel, Tooltip } from "$lib/components";
   import { graphData, initVisible, setPositions } from "$lib/stores";
+  import { uiStore } from "$lib/stores/uiStore";
   import { buildGraph, computeForceLayout, transformSpotifyData, loadStreamingHistory } from "$lib/graph";
 
   let isLoading = true;
   let loadingStatus = "Lädt Streaming-Daten...";
+  let lastGraphInput: any = null; // store original graph input for rebuilding
 
   // ===================================================================
   // DATEN-STRATEGIE (gemäß PRD & IMPLEMENTATION_PLAN):
@@ -464,13 +466,14 @@
         loadingStatus = "Keine Genres gefunden, verwende Demo-Daten...";
 
         const { createDemoGraphInput } = await import("$lib/graph");
-        const input = createDemoGraphInput();
+        lastGraphInput = createDemoGraphInput();
 
-        const built = buildGraph(input, {
+        const built = buildGraph(lastGraphInput, {
           topK: 10,
           sizeScale: 1.0,
           minSize: 10,
-          maxSize: 45
+          maxSize: 45,
+          groupByArtist: false
         });
 
         graphData.set(built);
@@ -492,14 +495,15 @@
 
       // Transform data to graph input
       loadingStatus = "Erstelle Graph...";
-      const input = transformSpotifyData(streamingHistory, artistsWithGenres);
-      console.log(`Created graph with ${input.genreStats.length} genres and ${input.artists.length} artists`);
+      lastGraphInput = transformSpotifyData(streamingHistory, artistsWithGenres);
+      console.log(`Created graph with ${lastGraphInput.genreStats.length} genres and ${lastGraphInput.artists.length} artists`);
 
-      const built = buildGraph(input, {
+      const built = buildGraph(lastGraphInput, {
         topK: 10,
         sizeScale: 1.0,
         minSize: 10,
-        maxSize: 45
+        maxSize: 45,
+        groupByArtist: false
       });
 
       graphData.set(built);
@@ -523,13 +527,14 @@
 
       try {
         const { createDemoGraphInput } = await import("$lib/graph");
-        const input = createDemoGraphInput();
+        lastGraphInput = createDemoGraphInput();
 
-        const built = buildGraph(input, {
+        const built = buildGraph(lastGraphInput, {
           topK: 10,
           sizeScale: 1.0,
           minSize: 10,
-          maxSize: 45
+          maxSize: 45,
+          groupByArtist: false
         });
 
         graphData.set(built);
@@ -549,6 +554,20 @@
         loadingStatus = `Kritischer Fehler: ${fallbackError}`;
         console.error("Fallback failed:", fallbackError);
       }
+    }
+  });
+
+  // Subscribe to UI state changes for artist grouping toggle
+  uiStore.subscribe((state) => {
+    if (lastGraphInput && isLoading === false) {
+      const rebuilt = buildGraph(lastGraphInput, {
+        topK: 10,
+        sizeScale: 1.0,
+        minSize: 10,
+        maxSize: 45,
+        groupByArtist: state.showArtistGroups
+      });
+      graphData.set(rebuilt);
     }
   });
 </script>

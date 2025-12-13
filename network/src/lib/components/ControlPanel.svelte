@@ -1,14 +1,35 @@
 <script lang="ts">
-  import { graphData, visibleState } from '$lib/stores';
+  import { graphData, visibleState, showAllNodes } from '$lib/stores';
+  import { uiStore } from '$lib/stores/uiStore';
   
   $: nodeCount = $graphData?.nodes.length ?? 0;
   $: edgeCount = $graphData?.edges.length ?? 0;
   $: visibleNodeCount = $visibleState?.nodes.size ?? 0;
   $: visibleEdgeCount = $visibleState?.edges.size ?? 0;
+  $: showArtistGroups = $uiStore.showArtistGroups ?? false;
+  $: showConnections = $uiStore.showConnections ?? false;
   
   function resetView() {
     // Trigger re-initialization if needed
     window.location.reload();
+  }
+  
+  function toggleArtistGroups() {
+    uiStore.update(state => ({
+      ...state,
+      showArtistGroups: !state.showArtistGroups
+    }));
+  }
+  
+  function toggleConnections() {
+    uiStore.update(state => ({
+      ...state,
+      showConnections: !state.showConnections
+    }));
+  }
+  
+  function handleShowAll() {
+    showAllNodes();
   }
 </script>
 
@@ -25,6 +46,25 @@
   </div>
   
   <div class="controls">
+    <button 
+      class="btn" 
+      class:active={showArtistGroups}
+      on:click={toggleArtistGroups}
+      title="Genre-Gruppen anzeigen"
+    >
+      🎵 Genre-Gruppen
+    </button>
+    <button 
+      class="btn" 
+      class:active={showConnections}
+      on:click={toggleConnections}
+      title="Verbindungen anzeigen"
+    >
+      🔗 Verbindungen
+    </button>
+    <button class="btn" on:click={handleShowAll} title="Alle Genres anzeigen">
+      🌐 Alle anzeigen
+    </button>
     <button class="btn" on:click={resetView}>
       🔄 Neu laden
     </button>
@@ -83,5 +123,11 @@
   .btn:hover {
     background: rgba(29, 185, 84, 0.2);
     border-color: rgba(29, 185, 84, 0.5);
+  }
+  
+  .btn.active {
+    background: rgba(29, 185, 84, 0.3);
+    border-color: rgba(29, 185, 84, 0.7);
+    color: #1db954;
   }
 </style>

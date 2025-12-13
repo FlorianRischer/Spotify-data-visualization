@@ -271,6 +271,115 @@ function selectDiverseGenres(
   return selected;
 }
 
+function buildGenreGroups(
+  artists: ArtistGenre[],
+  nodes: GenreNode[],
+  edges: GenreEdge[],
+  colorPalette: string[]
+): Array<{ genreIds: string[]; color: string }> {
+  // Build genre-to-artists map for similarity calculation
+  const genreArtists = new Map<string, Set<string>>();
+  for (const artist of artists) {
+    for (const genre of artist.genres || []) {
+      if (!genreArtists.has(genre)) {
+        genreArtists.set(genre, new Set());
+      }
+      genreArtists.get(genre)!.add(artist.artistId);
+    }
+  }
+  
+  // Calculate similarity between genres based on shared artists
+  function getJaccardSimilarity(g1: string, g2: string): number {
+    const a1 = genreArtists.get(g1) || new Set();
+    const a2 = genreArtists.get(g2) || new Set();
+    if (a1.size === 0 || a2.size === 0) return 0;
+    
+    const intersection = new Set([...a1].filter(x => a2.has(x)));
+    const union = new Set([...a1, ...a2]);
+    return intersection.size / union.size;
+  }
+  
+  // Build adjacency for genres (from edges)
+  const genreAdjacency = new Map<string, Set<string>>();
+  for (const edge of edges) {
+    if (!genreAdjacency.has(edge.source)) genreAdjacency.set(edge.source, new Set());
+    if (!genreAdjacency.has(edge.target)) genreAdjacency.set(edge.target, new Set());
+    genreAdjacency.get(edge.source)!.add(edge.target);
+    genreAdjacency.get(edge.target)!.add(edge.source);
+  }
+  
+  // Find clusters of similar genres using a greedy approach
+  const groups: Array<{ genreIds: string[]; color: string }> = [];
+  const processed = new Set<string>();
+  
+  // Sort genres by degree (most connected first) for better clustering
+  const sortedGenres = [...nodes].sort((a, b) => b.degree - a.degree);
+  
+  for (const genre of sortedGenres) {
+    if (processed.has(genre.id)) continue;
+    
+    // Start a new group with this genre
+    const cluster = [genre.id];
+    processed.add(genre.id);
+    
+    // Find similar neighbors to add to this cluster
+    const candidates = genreAdjacency.get(genre.id) || new Set();
+    const similarNeighbors = Array.from(candidates)
+      .filter(g => !processed.has(g))
+      .sort((a, b) => getJaccardSimilarity(genre.id, b) - getJaccardSimilarity(genre.id, a))
+      .slice(0, 3); // Add up to 3 similar neighbors
+    
+    for (const neighbor of similarNeighbors) {
+      cluster.push(neighbor);
+      processed.add(neighbor);
+    }
+    
+    // Only create groups with 2+ genres
+    if (cluster.length >= 2) {
+      const color = colorPalette[groups.length % colorPalette.length];
+      groups.push({ genreIds: cluster, color });
+    }
+  }
+  
+  return groups.slice(0, 15); // Limit to top 15 groups
+}
+
+function buildArtistGroups(
+  artists: ArtistGenre[],
+  visibleGenreIds: Set<string>,
+  colorPalette: string[]
+): Array<{ artistId: string; artistName: string; genreIds: string[]; color: string }> {
+  const groups: Array<{ artistId: string; artistName: string; genreIds: string[]; color: string }> = [];
+  
+  for (const artist of artists) {
+    const genres = (artist.genres || []).filter((g) => visibleGenreIds.has(g));
+    
+    // Only create groups for artists that span 2+ visible genres
+    if (genres.length >= 2) {
+      const color = colorPalette[groups.length % colorPalette.length];
+      groups.push({
+        artistId: artist.artistId,
+        artistName: artist.name,
+        genreIds: genres,
+        color
+      });
+    }
+  }
+  
+  return groups.sort((a, b) => b.genreIds.length - a.genreIds.length).slice(0, 20); // top 20 groups
+}
+
+const ARTIST_GROUP_COLORS = [
+  "rgba(255, 193, 7, 0.08)",   // amber
+  "rgba(76, 175, 80, 0.08)",   // green
+  "rgba(33, 150, 243, 0.08)",  // blue
+  "rgba(233, 30, 99, 0.08)",   // pink
+  "rgba(156, 39, 176, 0.08)",  // purple
+  "rgba(0, 188, 212, 0.08)",   // cyan
+  "rgba(255, 87, 34, 0.08)",   // deep orange
+  "rgba(63, 81, 181, 0.08)",   // indigo
+];
+
 export function buildGraph(input: GraphBuildInput, options?: GraphBuildOptions): GraphData {
   const opts = { ...DEFAULT_OPTIONS, ...options } as Required<typeof DEFAULT_OPTIONS>;
 
@@ -296,11 +405,21 @@ export function buildGraph(input: GraphBuildInput, options?: GraphBuildOptions):
   
   // Use diverse selection instead of just top-K by popularity
   const topK = selectDiverseGenres(nodesWithSize, edges, adjacency, opts.topK);
+  
+  // Build genre groups based on similar genres (shared artists)
+  const genreGroupData = buildGenreGroups(input.artists, nodesWithSize, edges, ARTIST_GROUP_COLORS);
+  const groups = genreGroupData.map((g) => ({
+    artistId: `genre-group-${g.genreIds.join('-')}`,
+    artistName: g.genreIds.join(', '),
+    genreIds: g.genreIds,
+    color: g.color
+  }));
 
   return {
     nodes: nodesWithSize,
     edges,
     adjacency,
-    topK
+    topK,
+    groups: options?.groupByArtist ? groups : undefined
   };
 }

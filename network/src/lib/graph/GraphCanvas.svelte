@@ -18,7 +18,8 @@
     animatingNodes,
     startNodeAnimation,
     clearExpiredAnimations,
-    CONFIG
+    CONFIG,
+    uiStore
   } from "$lib/stores/uiStore";
   import { renderGraph, hitTest, type RenderNode, type RenderEdge } from "./renderer";
   import { stepPhysics, createPhysicsState } from "$lib/graph/physics";
@@ -48,14 +49,47 @@
   let dragOffset = { x: 0, y: 0 };
   let isDragging = false;
   
+  // Animation state
+  let startAnimationTime: number | null = null;
+  let initialPositions: Record<string, { x: number; y: number }> | null = null;
+  const START_ANIMATION_DURATION = 5000; // 5 seconds spiral + deceleration
+  
   const physicsParams = {
-    repulsion: 150,  // erhöht von 100 um Überschneidungen zu vermeiden
+    repulsion: 180,  // moderiert für sanftere Abstoßung
     spring: 0.005,   // sehr schwache Springs für Zusammenhalt
     restLength: 200,
-    damping: 0.6,    // hohe Dämpfung für fließende Bewegung
-    jitter: 0.3,     // mehr Jitter für natürliche Wasser-Bewegung
-    maxSpeed: 1.5    // langsame, sanfte Bewegung
+    damping: 0.75,   // erhöhte Dämpfung für smootheres Schweben
+    jitter: 0.05,    // deutlich weniger Jitter für glatte Bewegung
+    maxSpeed: 2.2,   // etwas höher für freiere Bewegung
+    groupAttraction: 3.5 // stärkere Anziehung für schnellere Zusammenführung
   } as const;
+
+  function getSpiralPosition(
+    centerX: number,
+    centerY: number,
+    index: number,
+    total: number,
+    progress: number // 0 to 1
+  ): { x: number; y: number } {
+    // Smooth easing for natural motion
+    const eased = progress * progress * (3 - 2 * progress); // Smoothstep
+    
+    // Angle per node in the circle
+    const anglePerNode = (Math.PI * 2) / total;
+    const baseAngle = index * anglePerNode;
+    
+    // Vinyl rotation: only rotate, radius stays constant
+    const rotations = eased * 3; // 3 full rotations during animation
+    const angle = baseAngle + rotations * Math.PI * 2;
+    
+    // Constant radius (like vinyl record grooves)
+    const radius = 300;
+    
+    return {
+      x: centerX + Math.cos(angle) * radius,
+      y: centerY + Math.sin(angle) * radius
+    };
+  }
 
   function resize() {
     if (!canvas) return;
@@ -79,6 +113,29 @@
       for (const n of nodes) radii[n.id] = Math.max(8, n.size) * 0.4;
       // Fetch and mutate positions from store
       const pos = get(positionsStore);
+      
+      // Handle start animation
+      if (startAnimationTime !== null) {
+        const elapsed = performance.now() - startAnimationTime;
+        const progress = Math.min(1, elapsed / START_ANIMATION_DURATION);
+        
+        if (progress < 1) {
+          // Still animating: apply spiral motion
+          const centerX = 0;
+          const centerY = 0;
+          
+          for (let i = 0; i < nodes.length; i++) {
+            const nodeId = nodes[i].id;
+            const spiralPos = getSpiralPosition(centerX, centerY, i, nodes.length, progress);
+            pos[nodeId] = spiralPos;
+          }
+        } else {
+          // Animation complete
+          startAnimationTime = null;
+          initialPositions = null;
+        }
+      }
+      
       // Ensure physics state has all ids
       if (Object.keys(physicsState.vx).length !== nodes.length) {
         physicsState = createPhysicsState(nodes.map(n => n.id));
@@ -88,21 +145,28 @@
         physicsState.vx[draggedNodeId] = 0;
         physicsState.vy[draggedNodeId] = 0;
       }
+      
+      // Get current UI state to determine if grouping is active
+      const uiState = get(uiStore);
+      const graphState = get(graphData);
+      const groups = uiState.showArtistGroups ? graphState?.groups : undefined;
+      
       stepPhysics(nodes, edges, pos, radii, physicsState, physicsParams, 1/60, {
         width: canvas.width / dpr,
         height: canvas.height / dpr
-      });
+      }, groups);
       // Persist positions back to store so derived edges update
       positionsStore.set(pos);
     }
-    
     renderGraph(ctx, canvas, nodes, edges, {
       hoveredId,
       focusedId,
+      showConnections: get(uiStore).showConnections,
       animatingNodes: animMap,
       reducedMotion: rm,
       dpr,
-      now: performance.now()
+      now: performance.now(),
+      groups: (get(graphData)?.groups)
     });
     
     frameId = requestAnimationFrame(loop);
@@ -318,7 +382,13 @@
     unsubs.push(() => window.removeEventListener('mousemove', globalMouseMove));
     
     // Subscribe to stores
-    unsubs.push(visibleNodes.subscribe((n) => { nodes = n as RenderNode[]; }));
+    unsubs.push(visibleNodes.subscribe((n) => {
+      // Trigger start animation only on first load
+      if (nodes.length === 0 && n.length > 0) {
+        startAnimationTime = performance.now();
+      }
+      nodes = n as RenderNode[];
+    }));
     unsubs.push(visibleEdges.subscribe((e) => { edges = e as RenderEdge[]; }));
     unsubs.push(hoverNodeId.subscribe((id) => { hoveredId = id; }));
     unsubs.push(focusedNodeId.subscribe((id) => { focusedId = id; }));

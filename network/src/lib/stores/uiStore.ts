@@ -91,3 +91,13 @@ export const CONFIG = {
   maxDepth: 4, // optional depth cap
   animationDuration: 300 // ms for fade/scale in
 } as const;
+// ============ Genre Grouping ============
+interface UIState {
+  showArtistGroups: boolean; // Controls genre grouping visualization
+  showConnections: boolean; // Controls edge visibility
+}
+
+export const uiStore = writable<UIState>({
+  showArtistGroups: false,
+  showConnections: false
+});

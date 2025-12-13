@@ -65,14 +65,8 @@ export function initVisible() {
   const g = get(graphData);
   if (!g) return;
   
-  const nodes = new Set(g.topK);
-  
-  // Add some neighbors of each topK genre to show multiple islands
-  for (const nodeId of g.topK) {
-    const neighbors = g.adjacency[nodeId] || [];
-    // Add first 2 neighbors to create visible clusters
-    neighbors.slice(0, 2).forEach(n => nodes.add(n.neighborId));
-  }
+  // Show ALL genres from the start
+  const nodes = new Set(g.nodes.map(n => n.id));
   
   const edges = new Set<string>();
   
@@ -151,6 +145,17 @@ export function togglePin(nodeId: string) {
 
 export function reset() {
   initVisible();
+}
+
+export function showAllNodes() {
+  const g = get(graphData);
+  if (!g) return;
+  
+  // Add all nodes and edges to visible state
+  const nodes = new Set(g.nodes.map(n => n.id));
+  const edges = new Set(g.edges.map(e => e.id));
+  
+  visibleState.set({ nodes, edges, pinned: new Set() });
 }
 
 export function pruneUnpinned() {
