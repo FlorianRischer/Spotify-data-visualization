@@ -24,6 +24,7 @@
   $: phase = $scrollyStore.phase;
   $: focusedCategory = $scrollyStore.focusedCategory;
   $: scrollProgress = $scrollyStore.scrollProgress;
+  $: isAnimatingCamera = $scrollyStore.isAnimatingCamera;
 
   // Reagiere auf Kategorie-Wechsel während Zoom-Phase
   $: if (phase === 'zoom' && focusedCategory && focusedCategory !== lastFocusedCategory) {
@@ -33,9 +34,21 @@
       const position = $scrollyStore.categoryPositions[focusedCategory];
       if (position) {
         console.log(`🎯 Zoom zu Kategorie: ${focusedCategory}`, position);
+        scrollyStore.update(state => ({
+          ...state,
+          isAnimatingCamera: true
+        }));
         cameraController.animateToCategoryPosition(position.x, position.y, 1200, 2.5);
         lastCameraAnimationTime = now;
         lastFocusedCategory = focusedCategory;
+        
+        // Animation abschließen nach 1200ms
+        setTimeout(() => {
+          scrollyStore.update(state => ({
+            ...state,
+            isAnimatingCamera: false
+          }));
+        }, 1200);
       }
     }
   }
@@ -47,6 +60,11 @@
     // Scroll-Handler
     const handleScroll = () => {
       if (!scrollContainer) return;
+      
+      // Blockiere Scroll während Animation läuft
+      if (isAnimatingCamera) {
+        return;
+      }
       
       const scrollTop = window.scrollY;
       const scrollHeight = document.documentElement.scrollHeight - window.innerHeight;

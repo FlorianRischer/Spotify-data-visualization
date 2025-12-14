@@ -28,6 +28,8 @@ export interface RenderOptions {
   cameraZoom?: number;
   cameraX?: number;
   cameraY?: number;
+  focusedCategory?: string | null; // For category-based focus effect
+
 }
 
 // Color palette for genres
@@ -91,7 +93,7 @@ export function renderGraph(
   edges: RenderEdge[],
   options: RenderOptions
 ) {
-  const { hoveredId, focusedId, centeredNodeId, showConnections, animatingNodes, reducedMotion, dpr, now, groups } = options;
+  const { hoveredId, focusedId, centeredNodeId, showConnections, animatingNodes, reducedMotion, dpr, now, groups, focusedCategory } = options;
   const cameraZoom = options.cameraZoom ?? 1;
   const cameraX = options.cameraX ?? 0;
   const cameraY = options.cameraY ?? 0;
@@ -111,7 +113,18 @@ export function renderGraph(
     ctx.lineCap = "round";
     for (const e of edges) {
       const isHighlighted = hoveredId === e.source || hoveredId === e.target;
-      const alpha = isHighlighted ? 0.5 : edgeAlphaBase + Math.min(0.2, e.weight * 0.015);
+      let alpha = isHighlighted ? 0.5 : edgeAlphaBase + Math.min(0.2, e.weight * 0.015);
+      
+      // Dim edges if category is focused and neither node is in that category
+      if (focusedCategory) {
+        const sourceNode = nodes.find(n => n.id === e.source);
+        const targetNode = nodes.find(n => n.id === e.target);
+        const isInFocusedCategory = (sourceNode?.category === focusedCategory) || (targetNode?.category === focusedCategory);
+        if (!isInFocusedCategory) {
+          alpha *= 0.15; // Significantly dim edges outside focus
+        }
+      }
+      
       const width = isHighlighted ? 3 : Math.min(5, 1 + e.weight * 0.2);
       
       ctx.strokeStyle = `rgba(130, 148, 255, ${alpha.toFixed(3)})`;
@@ -137,11 +150,17 @@ export function renderGraph(
     const isFocused = focusedId === n.id;
     const isCentered = centeredNodeId === n.id;
     const hasCenteredNode = !!centeredNodeId;
+    const isInFocusedCategory = focusedCategory && n.category === focusedCategory;
     
     // Size multiplier for centered node
     const sizeMultiplier = isCentered ? 2.5 : 1;
-    // Dim other nodes when one is centered
-    const dimFactor = hasCenteredNode && !isCentered ? 0.3 : 1;
+    // Dim other nodes when one is centered OR when a category is focused
+    let dimFactor = 1;
+    if (hasCenteredNode && !isCentered) {
+      dimFactor = 0.3;
+    } else if (focusedCategory && !isInFocusedCategory) {
+      dimFactor = 0.2; // More aggressive blur for category focus
+    }
     
     const r = Math.max(8, n.size) * scale * 0.4 * sizeMultiplier;
     const color = getNodeColor(n, i);

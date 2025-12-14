@@ -55,6 +55,7 @@
   let cameraZoom = 1;
   let cameraX = 0;
   let cameraY = 0;
+  let focusedCategory: string | null = null;
   
   // Centered/focused node state
   let centeredNodeId: string | null = null;
@@ -245,7 +246,8 @@
       // Native canvas zoom
       cameraZoom,
       cameraX,
-      cameraY
+      cameraY,
+      focusedCategory
     });
     
     frameId = requestAnimationFrame(loop);
@@ -515,6 +517,7 @@
       cameraZoom = state.cameraZoom;
       cameraX = state.cameraX;
       cameraY = state.cameraY;
+      focusedCategory = state.focusedCategory;
     }));
     
     // ResizeObserver

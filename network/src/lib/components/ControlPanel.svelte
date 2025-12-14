@@ -52,7 +52,7 @@
       on:click={toggleGenreGrouping}
       title="Genres nach Kategorie gruppieren"
     >
-      📊 Genre Kategorien
+      Genre Kategorien
     </button>
     <button 
       class="btn" 
@@ -60,13 +60,7 @@
       on:click={toggleConnections}
       title="Verbindungen anzeigen"
     >
-      🔗 Verbindungen
-    </button>
-    <button class="btn" on:click={handleShowAll} title="Alle Genres anzeigen">
-      🌐 Alle anzeigen
-    </button>
-    <button class="btn" on:click={resetView}>
-      🔄 Neu laden
+      Verbindungen
     </button>
   </div>
 </div>
@@ -110,24 +104,21 @@
   }
   
   .btn {
-    background: rgba(29, 185, 84, 0.1);
-    color: #1db954;
-    border: 1px solid rgba(29, 185, 84, 0.3);
-    padding: 8px 16px;
-    border-radius: 6px;
+    background: transparent;
+    color: #e6edf3;
+    border: none;
+    padding: 0;
     font-size: 13px;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: color 0.2s;
+    font-family: inherit;
   }
   
   .btn:hover {
-    background: rgba(29, 185, 84, 0.2);
-    border-color: rgba(29, 185, 84, 0.5);
+    color: #1db954;
   }
   
   .btn.active {
-    background: rgba(29, 185, 84, 0.3);
-    border-color: rgba(29, 185, 84, 0.7);
     color: #1db954;
   }
 </style>

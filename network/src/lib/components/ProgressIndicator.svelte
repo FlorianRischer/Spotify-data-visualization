@@ -1,8 +1,6 @@
 <script lang="ts">
-  import { scrollyStore, jumpToCategory } from '$lib/stores/scrollyStore';
-  import { getCategoryColor } from '$lib/graph/categoryColors';
+  import { scrollyStore } from '$lib/stores/scrollyStore';
   import type { GenreCategory } from '$lib/graph/genreMapping';
-  import { cameraController } from '$lib/graph/cameraController';
 
   let hoveredCategory: GenreCategory | null = null;
 
@@ -10,21 +8,31 @@
   $: focusedCategory = $scrollyStore.focusedCategory;
   $: focusedIndex = $scrollyStore.focusedCategoryIndex;
   $: categoryNodeCounts = $scrollyStore.categoryNodeCounts;
-  $: categoryPositions = $scrollyStore.categoryPositions;
 
   function handleCategoryClick(category: GenreCategory) {
-    const position = categoryPositions[category];
-    if (position) {
-      jumpToCategory(category);
-      cameraController.animateToCategoryPosition(position.x, position.y, 1500);
-    }
-  }
+    // Berechne die Scroll-Position für diese Kategorie
+    const categoryIndex = genreGroupQueue.indexOf(category);
+    if (categoryIndex === -1) return;
 
-  function handleKeyDown(event: KeyboardEvent, category: GenreCategory) {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      handleCategoryClick(category);
-    }
+    // Berechne den Scroll-Progress basierend auf der Kategorie-Position
+    // Zoom-Phase: 0.45 - 0.95
+    // Inverse der calculateFocusedCategoryIndex Funktion:
+    // rawIndex = zoomProgress * totalCategories
+    // Für Mitte der Kategorie: rawIndex = categoryIndex + 0.5
+    const phaseStart = 0.45;
+    const phaseLength = 0.5; // 0.95 - 0.45
+    const zoomProgress = (categoryIndex + 0.5) / genreGroupQueue.length;
+    const scrollProgress = phaseStart + zoomProgress * phaseLength;
+    
+    // Berechne die Scroll-Position aus dem Progress
+    const scrollHeight = document.documentElement.scrollHeight - window.innerHeight;
+    const scrollTop = scrollProgress * scrollHeight;
+    
+    // Smooth scroll zu der Position
+    window.scrollTo({
+      top: scrollTop,
+      behavior: 'smooth'
+    });
   }
 
   function getOpacity(index: number): number {
@@ -39,24 +47,22 @@
     {#each genreGroupQueue as category, idx}
       {@const isActive = category === focusedCategory}
       {@const isHovered = category === hoveredCategory}
-      {@const color = getCategoryColor(category)}
       {@const count = categoryNodeCounts[category] || 0}
       <button
         class="progress-dot"
         class:active={isActive}
         class:hovered={isHovered}
-        style="--dot-color: {color}; --opacity: {getOpacity(idx)}"
+        style="--opacity: {getOpacity(idx)}"
         title="{category} ({count} Genres)"
         aria-label="{category} - {count} Genres"
         aria-current={isActive ? 'true' : undefined}
         on:mouseenter={() => (hoveredCategory = category)}
         on:mouseleave={() => (hoveredCategory = null)}
         on:click={() => handleCategoryClick(category)}
-        on:keydown={(e) => handleKeyDown(e, category)}
         type="button"
       >
         {#if isHovered || isActive}
-          <div class="tooltip" style="--tooltip-color: {color}">
+          <div class="tooltip">
             <span class="tooltip-title">{category}</span>
             <span class="tooltip-count">{count} Genres</span>
           </div>
@@ -76,19 +82,19 @@
     flex-direction: column;
     gap: 12px;
     z-index: 1000;
-    padding: 15px 10px;
-    background: rgba(0, 0, 0, 0.3);
-    border-radius: 20px;
-    backdrop-filter: blur(10px);
+    padding: 0;
+    background: transparent;
+    border-radius: 0;
+    backdrop-filter: none;
   }
 
   .progress-dot {
     position: relative;
-    width: 14px;
-    height: 14px;
+    width: 10px;
+    height: 10px;
     border-radius: 50%;
-    background: var(--dot-color, #666);
-    opacity: var(--opacity, 0.6);
+    background: #8b949e;
+    opacity: var(--opacity, 0.4);
     border: none;
     padding: 0;
     cursor: pointer;
@@ -98,19 +104,18 @@
 
   .progress-dot:hover,
   .progress-dot.hovered {
-    transform: scale(1.4);
-    opacity: 0.9;
+    transform: scale(1.2);
+    opacity: 0.8;
   }
 
   .progress-dot.active {
-    transform: scale(1.6);
+    transform: scale(1.3);
     opacity: 1;
-    box-shadow: 0 0 15px var(--dot-color, #00d9ff),
-                0 0 30px var(--dot-color, #00d9ff);
+    box-shadow: none;
   }
 
   .progress-dot:focus-visible {
-    outline: 2px solid var(--dot-color, #00d9ff);
+    outline: 2px solid #8b949e;
     outline-offset: 3px;
   }
 
@@ -120,7 +125,7 @@
     top: 50%;
     transform: translateY(-50%);
     background: rgba(13, 17, 23, 0.95);
-    border: 1px solid var(--tooltip-color, #00d9ff);
+    border: 1px solid #8b949e;
     border-radius: 8px;
     padding: 8px 12px;
     white-space: nowrap;
@@ -134,7 +139,7 @@
   .tooltip-title {
     font-size: 0.85rem;
     font-weight: 600;
-    color: var(--tooltip-color, #00d9ff);
+    color: #8b949e;
   }
 
   .tooltip-count {
@@ -147,12 +152,12 @@
     .progress-indicator {
       right: 10px;
       gap: 10px;
-      padding: 12px 8px;
+      padding: 0;
     }
 
     .progress-dot {
-      width: 12px;
-      height: 12px;
+      width: 9px;
+      height: 9px;
     }
   }
 
@@ -166,14 +171,14 @@
       transform: translateX(-50%);
       flex-direction: row;
       gap: 8px;
-      padding: 10px 15px;
+      padding: 0;
       max-width: 90vw;
       overflow-x: auto;
     }
 
     .progress-dot {
-      width: 10px;
-      height: 10px;
+      width: 8px;
+      height: 8px;
       flex-shrink: 0;
     }
 

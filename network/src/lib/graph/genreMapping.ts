@@ -545,22 +545,42 @@ export const GENRE_MAPPING: GenreInfo[] = [
 ];
 
 /**
+ * Normalisiert einen Genre-Namen für konsistentes Matching
+ * Konvertiert sowohl Bindestriche als auch Leerzeichen
+ */
+function normalizeForMatching(text: string): string {
+  return text
+    .toLowerCase()
+    .trim()
+    .replace(/[-\s]+/g, " "); // Alle Bindestriche und Leerzeichen zu einzelnem Leerzeichen
+}
+
+/**
  * Erstellt eine schnelle Lookup-Map für Genre-zu-Kategorie-Mapping
  */
+let genreCategoryMapCache: Map<string, GenreCategory> | null = null;
+
 export function createGenreCategoryMap(): Map<string, GenreCategory> {
+  if (genreCategoryMapCache) return genreCategoryMapCache;
+  
   const map = new Map<string, GenreCategory>();
   for (const { genre, category } of GENRE_MAPPING) {
-    map.set(genre.toLowerCase(), category);
+    // Speichere mit normalisiertem Key für flexibles Matching
+    const normalizedKey = normalizeForMatching(genre);
+    map.set(normalizedKey, category);
   }
+  genreCategoryMapCache = map;
   return map;
 }
 
 /**
  * Gibt die Obergruppe für ein bestimmtes Genre zurück
+ * Behandelt unterschiedliche Schreibweisen (lo-fi vs lo fi)
  */
 export function getGenreCategory(genreName: string): GenreCategory {
   const map = createGenreCategoryMap();
-  return map.get(genreName.toLowerCase()) || "Specialty & Other";
+  const normalized = normalizeForMatching(genreName);
+  return map.get(normalized) || "Specialty & Other";
 }
 
 /**
