@@ -177,7 +177,7 @@ export function renderGraph(
     // Main circle
     ctx.beginPath();
     const nodeOpacity = opacity * dimFactor;
-    ctx.fillStyle = (isHovered || isCentered) ? color : `rgba(223, 230, 255, ${nodeOpacity.toFixed(3)})`;
+    ctx.fillStyle = (isHovered || isCentered) ? color : `rgba(100, 110, 130, ${nodeOpacity.toFixed(3)})`;
     ctx.strokeStyle = `rgba(0,0,0,${(0.2 * nodeOpacity).toFixed(3)})`;
     ctx.lineWidth = 1;
     ctx.arc(n.x / dpr, n.y / dpr, r, 0, Math.PI * 2);
@@ -220,16 +220,6 @@ export function renderGraph(
       ctx.arc(n.x / dpr, n.y / dpr, r + 11, 0, Math.PI * 2);
       ctx.stroke();
       ctx.setLineDash([]);
-    }
-    
-    // Label for larger, hovered, or centered nodes
-    if (r > 14 || isHovered || isCentered) {
-      const fontSize = isCentered ? Math.max(16, Math.min(24, r * 0.5)) : Math.max(10, Math.min(14, r * 0.6));
-      ctx.font = `${(isHovered || isCentered) ? "bold " : ""}${fontSize}px -apple-system, BlinkMacSystemFont, sans-serif`;
-      ctx.fillStyle = `rgba(255, 255, 255, ${(opacity * dimFactor * 0.9).toFixed(3)})`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(n.label, n.x / dpr, n.y / dpr + r + 14);
     }
   }
 

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { GraphCanvas, ControlPanel, Tooltip } from "$lib/components";
+  import { GraphCanvas, ControlPanel, Tooltip, GenreTitle } from "$lib/components";
   import ScrollyContainer from "$lib/components/ScrollyContainer.svelte";
   import ProgressIndicator from "$lib/components/ProgressIndicator.svelte";
   import { graphData, initVisible, setPositions } from "$lib/stores";
@@ -402,9 +402,7 @@
   {:else}
     <ScrollyContainer>
       <div class="layout">
-        <div class="controls">
-          <ControlPanel />
-        </div>
+        <GenreTitle />
 
         <section class="graph-container">
           <GraphCanvas />

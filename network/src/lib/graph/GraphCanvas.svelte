@@ -577,8 +577,5 @@
   .graph-canvas:active {
     cursor: grabbing;
   }
-  
-  .graph-canvas:focus {
-    box-shadow: 0 0 0 3px rgba(29, 185, 84, 0.4);
-  }
+ 
 </style>

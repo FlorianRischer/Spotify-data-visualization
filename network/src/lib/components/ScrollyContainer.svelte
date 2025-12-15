@@ -151,45 +151,8 @@
 </script>
 
 <div bind:this={scrollContainer} class="scrolly-container">
-  <!-- Scroll-Spacer für Scroll-Höhe -->
+  <!-- Scroll-Spacer für Scroll-Höhe (keine visuellen Elemente) -->
   <div class="scroll-spacer">
-    <!-- Phase 1: Intro -->
-    <section class="scrolly-section intro" class:active={phase === 'intro'}>
-      <div class="section-content">
-        <h1>Genre Universe</h1>
-        <p>Erkunde deine Spotify-Genres in einem interaktiven Universum</p>
-        <div class="scroll-hint">↓ Scroll zum Starten</div>
-      </div>
-    </section>
-
-    <!-- Phase 2: Kategorisierung -->
-    <section class="scrolly-section categorization" class:active={phase === 'categorization'}>
-      <div class="section-content">
-        <h2>Genre-Kategorien</h2>
-        <p>Genres werden nach ihrer Kategorie gruppiert</p>
-      </div>
-    </section>
-
-    <!-- Phase 3: Zoom-Fokus -->
-    <section class="scrolly-section zoom" class:active={phase === 'zoom'}>
-      <div class="section-content">
-        {#if focusedCategory}
-          <h2>{focusedCategory}</h2>
-          <p>{$scrollyStore.categoryNodeCounts[focusedCategory] || 0} Genres in dieser Kategorie</p>
-        {:else}
-          <h2>Detailansichten</h2>
-          <p>Nähere Betrachtung jeder Genre-Kategorie</p>
-        {/if}
-      </div>
-    </section>
-
-    <!-- Phase 4: Summary -->
-    <section class="scrolly-section summary" class:active={phase === 'summary'}>
-      <div class="section-content">
-        <h2>Dein Genre-Universum</h2>
-        <p>{$scrollyStore.genreGroupQueue.length} Kategorien mit einzigartigen Genres</p>
-      </div>
-    </section>
   </div>
 
   <!-- Sticky Graph Container -->
@@ -203,79 +166,13 @@
     position: relative;
     width: 100%;
     background: 
-      radial-gradient(ellipse at 50% 0%, rgba(29, 185, 84, 0.15) 0%, transparent 50%),
-      radial-gradient(ellipse at 50% 100%, rgba(0, 217, 255, 0.1) 0%, transparent 50%),
-      linear-gradient(180deg, rgba(13, 17, 23, 1) 0%, rgba(22, 27, 34, 1) 100%);
+      color(rgba(247, 234, 201, 0.03) 0%),
   }
 
   .scroll-spacer {
     position: relative;
     min-height: 500vh;
     pointer-events: none;
-  }
-
-  .scrolly-section {
-    position: relative;
-    min-height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: flex-start;
-    padding: 40px;
-    padding-left: 60px;
-    opacity: 0.3;
-    transition: opacity 0.5s ease;
-  }
-
-  .scrolly-section.active {
-    opacity: 1;
-  }
-
-  .section-content {
-    text-align: left;
-    color: rgba(255, 255, 255, 0.95);
-    max-width: 350px;
-    padding: 30px;
-    background: rgba(0, 0, 0, 0.4);
-    border-radius: 12px;
-    backdrop-filter: blur(10px);
-    pointer-events: auto;
-    z-index: 10;
-  }
-
-  .section-content h1 {
-    font-size: 2rem;
-    margin: 0 0 15px 0;
-    font-weight: 700;
-    background: linear-gradient(135deg, #1db954, #00d9ff);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
-
-  .section-content h2 {
-    font-size: 1.5rem;
-    margin: 0 0 12px 0;
-    font-weight: 600;
-    color: #00d9ff;
-  }
-
-  .section-content p {
-    font-size: 0.9rem;
-    margin: 0;
-    opacity: 0.8;
-    line-height: 1.5;
-  }
-
-  .scroll-hint {
-    margin-top: 20px;
-    font-size: 0.85rem;
-    opacity: 0.6;
-    animation: bounce 2s infinite;
-  }
-
-  @keyframes bounce {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(10px); }
   }
 
   .sticky-graph {
