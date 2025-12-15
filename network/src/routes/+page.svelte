@@ -6,6 +6,8 @@
   import { graphData, initVisible, setPositions } from "$lib/stores";
   import { uiStore } from "$lib/stores/uiStore";
   import { buildGraph, computeForceLayout, transformSpotifyData, loadStreamingHistory } from "$lib/graph";
+  import "../app.css";
+  import "./page.css";
 
   let isLoading = true;
   let loadingStatus = "Lädt Streaming-Daten...";
@@ -205,89 +207,6 @@
   }
 
   /**
-   * Eingebaute Genre-Mappings für häufige Artists als Fallback
-   * Wird verwendet wenn API nicht verfügbar ist
-   */
-  const BUILTIN_GENRE_MAP: Record<string, string[]> = {
-    // ... (dein riesiger BUILTIN_GENRE_MAP bleibt unverändert)
-    "Lil Peep": ["emo rap", "cloud rap", "sad rap"],
-    "Mac Miller": ["hip hop", "alternative hip hop", "conscious hip hop"]
-    // (gekürzt in diesem Snippet – bitte deinen kompletten Map-Block 그대로 hier lassen)
-  };
-
-  /**
-   * Heuristische Genre-Zuordnung basierend auf Artist-Namen
-   */
-  function guessGenresFromName(artistName: string): string[] | null {
-    // Check builtin map first (case-insensitive)
-    const mapEntry = Object.entries(BUILTIN_GENRE_MAP).find(([key]) => key.toLowerCase() === artistName.toLowerCase());
-    if (mapEntry) return mapEntry[1];
-
-    const lowerName = artistName.toLowerCase();
-
-    // German rap indicators
-    if (
-      lowerName.includes("187") ||
-      lowerName.includes("bonez") ||
-      lowerName.includes("gzuz") ||
-      lowerName.includes("raf ") ||
-      lowerName.includes("capital") ||
-      lowerName.includes("bushido") ||
-      lowerName.includes("kollegah") ||
-      lowerName.includes("farid") ||
-      lowerName.includes("haftbefehl")
-    ) {
-      return ["german hip hop", "deutschrap", "gangsta rap"];
-    }
-
-    // Cloud rap / Emo rap indicators
-    if (
-      lowerName.includes("$uicide") ||
-      lowerName.includes("peep") ||
-      lowerName.includes("tracy") ||
-      lowerName.includes("gothboy") ||
-      lowerName.includes("yunggoth") ||
-      lowerName.includes("cold hart")
-    ) {
-      return ["emo rap", "cloud rap", "sad rap"];
-    }
-
-    // DJ/EDM indicators
-    if (
-      lowerName.startsWith("dj ") ||
-      lowerName.includes("tiesto") ||
-      lowerName.includes("garrix") ||
-      lowerName.includes("hardwell") ||
-      lowerName.includes("guetta")
-    ) {
-      return ["edm", "electronic", "dance"];
-    }
-
-    // Lo-fi indicators
-    if (
-      lowerName.includes("lofi") ||
-      lowerName.includes("lo-fi") ||
-      lowerName.includes("chillhop") ||
-      lowerName.includes("beats") ||
-      lowerName.includes("chill")
-    ) {
-      return ["lo-fi hip hop", "chillhop", "beats"];
-    }
-
-    // Lil = often rap
-    if (lowerName.startsWith("lil ") || lowerName.startsWith("lil'")) {
-      return ["hip hop", "rap", "trap"];
-    }
-
-    // Young = often rap
-    if (lowerName.startsWith("young ") || lowerName.startsWith("yung ")) {
-      return ["hip hop", "trap", "rap"];
-    }
-
-    return null;
-  }
-
-  /**
    * Hauptfunktion: Versucht Daten aus Cache zu laden,
    * nur bei Bedarf Live-API mit strengem Rate-Limit-Schutz
    */
@@ -310,28 +229,6 @@
     }
 
     console.log(`📊 Found ${successCount}/${uniqueArtists.length} artists with genres in cache`);
-
-    // 2) Builtin mappings für fehlende
-    console.log("🔍 Trying builtin genre mappings...");
-    for (const rawName of uniqueArtists) {
-      const key = normKey(rawName);
-      if (cache.has(key)) continue;
-
-      const guessedGenres = guessGenresFromName(rawName);
-      if (guessedGenres) {
-        const artistData = {
-          originalName: rawName,
-          id: `builtin-${key.replace(/\s+/g, "-")}`,
-          name: rawName,
-          genres: guessedGenres
-        };
-        artistsWithGenres.push(artistData);
-        cache.set(key, artistData);
-        successCount++;
-      }
-    }
-
-    console.log(`📊 After builtin mappings: ${successCount} artists with genres`);
 
     // ✅ API-Calls sind vollständig deaktiviert - nur gecachte Daten verwenden
     console.log(`✅ Using cached data only. No API calls. Found ${artistsWithGenres.length} artists with genres.`);
@@ -520,73 +417,4 @@
   {/if}
 </main>
 
-<style>
-  :global(body) {
-    margin: 0;
-    padding: 0;
-    background: #0d1117;
-    color: #e6edf3;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  }
 
-  .app {
-    min-height: 100vh;
-    padding: 0;
-    background: radial-gradient(ellipse at 20% 10%, #1b2838 0%, #0d1117 50%);
-    display: flex;
-    flex-direction: column;
-  }
-
-  .layout {
-    display: flex;
-    flex-direction: column;
-    gap: 0;
-    width: 100%;
-    height: 100vh;
-    flex: 1;
-  }
-
-  .controls {
-    flex-shrink: 0;
-  }
-
-  .graph-container {
-    flex: 1;
-    background: transparent;
-    padding: 0;
-    overflow: hidden;
-  }
-
-  .loading-screen {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 60vh;
-  }
-
-  .loading-content {
-    text-align: center;
-  }
-
-  .spinner {
-    width: 48px;
-    height: 48px;
-    border: 4px solid rgba(29, 185, 84, 0.1);
-    border-top-color: #1db954;
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-    margin: 0 auto 16px;
-  }
-
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
-  }
-
-  .loading-text {
-    color: #8b949e;
-    font-size: 14px;
-    margin: 0;
-  }
-</style>

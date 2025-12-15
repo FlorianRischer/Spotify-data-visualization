@@ -33,7 +33,7 @@
     if (now - lastCameraAnimationTime >= MIN_ANIMATION_INTERVAL) {
       const position = $scrollyStore.categoryPositions[focusedCategory];
       if (position) {
-        console.log(`🎯 Zoom zu Kategorie: ${focusedCategory}`, position);
+        console.log(`Zoom zu Kategorie: ${focusedCategory}`, position);
         scrollyStore.update(state => ({
           ...state,
           isAnimatingCamera: true
@@ -156,7 +156,7 @@
     <!-- Phase 1: Intro -->
     <section class="scrolly-section intro" class:active={phase === 'intro'}>
       <div class="section-content">
-        <h1>🎵 Genre Universe</h1>
+        <h1>Genre Universe</h1>
         <p>Erkunde deine Spotify-Genres in einem interaktiven Universum</p>
         <div class="scroll-hint">↓ Scroll zum Starten</div>
       </div>
@@ -165,7 +165,7 @@
     <!-- Phase 2: Kategorisierung -->
     <section class="scrolly-section categorization" class:active={phase === 'categorization'}>
       <div class="section-content">
-        <h2>📊 Genre-Kategorien</h2>
+        <h2>Genre-Kategorien</h2>
         <p>Genres werden nach ihrer Kategorie gruppiert</p>
       </div>
     </section>
@@ -174,10 +174,10 @@
     <section class="scrolly-section zoom" class:active={phase === 'zoom'}>
       <div class="section-content">
         {#if focusedCategory}
-          <h2>🔍 {focusedCategory}</h2>
+          <h2>{focusedCategory}</h2>
           <p>{$scrollyStore.categoryNodeCounts[focusedCategory] || 0} Genres in dieser Kategorie</p>
         {:else}
-          <h2>🔍 Detailansichten</h2>
+          <h2>Detailansichten</h2>
           <p>Nähere Betrachtung jeder Genre-Kategorie</p>
         {/if}
       </div>
@@ -186,7 +186,7 @@
     <!-- Phase 4: Summary -->
     <section class="scrolly-section summary" class:active={phase === 'summary'}>
       <div class="section-content">
-        <h2>✨ Dein Genre-Universum</h2>
+        <h2>Dein Genre-Universum</h2>
         <p>{$scrollyStore.genreGroupQueue.length} Kategorien mit einzigartigen Genres</p>
       </div>
     </section>
