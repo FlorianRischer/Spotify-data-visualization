@@ -1,12 +1,17 @@
 <script lang="ts">
   import { scrollyStore } from '$lib/stores/scrollyStore';
+  import { fade } from 'svelte/transition';
 
   $: focusedCategory = $scrollyStore.focusedCategory || 'Intro';
 </script>
 
 <div class="genre-title-panel" data-node-id="12:41">
   <div class="rotated-text">
-    <p class="genre-title">{focusedCategory}</p>
+    {#key focusedCategory}
+      <p class="genre-title" in:fade={{ duration: 300 }} out:fade={{ duration: 200 }}>
+        {focusedCategory}
+      </p>
+    {/key}
   </div>
 </div>
 

@@ -66,7 +66,7 @@
   // Animation state
   let startAnimationTime: number | null = null;
   let initialPositions: Record<string, { x: number; y: number }> | null = null;
-  const START_ANIMATION_DURATION = 5000; // 5 seconds spiral + deceleration
+  const START_ANIMATION_DURATION = 10000; // 10 seconds spiral + deceleration
   const TRANSITION_DURATION = 3000; // 3 seconds smooth transition to physics
   let transitionStartTime: number | null = null; // Startet wenn Animation endet
   
@@ -88,23 +88,41 @@
     total: number,
     progress: number // 0 to 1
   ): { x: number; y: number } {
-    // Smooth easing for natural motion
-    const eased = progress * progress * (3 - 2 * progress); // Smoothstep
+    // Smooth easing for natural motion: ease-out cubic
+    const eased = 1 - Math.pow(1 - progress, 3);
+    
+    // Pseudo-random seed basierend auf Index für konsistente, aber variierende Positionen
+    // Simple seeded random function
+    const pseudoRandom = (seed: number) => {
+      const x = Math.sin(seed) * 10000;
+      return x - Math.floor(x);
+    };
     
     // Angle per node in the circle
     const anglePerNode = (Math.PI * 2) / total;
     const baseAngle = index * anglePerNode;
     
-    // Vinyl rotation: only rotate, radius stays constant
-    const rotations = eased * 3; // 3 full rotations during animation
+    // Spiral out: start from center (radius 0) and expand to final radius
+    // While rotating multiple times
+    const rotations = eased * 4; // 4 full rotations during spiral out
     const angle = baseAngle + rotations * Math.PI * 2;
     
-    // Constant radius (like vinyl record grooves)
-    const radius = 300;
+    // Variiere die finalen Radien: Min 220, Max 380 für breitere Verteilung
+    const radiusVariation = pseudoRandom(index * 7.3) * 160; // 0-160 variation
+    const minRadius = 220;
+    const maxRadius = 380;
+    const randomizedFinalRadius = minRadius + radiusVariation;
+    
+    // Spirale von Mitte (0) zum variierten Radius
+    const radius = eased * randomizedFinalRadius;
+    
+    // Kleine zufällige Offsets für natürlichere Asteroiden-Verteilung
+    const offsetX = pseudoRandom(index * 11.7) * 40 - 20; // -20 to 20
+    const offsetY = pseudoRandom(index * 13.1) * 40 - 20; // -20 to 20
     
     return {
-      x: centerX + Math.cos(angle) * radius,
-      y: centerY + Math.sin(angle) * radius
+      x: centerX + Math.cos(angle) * radius + offsetX,
+      y: centerY + Math.sin(angle) * radius + offsetY
     };
   }
 
@@ -123,40 +141,50 @@
     
     clearExpiredAnimations();
     
-    // Physics step (skip if reduced motion or dragging)
-    if (!rm && nodes.length > 0 && !isDragging) {
+    // Handle start animation (spiral motion) - completely separate from physics
+    if (startAnimationTime !== null && !rm && nodes.length > 0) {
+      const elapsed = performance.now() - startAnimationTime;
+      const animProgress = Math.min(1, elapsed / START_ANIMATION_DURATION);
+      
+      if (animProgress < 1) {
+        // Still animating: apply spiral motion only, no physics
+        const pos = get(positionsStore);
+        const centerX = 0;
+        const centerY = 0;
+        
+        for (let i = 0; i < nodes.length; i++) {
+          const nodeId = nodes[i].id;
+          // Stagger animation: each node starts slightly later
+          const staggerAmount = 0.15; // 15% of total animation per node
+          const staggerDelay = (i / nodes.length) * staggerAmount;
+          const nodeAnimProgress = Math.min(1, Math.max(0, (animProgress - staggerDelay) / (1 - staggerAmount)));
+          
+          const spiralPos = getSpiralPosition(centerX, centerY, i, nodes.length, nodeAnimProgress);
+          pos[nodeId] = spiralPos;
+        }
+        // Reset physics state to prevent any interference
+        physicsState = createPhysicsState(nodes.map(n => n.id));
+        positionsStore.set(pos);
+      } else {
+        // Animation complete - start smooth transition
+        startAnimationTime = null;
+        initialPositions = null;
+        transitionStartTime = performance.now();
+      }
+    }
+    
+    // Physics step (skip if reduced motion or dragging or during animation)
+    if (!rm && nodes.length > 0 && !isDragging && startAnimationTime === null) {
       // Build radii map (mit 0.4 skaliert für kleinere Nodes)
       const radii: Record<string, number> = {};
       for (const n of nodes) radii[n.id] = Math.max(8, n.size) * 0.4;
       // Fetch and mutate positions from store
       const pos = get(positionsStore);
       
-      // Handle start animation and smooth transition to physics
-      let transitionProgress = 0; // 0 = animation, 1 = full physics
+      // Handle smooth transition to physics after animation
+      let transitionProgress = 0; // 0 = animation just ended, 1 = full physics
       
-      if (startAnimationTime !== null) {
-        const elapsed = performance.now() - startAnimationTime;
-        const animProgress = Math.min(1, elapsed / START_ANIMATION_DURATION);
-        
-        if (animProgress < 1) {
-          // Still animating: apply spiral motion
-          const centerX = 0;
-          const centerY = 0;
-          
-          for (let i = 0; i < nodes.length; i++) {
-            const nodeId = nodes[i].id;
-            const spiralPos = getSpiralPosition(centerX, centerY, i, nodes.length, animProgress);
-            pos[nodeId] = spiralPos;
-          }
-          // Reset physics state to prevent jerky movement during animation
-          physicsState = createPhysicsState(nodes.map(n => n.id));
-        } else {
-          // Animation complete - start smooth transition
-          startAnimationTime = null;
-          initialPositions = null;
-          transitionStartTime = performance.now();
-        }
-      } else if (transitionStartTime !== null) {
+      if (transitionStartTime !== null) {
         // Smooth transition phase: gradually enable physics forces
         const elapsed = performance.now() - transitionStartTime;
         transitionProgress = Math.min(1, elapsed / TRANSITION_DURATION);
@@ -577,5 +605,8 @@
   .graph-canvas:active {
     cursor: grabbing;
   }
- 
+  
+  .graph-canvas:focus {
+    box-shadow: 0 0 0 3px rgba(29, 185, 84, 0.4);
+  }
 </style>
