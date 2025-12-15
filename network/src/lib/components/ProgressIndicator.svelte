@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { scrollyStore } from '$lib/stores/scrollyStore';
+  import { scrollyStore, jumpToCategory } from '$lib/stores/scrollyStore';
   import type { GenreCategory } from '$lib/graph/genreMapping';
 
   let hoveredCategory: GenreCategory | null = null;
@@ -10,29 +10,7 @@
   $: categoryNodeCounts = $scrollyStore.categoryNodeCounts;
 
   function handleCategoryClick(category: GenreCategory) {
-    // Berechne die Scroll-Position für diese Kategorie
-    const categoryIndex = genreGroupQueue.indexOf(category);
-    if (categoryIndex === -1) return;
-
-    // Berechne den Scroll-Progress basierend auf der Kategorie-Position
-    // Zoom-Phase: 0.45 - 0.95
-    // Inverse der calculateFocusedCategoryIndex Funktion:
-    // rawIndex = zoomProgress * totalCategories
-    // Für Mitte der Kategorie: rawIndex = categoryIndex + 0.5
-    const phaseStart = 0.45;
-    const phaseLength = 0.5; // 0.95 - 0.45
-    const zoomProgress = (categoryIndex + 0.5) / genreGroupQueue.length;
-    const scrollProgress = phaseStart + zoomProgress * phaseLength;
-    
-    // Berechne die Scroll-Position aus dem Progress
-    const scrollHeight = document.documentElement.scrollHeight - window.innerHeight;
-    const scrollTop = scrollProgress * scrollHeight;
-    
-    // Smooth scroll zu der Position
-    window.scrollTo({
-      top: scrollTop,
-      behavior: 'smooth'
-    });
+    jumpToCategory(category);
   }
 
   function getOpacity(index: number): number {
