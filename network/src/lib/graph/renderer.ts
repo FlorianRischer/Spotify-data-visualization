@@ -257,27 +257,31 @@ export function hitTest(
   cameraX: number = 0,
   cameraY: number = 0
 ): string | null {
-  // Convert screen coordinates to CSS-Pixel world coordinates
-  // Screen coords → Buffer coords (÷dpr) → CSS coords
+  // Canvas dimensions in CSS-Pixel space
   const cssCanvasWidth = canvasWidth / dpr;
   const cssCanvasHeight = canvasHeight / dpr;
   
-  // Mouse position in CSS pixels (from screen pixels)
-  const mouseCssX = mouseX / dpr;
-  const mouseCssY = mouseY / dpr;
+  // INVERSE TRANSFORM (umgekehrt zu renderGraph):
+  // Render macht: setTransform(dpr*zoom, 0, 0, dpr*zoom, cssW*dpr/2, cssH*dpr/2) dann translate(-camX, -camY)
+  // 
+  // Inverse:
+  // 1. Rückgängig: camera pan (addiere camX/Y statt zu subtrahieren)
+  // 2. Rückgängig: center translation (cssW*dpr/2, cssH*dpr/2 in Buffer-Pixeln)
+  // 3. Rückgängig: scale (÷ (dpr*zoom))
   
-  // Inverse transform of renderGraph:
-  // 1. Translate center to origin (world coords are centered)
-  const centeredX = mouseCssX - cssCanvasWidth / 2;
-  const centeredY = mouseCssY - cssCanvasHeight / 2;
+  // Mouse ist in Screen-Pixeln
+  // Schritt 1: Rückgängig der Zentrierung (mouseX/Y sind bereits in Buffer-Pixeln da sie von Canvas kommen)
+  const uncenteredX = mouseX - cssCanvasWidth * dpr / 2;
+  const uncenteredY = mouseY - cssCanvasHeight * dpr / 2;
   
-  // 2. Unscale by cameraZoom
-  const unzoomedX = centeredX / cameraZoom;
-  const unzoomedY = centeredY / cameraZoom;
+  // Schritt 2: Rückgängig der Scale (dpr * cameraZoom)
+  const scaleFactor = dpr * cameraZoom;
+  const unscaledX = uncenteredX / scaleFactor;
+  const unscaledY = uncenteredY / scaleFactor;
   
-  // 3. Add camera pan offset (pan was subtracted in render)
-  const worldX = unzoomedX + cameraX;
-  const worldY = unzoomedY + cameraY;
+  // Schritt 3: Camera pan hinzufügen (in CSS-Pixel-Raum)
+  const worldX = unscaledX + cameraX;
+  const worldY = unscaledY + cameraY;
   
   // Check in reverse order (top-most first)
   for (let i = nodes.length - 1; i >= 0; i--) {
