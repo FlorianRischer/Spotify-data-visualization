@@ -53,6 +53,12 @@
   let dragOffset = { x: 0, y: 0 };
   let isDragging = false;
   
+  // Hover scale animation state (for organic water-droplet effect)
+  let hoverScaleMap = new Map<string, { scale: number; velocity: number; startTime: number }>();
+  const HOVER_SCALE_TARGET = 1.35; // Target scale for hovered nodes (strong growth)
+  const HOVER_SCALE_SPEED = 0.08; // Animation speed (higher = faster)
+  const HOVER_SCALE_BOUNCE = 0.6; // Bounce/elasticity factor
+  
   // Camera state for scrolly-telling
   let cameraZoom = 1;
   let cameraX = 0;
@@ -68,28 +74,30 @@
   // Animation state
   let startAnimationTime: number | null = null;
   let initialPositions: Record<string, { x: number; y: number }> | null = null;
+  let settlingTime: number | null = null; // Phase after animation where physics stabilize nodes
   const START_ANIMATION_DURATION = 10000; // 10 seconds spiral + deceleration
-  const TRANSITION_DURATION = 3000; // 3 seconds smooth transition to physics
+  const SETTLING_DURATION = 300; // Physics run freely to settle nodes (300ms)
+  const TRANSITION_DURATION = 1500; // Reduced from 3000 for quicker stabilization
   let transitionStartTime: number | null = null; // Startet wenn Animation endet
   
   // Baseline-Parameter für 1200x800 Canvas (Referenzbasis für alle Skalierungen)
   const BASELINE_PHYSICS_PARAMS = {
-    repulsion: 180,
+    repulsion: 160, // Reduced from 180 for smoother spacing
     spring: 0.005,
     restLength: 200,
-    damping: 0.75,
+    damping: 0.82, // Increased from 0.75 for smoother motion
     jitter: 0.05,
-    maxSpeed: 2.2,
-    groupAttraction: 5,  // erhöht von 3.5 (stärkere Gruppierung)
-    genreAnchorStrength: 3.2  // erhöht von 2.5 (stärkere Anziehung zu Genre-Ankern)
+    maxSpeed: 1.8, // Reduced from 2.2 to prevent snappy movements
+    groupAttraction: 5,
+    genreAnchorStrength: 3.2
   };
 
   const BASELINE_SPIRAL_PARAMS = {
-    minRadius: 165,  // reduziert von 220 (× 0.75)
-    maxRadius: 285,  // reduziert von 380 (× 0.75)
-    radiusVariation: 120,  // reduziert von 160 (× 0.75)
-    offsetRange: 30,  // reduziert von 40 (× 0.75)
-    offsetAmount: 15  // reduziert von 20 (× 0.75)
+    minRadius: 220, // Increased to prevent node overlapping at end of animation
+    maxRadius: 380, // Increased to prevent node overlapping at end of animation
+    radiusVariation: 160, // Increased from 120 for better spacing
+    offsetRange: 30,
+    offsetAmount: 15
   };
   
   let physicsParams = {
@@ -126,7 +134,7 @@
     
     // Spiral out: start from center (radius 0) and expand to final radius
     // While rotating multiple times
-    const rotations = eased * 4; // 4 full rotations during spiral out
+    const rotations = eased * 3; // 3 full rotations during spiral out (reduced from 4)
     const angle = baseAngle + rotations * Math.PI * 2;
     
     // Variiere die finalen Radien: Min 220, Max 380 für breitere Verteilung
@@ -252,17 +260,48 @@
         physicsState = createPhysicsState(nodes.map(n => n.id));
         positionsStore.set(pos);
       } else {
-        // Animation complete - start smooth transition
+        // Animation complete - let physics settle nodes to stable positions
         startAnimationTime = null;
-        initialPositions = null;
-        transitionStartTime = performance.now();
+        settlingTime = performance.now();
         // Setze animation state auf false
         isStartAnimationRunning.set(false);
       }
     }
     
-    // Physics step (skip if reduced motion or dragging or during animation)
-    if (!rm && nodes.length > 0 && !isDragging && startAnimationTime === null) {
+    // Settling phase: let physics run freely to find equilibrium positions
+    if (settlingTime !== null && !rm && nodes.length > 0) {
+      const elapsed = performance.now() - settlingTime;
+      
+      if (elapsed < SETTLING_DURATION) {
+        // Physics are settling - run them normally with high damping
+        const radii: Record<string, number> = {};
+        for (const n of nodes) radii[n.id] = Math.max(8, n.size) * 0.4 * scaleFactor;
+        const pos = get(positionsStore);
+        
+        const settlingParams = {
+          ...physicsParams,
+          damping: 0.90, // High damping to quickly find equilibrium
+          maxSpeed: 1.2, // Limit speed during settling
+          repulsion: physicsParams.repulsion * 0.9 // Slightly reduced for stability
+        };
+        
+        stepPhysics(nodes, edges, pos, radii, physicsState, settlingParams, 1/60, {
+          width: canvas.width / dpr,
+          height: canvas.height / dpr
+        });
+        
+        positionsStore.set(pos);
+      } else {
+        // Settling complete - capture final positions and start normal physics
+        initialPositions = { ...get(positionsStore) };
+        settlingTime = null;
+        transitionStartTime = performance.now();
+      }
+    }
+    
+    // Physics step (skip if reduced motion or during animation)
+    // Keep running even while dragging so nearby nodes can react/escape
+    if (!rm && nodes.length > 0 && startAnimationTime === null && settlingTime === null) {
       // Build radii map mit proportionalem Scaling
       // scaleFactor berücksichtigt unterschiedliche Canvas-Größen
       const radii: Record<string, number> = {};
@@ -273,14 +312,15 @@
       // Handle smooth transition to physics after animation
       let transitionProgress = 0; // 0 = animation just ended, 1 = full physics
       
-      if (transitionStartTime !== null) {
-        // Smooth transition phase: gradually enable physics forces
+      if (transitionStartTime !== null && initialPositions) {
+        // Smooth transition phase: blend from animation end position to physics equilibrium
         const elapsed = performance.now() - transitionStartTime;
         transitionProgress = Math.min(1, elapsed / TRANSITION_DURATION);
         
         if (transitionProgress >= 1) {
           // Transition complete
           transitionStartTime = null;
+          initialPositions = null;
         }
       } else {
         // Normal physics mode
@@ -320,9 +360,11 @@
       
       const transitionPhysicsParams = {
         ...physicsParams,
-        // Erhöhe Damping während Übergang für sanftere Bewegung
-        damping: 0.75 + (1 - transitionProgress) * 0.15,
-        // Erhöhe genreAnchorStrength graduell während Übergang (nur wenn aktiv)
+        // Reduziere Krfte während Transition - nicht zu aggressiv
+        repulsion: physicsParams.repulsion * (0.3 + transitionProgress * 0.7),
+        maxSpeed: physicsParams.maxSpeed * 0.5, // Keep nodes slow during transition
+        damping: 0.85, // High damping for smooth, slow motion
+        // Erhh genreAnchorStrength graduell während bergang (nur wenn aktiv)
         genreAnchorStrength: activeGenreAnchorStrength * transitionProgress
       };
       
@@ -330,6 +372,58 @@
         width: canvas.width / dpr,
         height: canvas.height / dpr
       }, groups, genreAnchors);
+      
+      // During transition: blend positions from animation end to physics equilibrium
+      if (transitionProgress < 1 && initialPositions) {
+        const easeOut = 1 - Math.pow(1 - transitionProgress, 3); // Ease out cubic for smooth blend
+        for (const n of nodes) {
+          if (pos[n.id] && initialPositions[n.id]) {
+            // Smoothly interpolate from animation position to physics position
+            const animPos = initialPositions[n.id];
+            const physicsPos = pos[n.id];
+            pos[n.id] = {
+              x: animPos.x + (physicsPos.x - animPos.x) * easeOut,
+              y: animPos.y + (physicsPos.y - animPos.y) * easeOut
+            };
+          }
+        }
+      }
+      
+      // Apply hover repulsion force on nearby nodes (water displacement effect)
+      if (hoveredId && hoverScaleMap.has(hoveredId)) {
+        const hoveredNode = nodes.find(n => n.id === hoveredId);
+        const hoveredScale = hoverScaleMap.get(hoveredId)?.scale ?? 1;
+        
+        if (hoveredNode && hoveredScale > 1) {
+          const hoverInfluenceRadius = 220;
+          const hoverRepulsionForce = (hoveredScale - 1) * 0.18; // Slightly reduced from 0.25
+          
+          for (const n of nodes) {
+            if (n.id === hoveredId) continue;
+            const posNode = pos[n.id];
+            const posHovered = pos[hoveredId];
+            if (!posNode || !posHovered) continue;
+            
+            const dx = posNode.x - posHovered.x;
+            const dy = posNode.y - posHovered.y;
+            const distSq = dx * dx + dy * dy;
+            const distance = Math.sqrt(distSq);
+            
+            // Quadratic falloff within influence radius
+            if (distance < hoverInfluenceRadius && distance > 0.1) {
+              const influence = (1 - distance / hoverInfluenceRadius) * hoverRepulsionForce;
+              const nx = (dx / distance) * influence;
+              const ny = (dy / distance) * influence;
+              
+              // Apply smooth push to nearby nodes
+              physicsState.vx[n.id] += nx * 0.6; // Reduced from 0.8
+              physicsState.vy[n.id] += ny * 0.6; // Reduced from 0.8
+              posNode.x += nx * 0.04; // Reduced from 0.06
+              posNode.y += ny * 0.04; // Reduced from 0.06
+            }
+          }
+        }
+      }
       
       // Animate centered node to center
       if (centeredNodeId && centerAnimationStart !== null) {
@@ -352,6 +446,28 @@
       // Persist positions back to store so derived edges update
       positionsStore.set(pos);
     }
+    
+    // Update hover scale animations (organic water-droplet physics)
+    const now = performance.now();
+    for (const [nodeId, state] of hoverScaleMap.entries()) {
+      const target = hoveredId === nodeId ? HOVER_SCALE_TARGET : 1;
+      const diff = target - state.scale;
+      
+      // Elastic animation with bounce
+      const acceleration = diff * HOVER_SCALE_SPEED;
+      state.velocity = (state.velocity + acceleration) * HOVER_SCALE_BOUNCE;
+      state.scale += state.velocity;
+      
+      // Stop animating when close enough to target
+      if (Math.abs(state.scale - target) < 0.02 && Math.abs(state.velocity) < 0.01) {
+        state.scale = target;
+        state.velocity = 0;
+        if (target === 1) {
+          hoverScaleMap.delete(nodeId);
+        }
+      }
+    }
+    
     renderGraph(ctx, canvas, nodes, edges, {
       hoveredId,
       focusedId,
@@ -366,7 +482,8 @@
       cameraZoom,
       cameraX,
       cameraY,
-      focusedCategory
+      focusedCategory,
+      hoverScaleMap
     });
     
     frameId = requestAnimationFrame(loop);
@@ -464,6 +581,24 @@
         hoverTimer = null;
       }
       
+      // Trigger hover scale animation for new node
+      if (id) {
+        hoverScaleMap.set(id, {
+          scale: 1,
+          velocity: 0,
+          startTime: performance.now()
+        });
+        // Show pointer cursor when hovering a node
+        canvas.style.cursor = 'pointer';
+      } else {
+        // Clear old hover scale
+        if (hoveredId) {
+          hoverScaleMap.delete(hoveredId);
+        }
+        // Reset cursor when leaving node
+        canvas.style.cursor = 'default';
+      }
+      
       hoverNodeId.set(id);
       // Speichere die CSS-Pixel Position für Tooltip
       hoverPosition.set(id ? { x: cssX, y: cssY } : null);
@@ -486,6 +621,14 @@
       clearTimeout(hoverTimer);
       hoverTimer = null;
     }
+    
+    // Clear hover scale for current node
+    if (hoveredId) {
+      hoverScaleMap.delete(hoveredId);
+    }
+    
+    // Reset cursor when leaving canvas
+    canvas.style.cursor = 'default';
     
     // Grace period before hiding
     hideTimer = setTimeout(() => {
@@ -703,13 +846,8 @@
     height: 100%;
     display: block;
     background: transparent;
-    cursor: grab;
     outline: none;
     border: none;
-  }
-  
-  .graph-canvas:active {
-    cursor: grabbing;
   }
   
   .graph-canvas:focus {

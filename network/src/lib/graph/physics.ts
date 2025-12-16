@@ -176,15 +176,15 @@ export function stepPhysics(
       state.vx[b.id] -= fx * dt;
       state.vy[b.id] -= fy * dt;
       
-      // Collision resolution to avoid overlap - stronger force
+      // Collision resolution to avoid overlap - smoother force
       if (d < minSep) {
-        const overlap = (minSep - d) * 0.8; // increased from 0.5 to 0.8
+        const overlap = (minSep - d) * 0.6; // Reduced from 0.8 for smoother separation
         const nx = dx / (d + 1e-6);
         const ny = dy / (d + 1e-6);
-        pa.x += nx * overlap;
-        pa.y += ny * overlap;
-        pb.x -= nx * overlap;
-        pb.y -= ny * overlap;
+        pa.x += nx * overlap * 0.5; // Apply gradually to avoid jerking
+        pa.y += ny * overlap * 0.5;
+        pb.x -= nx * overlap * 0.5;
+        pb.y -= ny * overlap * 0.5;
       }
     }
   }
