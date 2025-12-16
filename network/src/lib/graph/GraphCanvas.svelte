@@ -71,16 +71,36 @@
   const TRANSITION_DURATION = 3000; // 3 seconds smooth transition to physics
   let transitionStartTime: number | null = null; // Startet wenn Animation endet
   
-  const physicsParams = {
-    repulsion: 180,  // moderiert für sanftere Abstoßung
-    spring: 0.005,   // sehr schwache Springs für Zusammenhalt
+  // Baseline-Parameter für 1200x800 Canvas (Referenzbasis für alle Skalierungen)
+  const BASELINE_PHYSICS_PARAMS = {
+    repulsion: 180,
+    spring: 0.005,
     restLength: 200,
-    damping: 0.75,   // erhöhte Dämpfung für smootheres Schweben
-    jitter: 0.05,    // deutlich weniger Jitter für glatte Bewegung
-    maxSpeed: 2.2,   // etwas höher für freiere Bewegung
-    groupAttraction: 3.5, // stärkere Anziehung für schnellere Zusammenführung
-    genreAnchorStrength: 2.5 // Starke Anziehung zu Genre-Ankerpunkten für schnelle Gruppierung
-  } as const;
+    damping: 0.75,
+    jitter: 0.05,
+    maxSpeed: 2.2,
+    groupAttraction: 3.5,
+    genreAnchorStrength: 2.5
+  };
+
+  const BASELINE_SPIRAL_PARAMS = {
+    minRadius: 165,  // reduziert von 220 (× 0.75)
+    maxRadius: 285,  // reduziert von 380 (× 0.75)
+    radiusVariation: 120,  // reduziert von 160 (× 0.75)
+    offsetRange: 30,  // reduziert von 40 (× 0.75)
+    offsetAmount: 15  // reduziert von 20 (× 0.75)
+  };
+  
+  let physicsParams = {
+    repulsion: BASELINE_PHYSICS_PARAMS.repulsion,
+    spring: BASELINE_PHYSICS_PARAMS.spring,
+    restLength: BASELINE_PHYSICS_PARAMS.restLength,
+    damping: BASELINE_PHYSICS_PARAMS.damping,
+    jitter: BASELINE_PHYSICS_PARAMS.jitter,
+    maxSpeed: BASELINE_PHYSICS_PARAMS.maxSpeed,
+    groupAttraction: BASELINE_PHYSICS_PARAMS.groupAttraction,
+    genreAnchorStrength: BASELINE_PHYSICS_PARAMS.genreAnchorStrength
+  };
 
   function getSpiralPosition(
     centerX: number,
@@ -109,17 +129,21 @@
     const angle = baseAngle + rotations * Math.PI * 2;
     
     // Variiere die finalen Radien: Min 220, Max 380 für breitere Verteilung
-    const radiusVariation = pseudoRandom(index * 7.3) * 160; // 0-160 variation
-    const minRadius = 220;
-    const maxRadius = 380;
+    // RESPONSIVE: Alle Werte werden mit scaleFactor multipliziert
+    const radiusVariation = pseudoRandom(index * 7.3) * (BASELINE_SPIRAL_PARAMS.radiusVariation * scaleFactor);
+    const minRadius = BASELINE_SPIRAL_PARAMS.minRadius * scaleFactor;
+    const maxRadius = BASELINE_SPIRAL_PARAMS.maxRadius * scaleFactor;
     const randomizedFinalRadius = minRadius + radiusVariation;
     
     // Spirale von Mitte (0) zum variierten Radius
     const radius = eased * randomizedFinalRadius;
     
     // Kleine zufällige Offsets für natürlichere Asteroiden-Verteilung
-    const offsetX = pseudoRandom(index * 11.7) * 40 - 20; // -20 to 20
-    const offsetY = pseudoRandom(index * 13.1) * 40 - 20; // -20 to 20
+    // RESPONSIVE: Offsets werden auch mit scaleFactor multipliziert
+    const offsetRange = BASELINE_SPIRAL_PARAMS.offsetRange * scaleFactor;
+    const offsetAmount = BASELINE_SPIRAL_PARAMS.offsetAmount * scaleFactor;
+    const offsetX = pseudoRandom(index * 11.7) * offsetRange - offsetAmount;
+    const offsetY = pseudoRandom(index * 13.1) * offsetRange - offsetAmount;
     
     return {
       x: centerX + Math.cos(angle) * radius + offsetX,
@@ -141,6 +165,16 @@
     const widthScale = width / baselineWidth;
     const heightScale = height / baselineHeight;
     scaleFactor = Math.min(widthScale, heightScale); // Einheitliche Skalierung
+    
+    // Aktualisiere physicsParams mit skalierten Werten
+    physicsParams.repulsion = BASELINE_PHYSICS_PARAMS.repulsion * scaleFactor;
+    physicsParams.restLength = BASELINE_PHYSICS_PARAMS.restLength * scaleFactor;
+    physicsParams.jitter = BASELINE_PHYSICS_PARAMS.jitter * scaleFactor;
+    physicsParams.maxSpeed = BASELINE_PHYSICS_PARAMS.maxSpeed * scaleFactor;
+    physicsParams.groupAttraction = BASELINE_PHYSICS_PARAMS.groupAttraction * scaleFactor;
+    physicsParams.genreAnchorStrength = BASELINE_PHYSICS_PARAMS.genreAnchorStrength * scaleFactor;
+    // spring bleibt konstant (keine Skalierung benötigt)
+    // damping bleibt konstant (keine Skalierung benötigt)
     
     canvas.width = Math.floor(rect.width * dpr);
     canvas.height = Math.floor(rect.height * dpr);
@@ -228,7 +262,9 @@
       // Ansonsten schweben Nodes frei herum (genreAnchors bleibt leer)
       if (uiState.showGenreGrouping && genreAnchors.length === 0 && nodes.length > 0) {
         // Genre-Gruppierung aktiviert: erstelle Ankerpunkte
-        genreAnchors = createCategoryBasedGenreAnchors(nodes as any, 350);
+        // RESPONSIVE: Genre Anchor Radius wird mit scaleFactor multipliziert (Baseline: 262.5 = 350 × 0.75)
+        const scaledGenreAnchorRadius = 262.5 * scaleFactor;
+        genreAnchors = createCategoryBasedGenreAnchors(nodes as any, scaledGenreAnchorRadius);
       } else if (!uiState.showGenreGrouping && genreAnchors.length > 0) {
         // Genre-Gruppierung deaktiviert: entferne Ankerpunkte
         genreAnchors = [];
