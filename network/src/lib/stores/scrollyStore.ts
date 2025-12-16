@@ -17,6 +17,7 @@ export interface ScrollyState {
   isAnimatingCamera: boolean;
   introAnimationComplete: boolean;
   categorizationComplete: boolean;
+  displayedCategory: GenreCategory | null; // Für Genre-Titel-Animation erst nach Kamera-Zoom
 }
 
 const initialState: ScrollyState = {
@@ -32,7 +33,8 @@ const initialState: ScrollyState = {
   categoryPositions: {},
   isAnimatingCamera: false,
   introAnimationComplete: false,
-  categorizationComplete: false
+  categorizationComplete: false,
+  displayedCategory: 'Intro' as GenreCategory
 };
 
 export const scrollyStore = writable<ScrollyState>(initialState);
@@ -132,6 +134,16 @@ export function setCameraPosition(zoom: number, x: number, y: number, isAnimatin
     cameraX: x,
     cameraY: y,
     isAnimatingCamera: isAnimating
+  }));
+}
+
+/**
+ * Aktualisiert die angezeigte Kategorie (wird nach Kamera-Zoom angezeigt)
+ */
+export function setDisplayedCategory(category: GenreCategory | null) {
+  scrollyStore.update(state => ({
+    ...state,
+    displayedCategory: category
   }));
 }
 

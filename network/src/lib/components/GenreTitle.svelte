@@ -6,14 +6,15 @@
   let previousCategory: string | null = null;
   let scrollDirection: 'down' | 'up' = 'down';
 
-  $: focusedCategory = $scrollyStore.focusedCategory || 'Intro';
+  // Verwende displayedCategory statt focusedCategory - wird nur nach Kamera-Zoom gesetzt
+  $: displayedCategory = $scrollyStore.displayedCategory;
   
   // Track scroll direction based on category changes
   $: {
-    if (previousCategory !== null && focusedCategory !== previousCategory) {
+    if (previousCategory !== null && displayedCategory !== previousCategory) {
       // Determine direction based on category index change
       const prevIndex = $scrollyStore.genreGroupQueue.indexOf(previousCategory as any);
-      const currIndex = $scrollyStore.genreGroupQueue.indexOf(focusedCategory as any);
+      const currIndex = $scrollyStore.genreGroupQueue.indexOf(displayedCategory as any);
       
       if (currIndex > prevIndex || (prevIndex === -1 && currIndex >= 0)) {
         scrollDirection = 'down';
@@ -21,7 +22,7 @@
         scrollDirection = 'up';
       }
     }
-    previousCategory = focusedCategory;
+    previousCategory = displayedCategory;
   }
 
   // Animation distance
@@ -34,11 +35,11 @@
 
 <div class="genre-title-panel" data-node-id="12:41">
   <div class="rotated-text">
-    {#key focusedCategory}
+    {#key displayedCategory}
       <p class="genre-title" 
          in:fly={{ y: inY, duration: 500, easing: cubicOut }} 
          out:fly={{ y: outY, duration: 500, easing: cubicOut }}>
-        {focusedCategory}
+        {displayedCategory}
       </p>
     {/key}
   </div>
