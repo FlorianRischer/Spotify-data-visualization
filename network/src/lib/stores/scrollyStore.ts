@@ -242,7 +242,7 @@ export function activateOverview() {
     focusedCategory: null,
     focusedCategoryIndex: -1,
     displayedCategory: 'Overview' as any, // Spezial-String für Overview
-    isAnimatingCamera: true,
+    isAnimatingCamera: false, // Kamera ist bereits von animateToOverview animiert
     isInOverview: true
   }));
 }

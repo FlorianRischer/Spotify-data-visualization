@@ -31,6 +31,8 @@
   // Reactive animation params based on scroll direction
   $: inY = scrollDirection === 'down' ? flyDistance : -flyDistance;
   $: outY = scrollDirection === 'down' ? -flyDistance : flyDistance;
+
+
 </script>
 
 <div class="genre-title-panel" data-node-id="12:41">

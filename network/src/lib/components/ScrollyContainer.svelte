@@ -21,7 +21,7 @@
   let lastFocusedCategory: GenreCategory | null = null;
   let lastCameraAnimationTime = 0;
   const MIN_ANIMATION_INTERVAL = 1500; // Mindestabstand zwischen Animationen
-  const CAMERA_ANIMATION_DURATION = 1200; // Muss mit cameraController Duration übereinstimmen
+  const CAMERA_ANIMATION_DURATION = 1000; // Muss mit cameraController Duration übereinstimmen
   const TITLE_ANIMATION_DURATION = 500; // Dauer der Titel-Animation
   const TITLE_START_DELAY = CAMERA_ANIMATION_DURATION - TITLE_ANIMATION_DURATION; // Titel startet so, dass beide enden zur gleichen Zeit
 
@@ -68,7 +68,10 @@
           if (categoryIndex === totalCategories - 1) {
             setTimeout(() => {
               cameraController.animateToOverview(CAMERA_ANIMATION_DURATION);
-              activateOverview();
+              // Wechsel Titel schneller (nach 600ms der Animation)
+              setTimeout(() => {
+                activateOverview();
+              }, 600);
             }, CAMERA_ANIMATION_DURATION);
           }
         }, CAMERA_ANIMATION_DURATION);

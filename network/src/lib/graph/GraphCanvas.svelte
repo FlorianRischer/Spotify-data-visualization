@@ -24,7 +24,7 @@
   } from "$lib/stores/uiStore";
   import { scrollyStore, setIntroComplete } from "$lib/stores/scrollyStore";
   import { renderGraph, hitTest, type RenderNode, type RenderEdge } from "./renderer";
-  import { stepPhysics, createPhysicsState, createGenreAnchors, createCategoryBasedGenreAnchors, createOverviewAnchors, type GenreAnchor } from "$lib/graph/physics";
+  import { stepPhysics, createPhysicsState, createGenreAnchors, createCategoryBasedGenreAnchors, createOverviewAnchors, createOverviewCategoryLabels, type GenreAnchor, type CategoryAnchor } from "$lib/graph/physics";
   import { positions as positionsStore } from "$lib/stores";
 
   let canvas: HTMLCanvasElement;
@@ -47,6 +47,7 @@
   let animMap = new Map<string, { startTime: number; duration: number }>();
   let physicsState = createPhysicsState([]);
   let genreAnchors: GenreAnchor[] = []; // Vordefinierte Genre-Positionen
+  let categoryLabels: CategoryAnchor[] = []; // Mini-Headings für Kategorien im Overview
   
   // Drag state
   let draggedNodeId: string | null = null;
@@ -82,7 +83,9 @@
   
   // Overview-Modus: Verzögerung bis Ankerpunkte aktiviert werden
   let overviewTransitionStartTime: number | null = null;
+  let overviewTransitionProgress = 0; // 0-1 progress of overview transition
   const OVERVIEW_TRANSITION_DURATION = 1200; // Sanfte Transition zu Overview
+  let wasInOverviewMode = false; // Track wenn aus Overview zurückkommt
   
   // Baseline-Parameter für 1200x800 Canvas (Referenzbasis für alle Skalierungen)
   const BASELINE_PHYSICS_PARAMS = {
@@ -353,6 +356,7 @@
       // Starte Overview-Transition wenn in Overview-Modus gewechselt wird
       if (isOverviewMode && overviewTransitionStartTime === null) {
         overviewTransitionStartTime = performance.now();
+        wasInOverviewMode = true;
         // Lösche alte Ankerpunkte beim Wechsel zu Overview
         genreAnchors = [];
       } else if (!isOverviewMode) {
@@ -360,26 +364,32 @@
       }
       
       // Berechne Overview-Transition-Progress
-      let overviewTransitionProgress = 0;
       if (overviewTransitionStartTime !== null) {
         const elapsed = performance.now() - overviewTransitionStartTime;
         overviewTransitionProgress = Math.min(1, elapsed / OVERVIEW_TRANSITION_DURATION);
+      } else {
+        overviewTransitionProgress = 0;
       }
       
       // Erstelle Ankerpunkte basierend auf Mode mit Transition-Verzögerung
-      if (isOverviewMode && overviewTransitionProgress > 0.2 && genreAnchors.length === 0 && nodes.length > 0) {
-        // Overview-Modus: verteile Gruppen über den Screen (nach 20% der Transition)
+      if (isOverviewMode && overviewTransitionProgress > 0.75 && genreAnchors.length === 0 && nodes.length > 0) {
+        // Overview-Modus: verteile Gruppen über den Screen (nach 75% der Transition, wenn Kamera vollständig fertig ist)
         const scaledWidth = canvas.width / dpr;
         const scaledHeight = canvas.height / dpr;
         genreAnchors = createOverviewAnchors(nodes as any, scaledWidth, scaledHeight, 300);
+        // Erstelle auch Mini-Headings für jede Kategorie
+        categoryLabels = createOverviewCategoryLabels(nodes as any, genreAnchors);
       } else if (!isOverviewMode && uiState.showGenreGrouping && genreAnchors.length === 0 && nodes.length > 0) {
         // Genre-Gruppierung aktiviert: erstelle Ankerpunkte im Kreis
-        // RESPONSIVE: Genre Anchor Radius wird mit scaleFactor multipliziert (Baseline: 350 für mehr Abstand)
+        // Oder wenn man gerade aus Overview zurückkommt
         const scaledGenreAnchorRadius = 350 * scaleFactor;
         genreAnchors = createCategoryBasedGenreAnchors(nodes as any, scaledGenreAnchorRadius);
+        categoryLabels = []; // Keine Mini-Headings im normalen Modus
+        wasInOverviewMode = false; // Reset flag
       } else if (!isOverviewMode && !uiState.showGenreGrouping && genreAnchors.length > 0) {
         // Genre-Gruppierung deaktiviert: entferne Ankerpunkte
         genreAnchors = [];
+        categoryLabels = [];
       }
       
       // Angepasste Physics-Parameter für sanften Übergang
@@ -522,7 +532,10 @@
       cameraX,
       cameraY,
       focusedCategory,
-      hoverScaleMap
+      hoverScaleMap,
+      categoryLabels,
+      overviewTransitionProgress,
+      overviewTransitionStartTime
     });
     
     frameId = requestAnimationFrame(loop);

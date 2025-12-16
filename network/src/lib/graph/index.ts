@@ -4,7 +4,7 @@ export { computeLayout, computeForceLayout, computeTreeLayout, seedFromString } 
 export { renderGraph, hitTest } from "./renderer";
 export { transformSpotifyData, loadStreamingHistory, createDemoGraphInput } from "./dataLoader";
 export { sampleInput } from "./sampleData";
-export { createGenreAnchors, createCategoryBasedGenreAnchors, createOverviewAnchors, stepPhysics } from "./physics";
+export { createGenreAnchors, createCategoryBasedGenreAnchors, createOverviewAnchors, createOverviewCategoryLabels, stepPhysics } from "./physics";
 export { 
   getGenreCategory, 
   getGenresByCategory, 

@@ -1,5 +1,6 @@
 // Canvas Renderer — draws graph with animations, LOD, painter's order
 import type { GenreNode, GenreEdge, ArtistGroup } from "$lib/graph/types";
+import type { CategoryAnchor } from "./physics";
 
 export interface RenderNode extends GenreNode {
   x: number;
@@ -30,6 +31,9 @@ export interface RenderOptions {
   cameraY?: number;
   focusedCategory?: string | null; // For category-based focus effect
   hoverScaleMap?: Map<string, { scale: number; velocity: number; startTime: number }>; // For organic hover animation
+  categoryLabels?: CategoryAnchor[]; // Mini-Headings für Overview-Kategorien
+  overviewTransitionProgress?: number; // 0-1 progress of overview transition
+  overviewTransitionStartTime?: number | null; // When overview transition started (for delayed label display)
 }
 
 // Color palette for genres
@@ -90,6 +94,63 @@ function convexHull(points: Array<{ x: number; y: number }>): Array<{ x: number;
   } while (current !== left);
   
   return hull;
+}
+
+// Render mini category labels for Overview mode
+function renderCategoryLabels(
+  ctx: CanvasRenderingContext2D,
+  labels: CategoryAnchor[],
+  overviewTransitionProgress: number,
+  overviewTransitionStartTime: number | undefined,
+  now: number
+): void {
+  const OVERVIEW_TRANSITION_DURATION = 1200;
+  const LABEL_DELAY = 10000; // 10 second delay after transition completes
+  
+  // Check if 2 seconds have passed since transition started + duration
+  if (!overviewTransitionStartTime) {
+    return;
+  }
+  
+  const transitionEndTime = overviewTransitionStartTime + OVERVIEW_TRANSITION_DURATION;
+  const timeSinceTransitionEnd = now - transitionEndTime;
+  
+  if (timeSinceTransitionEnd < LABEL_DELAY) {
+    return;
+  }
+  
+  // Calculate opacity: fade in over 300ms after delay completes
+  const fadeInDuration = 300;
+  const timeSinceLabelStart = timeSinceTransitionEnd - LABEL_DELAY;
+  const labelOpacity = Math.min(1, timeSinceLabelStart / fadeInDuration);
+  
+  ctx.save();
+  
+  for (const label of labels) {
+    ctx.save();
+    
+    // Move to label position (offset to the left of group center)
+    ctx.translate(label.x - 110, label.y);
+    
+    // Rotate 90 degrees to make text vertical (like the main "Overview" heading)
+    // Use 270deg (same as genre title)
+    ctx.rotate(-Math.PI / 2);
+    
+    // Set up text style - match Anton font from GenreTitle
+    ctx.font = '400 32px "Anton", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    
+    // Use black color for all labels
+    ctx.fillStyle = `rgba(0, 0, 0, ${labelOpacity})`;
+    
+    // Draw the category name
+    ctx.fillText(label.category, 0, 0);
+    
+    ctx.restore();
+  }
+  
+  ctx.restore();
 }
 
 export function renderGraph(
@@ -273,6 +334,11 @@ export function renderGraph(
       ctx.stroke();
       ctx.setLineDash([]);
     }
+  }
+
+  // Render mini category labels for Overview mode
+  if (options.categoryLabels && options.categoryLabels.length > 0 && options.overviewTransitionProgress !== undefined) {
+    renderCategoryLabels(ctx, options.categoryLabels, options.overviewTransitionProgress, options.overviewTransitionStartTime ?? undefined, options.now);
   }
 
   ctx.restore();

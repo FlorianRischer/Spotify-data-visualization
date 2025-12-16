@@ -25,6 +25,14 @@ export interface GenreAnchor {
   y: number;
 }
 
+// Kategorie-Ankerpunkte mit Namen für Overview-Headings
+export interface CategoryAnchor {
+  category: GenreCategory;
+  x: number;
+  y: number;
+  genreIds: string[]; // IDs der Genres in dieser Kategorie
+}
+
 export function createPhysicsState(nodeIds: string[]): PhysicsState {
   const vx: Record<string, number> = {};
   const vy: Record<string, number> = {};
@@ -218,6 +226,56 @@ export function createOverviewAnchors(
   }
   
   return anchors;
+}
+
+/**
+ * Erstellt Kategorie-Ankerpunkte mit Namen für Overview-Headings
+ * Speichert Kategoriename + Position für Mini-Headings
+ */
+export function createOverviewCategoryLabels(
+  nodes: GenreNode[],
+  genreAnchors: GenreAnchor[]
+): CategoryAnchor[] {
+  const labels: CategoryAnchor[] = [];
+  
+  // Gruppiere Genres nach Kategorie
+  const categoriesMap = new Map<GenreCategory, GenreNode[]>();
+  
+  for (const node of nodes) {
+    const category = (node.category || "Specialty") as GenreCategory;
+    if (!categoriesMap.has(category)) {
+      categoriesMap.set(category, []);
+    }
+    categoriesMap.get(category)!.push(node);
+  }
+  
+  // Für jede Kategorie: berechne Durchschnittsposition der Ankerpunkte
+  for (const [category, genresInCategory] of categoriesMap.entries()) {
+    const genreIds = genresInCategory.map(g => g.id);
+    
+    // Finde alle Ankerpunkte dieser Genres
+    const anchorsForCategory = genreAnchors.filter(a => genreIds.includes(a.genreId));
+    
+    if (anchorsForCategory.length === 0) continue;
+    
+    // Berechne Durchschnittsposition
+    let sumX = 0, sumY = 0;
+    for (const anchor of anchorsForCategory) {
+      sumX += anchor.x;
+      sumY += anchor.y;
+    }
+    const avgX = sumX / anchorsForCategory.length;
+    const avgY = sumY / anchorsForCategory.length;
+    
+    labels.push({
+      category,
+      x: avgX,
+      y: avgY,
+      genreIds
+    });
+  }
+  
+  return labels;
 }
 
 export function stepPhysics(
