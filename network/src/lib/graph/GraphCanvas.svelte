@@ -24,7 +24,7 @@
   } from "$lib/stores/uiStore";
   import { scrollyStore, setIntroComplete } from "$lib/stores/scrollyStore";
   import { renderGraph, hitTest, type RenderNode, type RenderEdge } from "./renderer";
-  import { stepPhysics, createPhysicsState, createGenreAnchors, createCategoryBasedGenreAnchors, type GenreAnchor } from "$lib/graph/physics";
+  import { stepPhysics, createPhysicsState, createGenreAnchors, createCategoryBasedGenreAnchors, createOverviewAnchors, type GenreAnchor } from "$lib/graph/physics";
   import { positions as positionsStore } from "$lib/stores";
 
   let canvas: HTMLCanvasElement;
@@ -79,6 +79,10 @@
   const SETTLING_DURATION = 300; // Physics run freely to settle nodes (300ms)
   const TRANSITION_DURATION = 800; // Faster grouping: reduced from 1500ms for quicker node sorting
   let transitionStartTime: number | null = null; // Startet wenn Animation endet
+  
+  // Overview-Modus: Verzögerung bis Ankerpunkte aktiviert werden
+  let overviewTransitionStartTime: number | null = null;
+  const OVERVIEW_TRANSITION_DURATION = 1200; // Sanfte Transition zu Overview
   
   // Baseline-Parameter für 1200x800 Canvas (Referenzbasis für alle Skalierungen)
   const BASELINE_PHYSICS_PARAMS = {
@@ -340,32 +344,67 @@
       // Get current UI state to determine if grouping is active
       const uiState = get(uiStore);
       const graphState = get(graphData);
+      const scrollState = get(scrollyStore);
       const groups = uiState.showArtistGroups ? graphState?.groups : undefined;
       
-      // Erstelle kategoriebasierte Genre-Ankerpunkte nur wenn Toggle aktiv ist
-      // Ansonsten schweben Nodes frei herum (genreAnchors bleibt leer)
-      if (uiState.showGenreGrouping && genreAnchors.length === 0 && nodes.length > 0) {
-        // Genre-Gruppierung aktiviert: erstelle Ankerpunkte
+      // Bestimme welche Ankerpunkte zu verwenden sind
+      const isOverviewMode = scrollState.phase === 'overview' || scrollState.isInOverview;
+      
+      // Starte Overview-Transition wenn in Overview-Modus gewechselt wird
+      if (isOverviewMode && overviewTransitionStartTime === null) {
+        overviewTransitionStartTime = performance.now();
+        // Lösche alte Ankerpunkte beim Wechsel zu Overview
+        genreAnchors = [];
+      } else if (!isOverviewMode) {
+        overviewTransitionStartTime = null;
+      }
+      
+      // Berechne Overview-Transition-Progress
+      let overviewTransitionProgress = 0;
+      if (overviewTransitionStartTime !== null) {
+        const elapsed = performance.now() - overviewTransitionStartTime;
+        overviewTransitionProgress = Math.min(1, elapsed / OVERVIEW_TRANSITION_DURATION);
+      }
+      
+      // Erstelle Ankerpunkte basierend auf Mode mit Transition-Verzögerung
+      if (isOverviewMode && overviewTransitionProgress > 0.2 && genreAnchors.length === 0 && nodes.length > 0) {
+        // Overview-Modus: verteile Gruppen über den Screen (nach 20% der Transition)
+        const scaledWidth = canvas.width / dpr;
+        const scaledHeight = canvas.height / dpr;
+        genreAnchors = createOverviewAnchors(nodes as any, scaledWidth, scaledHeight, 300);
+      } else if (!isOverviewMode && uiState.showGenreGrouping && genreAnchors.length === 0 && nodes.length > 0) {
+        // Genre-Gruppierung aktiviert: erstelle Ankerpunkte im Kreis
         // RESPONSIVE: Genre Anchor Radius wird mit scaleFactor multipliziert (Baseline: 350 für mehr Abstand)
         const scaledGenreAnchorRadius = 350 * scaleFactor;
         genreAnchors = createCategoryBasedGenreAnchors(nodes as any, scaledGenreAnchorRadius);
-      } else if (!uiState.showGenreGrouping && genreAnchors.length > 0) {
+      } else if (!isOverviewMode && !uiState.showGenreGrouping && genreAnchors.length > 0) {
         // Genre-Gruppierung deaktiviert: entferne Ankerpunkte
         genreAnchors = [];
       }
       
       // Angepasste Physics-Parameter für sanften Übergang
       // Wenn Genre-Gruppierung aktiv ist: verwende genreAnchorStrength, sonst 0
-      const activeGenreAnchorStrength = uiState.showGenreGrouping ? physicsParams.genreAnchorStrength : 0;
+      const activeGenreAnchorStrength = (uiState.showGenreGrouping || isOverviewMode) ? physicsParams.genreAnchorStrength : 0;
+      
+      // Für Overview-Transition: verstärke genreAnchorStrength graduell UND STÄRKER
+      const finalGenreAnchorStrength = isOverviewMode 
+        ? activeGenreAnchorStrength * overviewTransitionProgress * 1.5 
+        : activeGenreAnchorStrength;
       
       const transitionPhysicsParams = {
         ...physicsParams,
         // Reduziere Krfte während Transition - nicht zu aggressiv
-        repulsion: physicsParams.repulsion * (0.3 + transitionProgress * 0.7),
-        maxSpeed: physicsParams.maxSpeed * 0.5, // Keep nodes slow during transition
-        damping: 0.85, // High damping for smooth, slow motion
+        repulsion: isOverviewMode 
+          ? physicsParams.repulsion * 0.4  // Schwächere Repulsion im Overview
+          : physicsParams.repulsion * (0.3 + transitionProgress * 0.7),
+        maxSpeed: isOverviewMode 
+          ? physicsParams.maxSpeed * 0.8  // Höhere maxSpeed im Overview für schnellere Verteilung
+          : physicsParams.maxSpeed * 0.5, // Keep nodes slow during transition
+        damping: isOverviewMode 
+          ? 0.75  // Weniger Damping im Overview für bessere Verteilung
+          : 0.85, // High damping for smooth, slow motion
         // Erhh genreAnchorStrength graduell während bergang (nur wenn aktiv)
-        genreAnchorStrength: activeGenreAnchorStrength * transitionProgress
+        genreAnchorStrength: finalGenreAnchorStrength
       };
       
       stepPhysics(nodes, edges, pos, radii, physicsState, transitionPhysicsParams, 1/60, {

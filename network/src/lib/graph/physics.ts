@@ -130,6 +130,96 @@ export function createCategoryBasedGenreAnchors(
   return anchors;
 }
 
+/**
+ * Erstellt Ankerpunkte für Overview-Modus
+ * Verteilt 17 Kategorien über den verfügbaren Screen-Bereich (rechts vom Genre-Titel)
+ * Verhindert Überlappungen zwischen den Gruppen
+ */
+export function createOverviewAnchors(
+  nodes: GenreNode[],
+  canvasWidth: number = 1920,
+  canvasHeight: number = 1080,
+  titleWidth: number = 300 // Platz für Genre-Titel links
+): GenreAnchor[] {
+  const anchors: GenreAnchor[] = [];
+  
+  // Gruppiere Genres nach Kategorie
+  const categoriesMap = new Map<string, GenreNode[]>();
+  
+  for (const node of nodes) {
+    const category = node.category || "Specialty & Other";
+    if (!categoriesMap.has(category)) {
+      categoriesMap.set(category, []);
+    }
+    categoriesMap.get(category)!.push(node);
+  }
+  
+  // Sortiere Kategorien nach Größe (absteigend)
+  const categories = Array.from(categoriesMap.entries())
+    .sort((a, b) => b[1].length - a[1].length)
+    .map(entry => entry[0]);
+  
+  const categoryCount = categories.length; // 17 Kategorien
+  
+  // Grid-Layout: 5 Spalten × 4 Reihen (wie im Design gezeigt - 17 Punkte)
+  const cols = 5;
+  const rows = Math.ceil(categoryCount / cols); // = 4 Reihen
+  
+  // Canvas-Bereich für Ankerpunkte (0, 0 ist Mitte des Canvas)
+  // Mit Canvas-Koordinaten: -width/2 bis +width/2, -height/2 bis +height/2
+  const gridLeft = -canvasWidth * 0.15;  // Näher zur Mitte (weniger nach links)
+  const gridRight = canvasWidth * 0.42;  // 42% nach rechts von Mitte (weniger weit)
+  const gridTop = -canvasHeight * 0.4;   // 40% nach oben von Mitte
+  const gridBottom = canvasHeight * 0.45; // 45% nach unten von Mitte
+  
+  const gridWidth = gridRight - gridLeft;
+  const gridHeight = gridBottom - gridTop;
+  
+  const cellWidth = gridWidth / cols;
+  const cellHeight = gridHeight / rows;
+  
+  // Positioniere jede Kategorie auf einem Grid-Punkt
+  for (let catIdx = 0; catIdx < categoryCount; catIdx++) {
+    const col = catIdx % cols;
+    const row = Math.floor(catIdx / cols);
+    
+    // Position - zentriert in jeder Zelle
+    const x = gridLeft + (col + 0.5) * cellWidth;
+    const y = gridTop + (row + 0.5) * cellHeight;
+    
+    const category = categories[catIdx];
+    const genresInCategory = categoriesMap.get(category)!;
+    const genreCount = genresInCategory.length;
+    
+    // Kleinere Cluster für jede Kategorie
+    const clusterRadius = Math.min(30, 150 / genreCount);
+    
+    for (let genreIdx = 0; genreIdx < genreCount; genreIdx++) {
+      const genre = genresInCategory[genreIdx];
+      
+      if (genreCount === 1) {
+        anchors.push({
+          genreId: genre.id,
+          x,
+          y
+        });
+      } else {
+        // Kleine Cluster um Grid-Position
+        const angle = (genreIdx / genreCount) * Math.PI * 2;
+        const px = x + Math.cos(angle) * clusterRadius;
+        const py = y + Math.sin(angle) * clusterRadius;
+        anchors.push({
+          genreId: genre.id,
+          x: px,
+          y: py
+        });
+      }
+    }
+  }
+  
+  return anchors;
+}
+
 export function stepPhysics(
   nodes: GenreNode[],
   edges: GenreEdge[],

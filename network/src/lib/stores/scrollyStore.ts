@@ -1,7 +1,7 @@
 import { writable, derived, get } from 'svelte/store';
 import type { GenreCategory } from '$lib/graph/genreMapping';
 
-export type ScrollyPhase = 'intro' | 'categorization' | 'zoom' | 'summary';
+export type ScrollyPhase = 'intro' | 'categorization' | 'zoom' | 'overview' | 'summary';
 
 export interface ScrollyState {
   scrollProgress: number; // 0-1 total scroll progress
@@ -18,6 +18,7 @@ export interface ScrollyState {
   introAnimationComplete: boolean;
   categorizationComplete: boolean;
   displayedCategory: GenreCategory | null; // Für Genre-Titel-Animation erst nach Kamera-Zoom
+  isInOverview: boolean; // Zeigt an, ob wir im Overview-Modus sind
 }
 
 const initialState: ScrollyState = {
@@ -34,7 +35,8 @@ const initialState: ScrollyState = {
   isAnimatingCamera: false,
   introAnimationComplete: false,
   categorizationComplete: false,
-  displayedCategory: 'Intro' as GenreCategory
+  displayedCategory: 'Intro' as GenreCategory,
+  isInOverview: false
 };
 
 export const scrollyStore = writable<ScrollyState>(initialState);
@@ -227,6 +229,24 @@ export function resetToOverview() {
   }));
 }
 
+/**
+ * Aktiviert Overview-Modus (nach letzter Kategorie)
+ */
+export function activateOverview() {
+  scrollyStore.update(state => ({
+    ...state,
+    phase: 'overview',
+    cameraZoom: 1,
+    cameraX: 0,
+    cameraY: 0,
+    focusedCategory: null,
+    focusedCategoryIndex: -1,
+    displayedCategory: 'Overview' as any, // Spezial-String für Overview
+    isAnimatingCamera: true,
+    isInOverview: true
+  }));
+}
+
 // Derived Stores
 export const currentPhase = derived(scrollyStore, $s => $s.phase);
 export const focusedCategory = derived(scrollyStore, $s => $s.focusedCategory);
@@ -237,7 +257,8 @@ export const phaseDescription = derived(scrollyStore, $s => {
     intro: '🌀 Genres erscheinen...',
     categorization: '📊 Gruppierung nach Kategorie...',
     zoom: $s.focusedCategory ? `🔍 ${$s.focusedCategory}` : '🔍 Detailansicht...',
-    summary: '✨ Übersicht'
+    overview: '👀 Übersicht aller Kategorien',
+    summary: '✨ Ende'
   };
   return descriptions[$s.phase];
 });

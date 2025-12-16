@@ -8,7 +8,8 @@
     setGenreGroupQueue,
     setIntroComplete,
     setCategorizationComplete,
-    setDisplayedCategory 
+    setDisplayedCategory,
+    activateOverview 
   } from '$lib/stores/scrollyStore';
   import { uiStore } from '$lib/stores/uiStore';
   import { graphData } from '$lib/stores';
@@ -36,6 +37,9 @@
     // Nur animieren wenn genug Zeit seit letzter Animation vergangen ist
     if (now - lastCameraAnimationTime >= MIN_ANIMATION_INTERVAL) {
       const position = $scrollyStore.categoryPositions[focusedCategory];
+      const categoryIndex = $scrollyStore.focusedCategoryIndex;
+      const totalCategories = $scrollyStore.genreGroupQueue.length;
+      
       if (position) {
         console.log(`Zoom zu Kategorie: ${focusedCategory}`, position);
         scrollyStore.update(state => ({
@@ -59,6 +63,14 @@
             ...state,
             isAnimatingCamera: false
           }));
+          
+          // Nach letzter Kategorie: Wechsel zu Overview
+          if (categoryIndex === totalCategories - 1) {
+            setTimeout(() => {
+              cameraController.animateToOverview(CAMERA_ANIMATION_DURATION);
+              activateOverview();
+            }, CAMERA_ANIMATION_DURATION);
+          }
         }, CAMERA_ANIMATION_DURATION);
       }
     }
@@ -145,6 +157,12 @@
     // Categorization abgeschlossen
     if (oldPhase === 'categorization' && newPhase === 'zoom') {
       setCategorizationComplete();
+    }
+
+    // Overview-Modus: Verteile Nodes über Screen
+    if (newPhase === 'overview') {
+      console.log('📍 Wechsel zu Overview-Modus');
+      // Die GraphCanvas wird automatisch Overview-Ankerpunkte aktivieren
     }
 
     // Summary: Reset Genre-Gruppierung optional
