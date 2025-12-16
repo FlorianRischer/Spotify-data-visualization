@@ -19,127 +19,130 @@ export interface CategoryColorScheme {
 export const CATEGORY_COLORS: Record<GenreCategory, CategoryColorScheme> = {
   "Hip Hop & Rap": {
     category: "Hip Hop & Rap",
-    primary: "#FF7744",
-    light: "#FF7744",
-    dark: "#FF7744"
+    primary: "#FF7744", // Warmes Pastell-Orange
+    light: "#FF9966",
+    dark: "#CC5533"
   },
   "Electronic": {
     category: "Electronic",
-    primary: "#44CCFF",
-    light: "#44CCFF",
-    dark: "#44CCFF"
+    primary: "#44CCFF", // Pastell-Cyan
+    light: "#77DDFF",
+    dark: "#22BBFF"
   },
   "Rock & Punk": {
     category: "Rock & Punk",
-    primary: "#FF4466",
-    light: "#FF4466",
-    dark: "#FF4466"
+    primary: "#FF4466", // Pastell-Rot/Magenta
+    light: "#FF7799",
+    dark: "#DD1144"
   },
   "Pop": {
     category: "Pop",
-    primary: "#FF5599",
-    light: "#FF5599",
-    dark: "#FF5599"
+    primary: "#FF5599", // Pastell-Pink
+    light: "#FF88CC",
+    dark: "#DD2277"
   },
   "Jazz & Blues": {
     category: "Jazz & Blues",
-    primary: "#BB7744",
-    light: "#BB7744",
-    dark: "#BB7744"
+    primary: "#BB7744", // Pastell-Braun
+    light: "#CC9966",
+    dark: "#995533"
   },
   "Soul & R&B": {
     category: "Soul & R&B",
-    primary: "#AA77CC",
-    light: "#AA77CC",
-    dark: "#AA77CC"
+    primary: "#AA77CC", // Pastell-Lila
+    light: "#CC99EE",
+    dark: "#8855BB"
   },
   "Reggae": {
     category: "Reggae",
-    primary: "#FFCC44",
-    light: "#FFCC44",
-    dark: "#FFCC44"
+    primary: "#FFCC44", // Pastell-Gold
+    light: "#FFDD77",
+    dark: "#FFBB11"
   },
   "Folk & Indie": {
     category: "Folk & Indie",
-    primary: "#55BB88",
-    light: "#55BB88",
-    dark: "#55BB88"
+    primary: "#55BB88", // Pastell-Grün
+    light: "#77CC99",
+    dark: "#22AA66"
   },
   "Classical": {
     category: "Classical",
-    primary: "#CCAA66",
-    light: "#CCAA66",
-    dark: "#CCAA66"
+    primary: "#CCAA66", // Pastell-Bronze
+    light: "#DDBB88",
+    dark: "#BB8833"
   },
   "Country": {
     category: "Country",
-    primary: "#BB8855",
-    light: "#BB8855",
-    dark: "#BB8855"
+    primary: "#BB8855", // Pastell-Tan
+    light: "#CC9966",
+    dark: "#AA6633"
   },
   "Latin & World": {
     category: "Latin & World",
-    primary: "#FF9944",
-    light: "#FF9944",
-    dark: "#FF9944"
+    primary: "#FF9944", // Pastell-Orange
+    light: "#FFBB77",
+    dark: "#FF7722"
   },
   "Metal": {
     category: "Metal",
-    primary: "#667788",
-    light: "#667788",
-    dark: "#667788"
+    primary: "#667788", // Pastell-Grau-Blau
+    light: "#8899AA",
+    dark: "#445566"
   },
   "Experimental": {
     category: "Experimental",
-    primary: "#8866CC",
-    light: "#8866CC",
-    dark: "#8866CC"
+    primary: "#8866CC", // Pastell-Indigo
+    light: "#AA99DD",
+    dark: "#6644BB"
   },
   "Funk & Groove": {
     category: "Funk & Groove",
-    primary: "#FF77EE",
-    light: "#FF77EE",
-    dark: "#FF77EE"
+    primary: "#FF77EE", // Pastell-Magenta
+    light: "#FF99FF",
+    dark: "#DD44CC"
   },
   "Spiritual": {
     category: "Spiritual",
-    primary: "#FF99CC",
-    light: "#FF99CC",
-    dark: "#FF99CC"
+    primary: "#FF99CC", // Pastell-Rosa
+    light: "#FFBBDD",
+    dark: "#FF6699"
   },
   "Asian Pop": {
     category: "Asian Pop",
-    primary: "#FF5588",
-    light: "#FF5588",
-    dark: "#FF5588"
+    primary: "#FF5588", // Pastell-Rot-Pink
+    light: "#FF7799",
+    dark: "#DD2255"
   },
   "Specialty": {
     category: "Specialty",
-    primary: "#999999",
-    light: "#999999",
-    dark: "#999999"
+    primary: "#999999", // Pastell-Grau
+    light: "#BBBBBB",
+    dark: "#777777"
   }
 };
 
 /**
  * Gibt die Farbe einer Kategorie zurück
  */
-export function getCategoryColor(category: GenreCategory): string {
-  return CATEGORY_COLORS[category]?.primary || CATEGORY_COLORS["Specialty"].primary;
+export function getCategoryColor(category: GenreCategory | string): string {
+  const colorScheme = CATEGORY_COLORS[category as GenreCategory];
+  return colorScheme?.primary || CATEGORY_COLORS["Specialty"]?.primary || "#999999";
 }
 
 /**
  * Gibt die helle Variante zurück
  */
-export function getCategoryColorLight(category: GenreCategory): string {
-  return CATEGORY_COLORS[category]?.light || CATEGORY_COLORS["Specialty"].light;
+export function getCategoryColorLight(category: GenreCategory | string): string {
+  const colorScheme = CATEGORY_COLORS[category as GenreCategory];
+  return colorScheme?.light || CATEGORY_COLORS["Specialty"]?.light || "#BBBBBB";
 }
 
 /**
  * Gibt die dunkle Variante zurück
  */
-export function getCategoryColorDark(category: GenreCategory): string {
-  return CATEGORY_COLORS[category]?.dark || CATEGORY_COLORS["Specialty"].dark;
+export function getCategoryColorDark(category: GenreCategory | string): string {
+  const colorScheme = CATEGORY_COLORS[category as GenreCategory];
+  return colorScheme?.dark || CATEGORY_COLORS["Specialty"]?.dark || "#777777";
 }
 
 /**

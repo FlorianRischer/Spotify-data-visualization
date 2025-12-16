@@ -42,10 +42,10 @@ function buildNodes(genreStats: GenreStat[], opts: Required<typeof DEFAULT_OPTIO
   return genreStats.map((g) => {
     const base = Math.sqrt(g.totalMinutes) * opts.sizeScale;
     const size = clamp(base, opts.minSize, opts.maxSize);
-    const category = g.category || getGenreCategory(g.label);
+    const category = g.category || getGenreCategory(g.label) || "Specialty";
     
     // Verwende kategoriebasierte Farbe wenn keine eigene Farbe definiert
-    const color = g.color || getCategoryColor(category);
+    const color = g.color || getCategoryColor(category) || "#999999";
     
     return {
       id: g.id,
