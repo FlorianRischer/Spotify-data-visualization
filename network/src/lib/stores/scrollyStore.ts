@@ -17,6 +17,7 @@ export interface ScrollyState {
   isAnimatingCamera: boolean;
   introAnimationComplete: boolean;
   categorizationComplete: boolean;
+  displayedCategory: GenreCategory | null; // Für Genre-Titel-Animation erst nach Kamera-Zoom
 }
 
 const initialState: ScrollyState = {
@@ -32,7 +33,8 @@ const initialState: ScrollyState = {
   categoryPositions: {},
   isAnimatingCamera: false,
   introAnimationComplete: false,
-  categorizationComplete: false
+  categorizationComplete: false,
+  displayedCategory: 'Intro' as GenreCategory
 };
 
 export const scrollyStore = writable<ScrollyState>(initialState);
@@ -136,6 +138,16 @@ export function setCameraPosition(zoom: number, x: number, y: number, isAnimatin
 }
 
 /**
+ * Aktualisiert die angezeigte Kategorie (wird nach Kamera-Zoom angezeigt)
+ */
+export function setDisplayedCategory(category: GenreCategory | null) {
+  scrollyStore.update(state => ({
+    ...state,
+    displayedCategory: category
+  }));
+}
+
+/**
  * Markiert Intro-Animation als abgeschlossen
  */
 export function setIntroComplete() {
@@ -164,6 +176,29 @@ export function jumpToCategory(category: GenreCategory) {
     if (index === -1) return state;
 
     const position = state.categoryPositions[category];
+    
+    // Berechne die Scroll-Position basierend auf Kategorie-Index
+    // Zoom-Phase: 0.45-0.95 (50% des gesamt Scrolls)
+    // Teile die Zoom-Phase gleichmäßig auf alle Kategorien auf
+    const totalCategories = state.genreGroupQueue.length;
+    const zoomRangeStart = 0.45;
+    const zoomRangeEnd = 0.95;
+    const zoomRange = zoomRangeEnd - zoomRangeStart;
+    
+    // Berechne den Progress für diese Kategorie (in der Mitte ihrer Range)
+    const progressPerCategory = zoomRange / totalCategories;
+    const targetProgress = zoomRangeStart + (index + 0.5) * progressPerCategory;
+    
+    // Konvertiere Progress zu tatsächlicher Scroll-Position
+    const scrollHeight = document.documentElement.scrollHeight - window.innerHeight;
+    const targetScrollPosition = targetProgress * scrollHeight;
+    
+    // Führe sanftes Scrolling durch
+    window.scrollTo({
+      top: targetScrollPosition,
+      behavior: 'smooth'
+    });
+    
     return {
       ...state,
       phase: 'zoom',

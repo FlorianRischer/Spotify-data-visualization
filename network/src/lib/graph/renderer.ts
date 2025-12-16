@@ -29,7 +29,7 @@ export interface RenderOptions {
   cameraX?: number;
   cameraY?: number;
   focusedCategory?: string | null; // For category-based focus effect
-
+  hoverScaleMap?: Map<string, { scale: number; velocity: number; startTime: number }>; // For organic hover animation
 }
 
 // Color palette for genres
@@ -41,6 +41,12 @@ const COLORS = [
 
 function getNodeColor(node: RenderNode, index: number): string {
   return node.color || COLORS[index % COLORS.length];
+}
+
+// Helper to apply alpha channel to hex color
+function hexColorWithAlpha(hexColor: string, alpha: number): string {
+  const alphaHex = Math.round(Math.max(0, Math.min(1, alpha)) * 0xff).toString(16).padStart(2, '0');
+  return hexColor + alphaHex;
 }
 
 function getAnimationProgress(
@@ -93,7 +99,7 @@ export function renderGraph(
   edges: RenderEdge[],
   options: RenderOptions
 ) {
-  const { hoveredId, focusedId, centeredNodeId, showConnections, animatingNodes, reducedMotion, dpr, now, groups, focusedCategory } = options;
+  const { hoveredId, focusedId, centeredNodeId, showConnections, animatingNodes, reducedMotion, dpr, now, groups, focusedCategory, hoverScaleMap } = options;
   const cameraZoom = options.cameraZoom ?? 1;
   const cameraX = options.cameraX ?? 0;
   const cameraY = options.cameraY ?? 0;
@@ -157,6 +163,16 @@ export function renderGraph(
   // Sort nodes by size (smaller first, so larger draw on top)
   const sortedNodes = [...nodes].sort((a, b) => a.size - b.size);
   
+  // Find hovered node for influence calculation on neighbors
+  let hoveredNode: RenderNode | null = null;
+  let hoveredNodeScale = 1;
+  if (hoveredId && hoverScaleMap) {
+    hoveredNode = sortedNodes.find(n => n.id === hoveredId) || null;
+    if (hoveredNode) {
+      hoveredNodeScale = hoverScaleMap.get(hoveredId)?.scale ?? 1;
+    }
+  }
+  
   // Draw nodes
   for (let i = 0; i < sortedNodes.length; i++) {
     const n = sortedNodes[i];
@@ -170,54 +186,71 @@ export function renderGraph(
     const hasCenteredNode = !!centeredNodeId;
     const isInFocusedCategory = focusedCategory && n.category === focusedCategory;
     
+    // Calculate influence from hovered node (push-away + dim effect)
+    let hoverInfluence = 0;
+    if (hoveredNode && !isHovered && hoveredNodeScale > 1) {
+      const dx = n.x - hoveredNode.x;
+      const dy = n.y - hoveredNode.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      // Influence decreases with distance (quadratic falloff)
+      const influenceRadius = 150;
+      hoverInfluence = Math.max(0, 1 - (distance / influenceRadius)) * (hoveredNodeScale - 1);
+    }
+    
     // Size multiplier for centered node
     const sizeMultiplier = isCentered ? 2.5 : 1;
-    // Dim other nodes when one is centered OR when a category is focused
+    // Dim other nodes when one is centered OR when a category is focused OR when affected by hover
     let dimFactor = 1;
     if (hasCenteredNode && !isCentered) {
       dimFactor = 0.3;
     } else if (focusedCategory && !isInFocusedCategory) {
       dimFactor = 0.2; // More aggressive blur for category focus
+    } else if (hoverInfluence > 0.1) {
+      // Nodes near hovered node become more transparent (water displacement effect)
+      dimFactor = 1 - (hoverInfluence * 0.35);
     }
     
     const r = Math.max(8, n.size) * scale * 0.4 * sizeMultiplier;
     const color = getNodeColor(n, i);
     
-    // Shadow/glow for hovered or centered
-    if ((isHovered || isCentered) && !reducedMotion) {
+    // Get hover scale animation for organic water-droplet effect
+    const hoverScale = hoverScaleMap?.get(n.id)?.scale ?? 1;
+    const scaledRadius = r * hoverScale;
+    
+    // Shadow/glow for centered node only (not for hover)
+    if (isCentered && !reducedMotion) {
       ctx.beginPath();
-      const glowSize = isCentered ? 25 : 12;
-      ctx.fillStyle = isCentered ? `${color}66` : `${color}44`;
+      const glowSize = 25;
+      ctx.fillStyle = `${color}66`;
       // x, y sind bereits im CSS-Pixel-Raum → direkt zeichnen (keine /dpr)
-      ctx.arc(n.x, n.y, r + glowSize, 0, Math.PI * 2);
+      ctx.arc(n.x, n.y, scaledRadius + glowSize, 0, Math.PI * 2);
       ctx.fill();
     }
     
-    // Main circle
+    // Main circle - with hover scale for organic growth effect
     ctx.beginPath();
     const nodeOpacity = opacity * dimFactor;
-    ctx.fillStyle = (isHovered || isCentered) ? color : `rgba(100, 110, 130, ${nodeOpacity.toFixed(3)})`;
-    ctx.strokeStyle = `rgba(0,0,0,${(0.2 * nodeOpacity).toFixed(3)})`;
-    ctx.lineWidth = 1;
-    ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-    
-    // Hover ring
+    // When hovered: use stronger color tint with full opacity
+    // When not hovered: use default muted color
     if (isHovered && !isCentered) {
-      ctx.beginPath();
-      ctx.strokeStyle = `${color}aa`;
-      ctx.lineWidth = 3;
-      ctx.arc(n.x, n.y, r + 5, 0, Math.PI * 2);
-      ctx.stroke();
+      ctx.fillStyle = hexColorWithAlpha(color, Math.min(0.8, hoverScale * 0.6));
+    } else if (isCentered) {
+      ctx.fillStyle = color;
+    } else {
+      ctx.fillStyle = `rgba(100, 110, 130, ${nodeOpacity.toFixed(3)})`;
     }
+    ctx.lineWidth = isCentered ? 1 : 0; // No stroke for hovered nodes
+    ctx.strokeStyle = `rgba(0,0,0,${(0.2 * nodeOpacity).toFixed(3)})`;
+    ctx.arc(n.x, n.y, scaledRadius, 0, Math.PI * 2);
+    ctx.fill();
+    if (ctx.lineWidth > 0) ctx.stroke();
     
     // Centered node special ring
     if (isCentered) {
       ctx.beginPath();
       ctx.strokeStyle = `${color}`;
       ctx.lineWidth = 4;
-      ctx.arc(n.x, n.y, r + 8, 0, Math.PI * 2);
+      ctx.arc(n.x, n.y, scaledRadius + 8, 0, Math.PI * 2);
       ctx.stroke();
     }
     
@@ -226,7 +259,7 @@ export function renderGraph(
       ctx.beginPath();
       ctx.strokeStyle = "rgba(255, 214, 102, 0.85)";
       ctx.lineWidth = 2.5;
-      ctx.arc(n.x, n.y, r + 8, 0, Math.PI * 2);
+      ctx.arc(n.x, n.y, scaledRadius + 8, 0, Math.PI * 2);
       ctx.stroke();
     }
     

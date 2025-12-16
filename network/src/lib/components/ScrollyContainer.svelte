@@ -7,7 +7,8 @@
     updateScrollProgress, 
     setGenreGroupQueue,
     setIntroComplete,
-    setCategorizationComplete 
+    setCategorizationComplete,
+    setDisplayedCategory 
   } from '$lib/stores/scrollyStore';
   import { uiStore } from '$lib/stores/uiStore';
   import { graphData } from '$lib/stores';
@@ -19,6 +20,9 @@
   let lastFocusedCategory: GenreCategory | null = null;
   let lastCameraAnimationTime = 0;
   const MIN_ANIMATION_INTERVAL = 1500; // Mindestabstand zwischen Animationen
+  const CAMERA_ANIMATION_DURATION = 1200; // Muss mit cameraController Duration übereinstimmen
+  const TITLE_ANIMATION_DURATION = 500; // Dauer der Titel-Animation
+  const TITLE_START_DELAY = CAMERA_ANIMATION_DURATION - TITLE_ANIMATION_DURATION; // Titel startet so, dass beide enden zur gleichen Zeit
 
   // Reaktive Variablen aus Store
   $: phase = $scrollyStore.phase;
@@ -38,17 +42,24 @@
           ...state,
           isAnimatingCamera: true
         }));
-        cameraController.animateToCategoryPosition(position.x, position.y, 1200, 2.5);
+        
+        // Starte Kamera-Animation - displayedCategory bleibt beim bisherigen Titel
+        cameraController.animateToCategoryPosition(position.x, position.y, CAMERA_ANIMATION_DURATION, 2.5);
         lastCameraAnimationTime = now;
         lastFocusedCategory = focusedCategory;
         
-        // Animation abschließen nach 1200ms
+        // Titel-Animation startet früher, sodass beide Animationen zur gleichen Zeit enden
+        setTimeout(() => {
+          setDisplayedCategory(focusedCategory);
+        }, TITLE_START_DELAY);
+        
+        // Kamera-Animation abschließen
         setTimeout(() => {
           scrollyStore.update(state => ({
             ...state,
             isAnimatingCamera: false
           }));
-        }, 1200);
+        }, CAMERA_ANIMATION_DURATION);
       }
     }
   }

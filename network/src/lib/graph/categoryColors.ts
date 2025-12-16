@@ -19,111 +19,105 @@ export interface CategoryColorScheme {
 export const CATEGORY_COLORS: Record<GenreCategory, CategoryColorScheme> = {
   "Hip Hop & Rap": {
     category: "Hip Hop & Rap",
-    primary: "#FF6B35", // Warmes Orange/Rot
-    light: "#FFB347",
-    dark: "#CC4422"
+    primary: "#FF7744",
+    light: "#FF7744",
+    dark: "#FF7744"
   },
-  "Electronic & Dance": {
-    category: "Electronic & Dance",
-    primary: "#00D9FF", // Cyber-Cyan
-    light: "#66E6FF",
-    dark: "#00A8CC"
+  "Electronic": {
+    category: "Electronic",
+    primary: "#44CCFF",
+    light: "#44CCFF",
+    dark: "#44CCFF"
   },
   "Rock & Punk": {
     category: "Rock & Punk",
-    primary: "#8B0000", // Dunkelrot
-    light: "#DC143C",
-    dark: "#660000"
+    primary: "#FF4466",
+    light: "#FF4466",
+    dark: "#FF4466"
   },
   "Pop": {
     category: "Pop",
-    primary: "#FF1493", // Deep Pink
-    light: "#FF69B4",
-    dark: "#C20F6F"
+    primary: "#FF5599",
+    light: "#FF5599",
+    dark: "#FF5599"
   },
   "Jazz & Blues": {
     category: "Jazz & Blues",
-    primary: "#6B4423", // Warmes Braun
-    light: "#8B6F47",
-    dark: "#4A2C17"
+    primary: "#BB7744",
+    light: "#BB7744",
+    dark: "#BB7744"
   },
   "Soul & R&B": {
     category: "Soul & R&B",
-    primary: "#9932CC", // Dunkle Orchidee
-    light: "#DA70D6",
-    dark: "#6A0DAD"
+    primary: "#AA77CC",
+    light: "#AA77CC",
+    dark: "#AA77CC"
   },
-  "Reggae & Caribbean": {
-    category: "Reggae & Caribbean",
-    primary: "#FFD700", // Gold
-    light: "#FFED4E",
-    dark: "#DAA520"
+  "Reggae": {
+    category: "Reggae",
+    primary: "#FFCC44",
+    light: "#FFCC44",
+    dark: "#FFCC44"
   },
   "Folk & Indie": {
     category: "Folk & Indie",
-    primary: "#228B22", // Forest Green
-    light: "#32CD32",
-    dark: "#1a6b1a"
+    primary: "#55BB88",
+    light: "#55BB88",
+    dark: "#55BB88"
   },
-  "Classical & Orchestral": {
-    category: "Classical & Orchestral",
-    primary: "#D4AF37", // Gold/Brass
-    light: "#FFD700",
-    dark: "#B8860B"
+  "Classical": {
+    category: "Classical",
+    primary: "#CCAA66",
+    light: "#CCAA66",
+    dark: "#CCAA66"
   },
-  "Country & Americana": {
-    category: "Country & Americana",
-    primary: "#8B4513", // Saddle Brown
-    light: "#CD853F",
-    dark: "#654321"
+  "Country": {
+    category: "Country",
+    primary: "#BB8855",
+    light: "#BB8855",
+    dark: "#BB8855"
   },
   "Latin & World": {
     category: "Latin & World",
-    primary: "#FF8C00", // Dark Orange
-    light: "#FFA500",
-    dark: "#CC6600"
-  },
-  "Metal & Hardcore": {
-    category: "Metal & Hardcore",
-    primary: "#2F4F4F", // Dark Slate Gray
-    light: "#556B6D",
-    dark: "#1a2f2f"
+    primary: "#FF9944",
+    light: "#FF9944",
+    dark: "#FF9944"
   },
   "Metal": {
     category: "Metal",
-    primary: "#2F4F4F", // Dark Slate Gray
-    light: "#556B6D",
-    dark: "#1a2f2f"
+    primary: "#667788",
+    light: "#667788",
+    dark: "#667788"
   },
-  "Experimental & Ambient": {
-    category: "Experimental & Ambient",
-    primary: "#4B0082", // Indigo
-    light: "#6A5ACD",
-    dark: "#2D0052"
+  "Experimental": {
+    category: "Experimental",
+    primary: "#8866CC",
+    light: "#8866CC",
+    dark: "#8866CC"
   },
   "Funk & Groove": {
     category: "Funk & Groove",
-    primary: "#EE82EE", // Violet
-    light: "#DDA0DD",
-    dark: "#BB66BB"
+    primary: "#FF77EE",
+    light: "#FF77EE",
+    dark: "#FF77EE"
   },
-  "Gospel & Spiritual": {
-    category: "Gospel & Spiritual",
-    primary: "#FFB6C1", // Light Pink
-    light: "#FFC0CB",
-    dark: "#FF69B4"
+  "Spiritual": {
+    category: "Spiritual",
+    primary: "#FF99CC",
+    light: "#FF99CC",
+    dark: "#FF99CC"
   },
   "Asian Pop": {
     category: "Asian Pop",
-    primary: "#DC143C", // Crimson (Cherry Blossom inspired)
-    light: "#FF6B9D",
-    dark: "#A0123E"
+    primary: "#FF5588",
+    light: "#FF5588",
+    dark: "#FF5588"
   },
-  "Specialty & Other": {
-    category: "Specialty & Other",
-    primary: "#808080", // Gray
-    light: "#A9A9A9",
-    dark: "#696969"
+  "Specialty": {
+    category: "Specialty",
+    primary: "#999999",
+    light: "#999999",
+    dark: "#999999"
   }
 };
 
@@ -131,21 +125,21 @@ export const CATEGORY_COLORS: Record<GenreCategory, CategoryColorScheme> = {
  * Gibt die Farbe einer Kategorie zurück
  */
 export function getCategoryColor(category: GenreCategory): string {
-  return CATEGORY_COLORS[category]?.primary || CATEGORY_COLORS["Specialty & Other"].primary;
+  return CATEGORY_COLORS[category]?.primary || CATEGORY_COLORS["Specialty"].primary;
 }
 
 /**
  * Gibt die helle Variante zurück
  */
 export function getCategoryColorLight(category: GenreCategory): string {
-  return CATEGORY_COLORS[category]?.light || CATEGORY_COLORS["Specialty & Other"].light;
+  return CATEGORY_COLORS[category]?.light || CATEGORY_COLORS["Specialty"].light;
 }
 
 /**
  * Gibt die dunkle Variante zurück
  */
 export function getCategoryColorDark(category: GenreCategory): string {
-  return CATEGORY_COLORS[category]?.dark || CATEGORY_COLORS["Specialty & Other"].dark;
+  return CATEGORY_COLORS[category]?.dark || CATEGORY_COLORS["Specialty"].dark;
 }
 
 /**
@@ -162,7 +156,7 @@ export function hexToRgba(hex: string, alpha: number = 1): string {
  * Erstellt ein Farbschema für Hintergrund und Text basierend auf Kategorie
  */
 export function getCategoryColorScheme(category: GenreCategory) {
-  const colors = CATEGORY_COLORS[category] || CATEGORY_COLORS["Specialty & Other"];
+  const colors = CATEGORY_COLORS[category] || CATEGORY_COLORS["Specialty"];
   return {
     background: hexToRgba(colors.primary, 0.1),
     border: colors.primary,
