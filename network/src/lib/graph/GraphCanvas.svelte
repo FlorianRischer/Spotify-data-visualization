@@ -18,6 +18,7 @@
     animatingNodes,
     startNodeAnimation,
     clearExpiredAnimations,
+    isStartAnimationRunning,
     CONFIG,
     uiStore
   } from "$lib/stores/uiStore";
@@ -225,6 +226,9 @@
     
     // Handle start animation (spiral motion) - completely separate from physics
     if (startAnimationTime !== null && !rm && nodes.length > 0) {
+      // Setze animation state auf true
+      isStartAnimationRunning.set(true);
+      
       const elapsed = performance.now() - startAnimationTime;
       const animProgress = Math.min(1, elapsed / START_ANIMATION_DURATION);
       
@@ -252,6 +256,8 @@
         startAnimationTime = null;
         initialPositions = null;
         transitionStartTime = performance.now();
+        // Setze animation state auf false
+        isStartAnimationRunning.set(false);
       }
     }
     
@@ -630,6 +636,8 @@
       // Trigger start animation only on first load
       if (nodes.length === 0 && n.length > 0) {
         startAnimationTime = performance.now();
+        // Setze animation state sofort, nicht erst im loop!
+        isStartAnimationRunning.set(true);
       }
       nodes = n as RenderNode[];
     }));

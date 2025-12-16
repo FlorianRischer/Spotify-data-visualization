@@ -51,6 +51,9 @@ export interface TooltipData {
 }
 export const tooltipData = writable<TooltipData | null>(null);
 
+// ============ Start Animation State ============
+export const isStartAnimationRunning = writable<boolean>(true);
+
 // ============ Animation State ============
 interface AnimatingNode {
   nodeId: string;

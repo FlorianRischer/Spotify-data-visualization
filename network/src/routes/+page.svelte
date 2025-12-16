@@ -1,10 +1,11 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { fade } from "svelte/transition";
   import { GraphCanvas, ControlPanel, Tooltip, GenreTitle } from "$lib/components";
   import ScrollyContainer from "$lib/components/ScrollyContainer.svelte";
   import ProgressIndicator from "$lib/components/ProgressIndicator.svelte";
   import { graphData, initVisible, setPositions } from "$lib/stores";
-  import { uiStore } from "$lib/stores/uiStore";
+  import { uiStore, isStartAnimationRunning } from "$lib/stores/uiStore";
   import { buildGraph, computeForceLayout, transformSpotifyData, loadStreamingHistory } from "$lib/graph";
   import "../app.css";
   import "./page.css";
@@ -402,7 +403,11 @@
   {:else}
     <ScrollyContainer>
       <div class="layout">
-        <GenreTitle />
+        {#if !$isStartAnimationRunning}
+          <div transition:fade={{ duration: 300 }}>
+            <GenreTitle />
+          </div>
+        {/if}
 
         <section class="graph-container">
           <GraphCanvas />
@@ -410,7 +415,11 @@
       </div>
     </ScrollyContainer>
     
-    <ProgressIndicator />
+    {#if !$isStartAnimationRunning}
+      <div transition:fade={{ duration: 300 }}>
+        <ProgressIndicator />
+      </div>
+    {/if}
     <Tooltip />
   {/if}
 </main>

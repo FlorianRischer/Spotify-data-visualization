@@ -1,14 +1,43 @@
 <script lang="ts">
   import { scrollyStore } from '$lib/stores/scrollyStore';
-  import { fade } from 'svelte/transition';
+  import { fly } from 'svelte/transition';
+  import { cubicOut } from 'svelte/easing';
+
+  let previousCategory: string | null = null;
+  let scrollDirection: 'down' | 'up' = 'down';
 
   $: focusedCategory = $scrollyStore.focusedCategory || 'Intro';
+  
+  // Track scroll direction based on category changes
+  $: {
+    if (previousCategory !== null && focusedCategory !== previousCategory) {
+      // Determine direction based on category index change
+      const prevIndex = $scrollyStore.genreGroupQueue.indexOf(previousCategory as any);
+      const currIndex = $scrollyStore.genreGroupQueue.indexOf(focusedCategory as any);
+      
+      if (currIndex > prevIndex || (prevIndex === -1 && currIndex >= 0)) {
+        scrollDirection = 'down';
+      } else if (currIndex < prevIndex || (currIndex === -1 && prevIndex >= 0)) {
+        scrollDirection = 'up';
+      }
+    }
+    previousCategory = focusedCategory;
+  }
+
+  // Animation distance
+  const flyDistance = 150;
+  
+  // Reactive animation params based on scroll direction
+  $: inY = scrollDirection === 'down' ? flyDistance : -flyDistance;
+  $: outY = scrollDirection === 'down' ? -flyDistance : flyDistance;
 </script>
 
 <div class="genre-title-panel" data-node-id="12:41">
   <div class="rotated-text">
     {#key focusedCategory}
-      <p class="genre-title" in:fade={{ duration: 300 }} out:fade={{ duration: 200 }}>
+      <p class="genre-title" 
+         in:fly={{ y: inY, duration: 500, easing: cubicOut }} 
+         out:fly={{ y: outY, duration: 500, easing: cubicOut }}>
         {focusedCategory}
       </p>
     {/key}
@@ -51,6 +80,8 @@
     white-space: nowrap;
     letter-spacing: -2px;
     text-transform: uppercase;
+    position: absolute;
+    will-change: transform, opacity;
   }
 
   @media (max-width: 1024px) {
