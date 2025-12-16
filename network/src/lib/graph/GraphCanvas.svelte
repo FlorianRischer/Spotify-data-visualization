@@ -77,7 +77,7 @@
   let settlingTime: number | null = null; // Phase after animation where physics stabilize nodes
   const START_ANIMATION_DURATION = 10000; // 10 seconds spiral + deceleration
   const SETTLING_DURATION = 300; // Physics run freely to settle nodes (300ms)
-  const TRANSITION_DURATION = 1500; // Reduced from 3000 for quicker stabilization
+  const TRANSITION_DURATION = 800; // Faster grouping: reduced from 1500ms for quicker node sorting
   let transitionStartTime: number | null = null; // Startet wenn Animation endet
   
   // Baseline-Parameter für 1200x800 Canvas (Referenzbasis für alle Skalierungen)
