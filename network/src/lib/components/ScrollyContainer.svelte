@@ -187,16 +187,8 @@
 
   /* Responsive */
   @media (max-width: 768px) {
-    .section-content h1 {
-      font-size: 1.5rem;
-    }
-
-    .section-content h2 {
-      font-size: 1.2rem;
-    }
-
-    .section-content p {
-      font-size: 1rem;
+    .sticky-graph {
+      height: auto;
     }
   }
 </style>

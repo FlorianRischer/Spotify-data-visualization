@@ -137,6 +137,11 @@
       width: 9px;
       height: 9px;
     }
+
+    .tooltip {
+      right: 20px;
+      font-size: 0.8rem;
+    }
   }
 
   @media (max-width: 768px) {
@@ -149,22 +154,90 @@
       transform: translateX(-50%);
       flex-direction: row;
       gap: 8px;
-      padding: 0;
-      max-width: 90vw;
-      overflow-x: auto;
+      padding: 8px 12px;
+      background: rgba(22, 27, 34, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 20px;
+      z-index: 1000;
     }
 
     .progress-dot {
       width: 8px;
       height: 8px;
-      flex-shrink: 0;
+    }
+
+    .progress-dot:hover,
+    .progress-dot.hovered {
+      transform: scale(1.15);
+    }
+
+    .progress-dot.active {
+      transform: scale(1.25);
     }
 
     .tooltip {
-      bottom: 30px;
-      top: auto;
-      right: 50%;
-      transform: translateX(50%);
+      position: absolute;
+      right: auto;
+      left: 50%;
+      bottom: 20px;
+      transform: translateX(-50%) translateY(-100%);
+      white-space: nowrap;
+      z-index: 1001;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .progress-indicator {
+      bottom: 16px;
+      padding: 6px 10px;
+      gap: 6px;
+    }
+
+    .progress-dot {
+      width: 7px;
+      height: 7px;
+    }
+
+    .tooltip {
+      padding: 6px 10px;
+      font-size: 0.75rem;
+    }
+
+    .tooltip-title {
+      font-size: 0.75rem;
+    }
+
+    .tooltip-count {
+      font-size: 0.7rem;
+    }
+  }
+
+  /* Touch Devices */
+  @media (hover: none) and (pointer: coarse) {
+    .progress-indicator {
+      bottom: 24px;
+    }
+
+    .progress-dot {
+      width: 12px;
+      height: 12px;
+      min-width: 44px;
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+  }
+
+  /* Landscape Mode */
+  @media (max-height: 600px) and (orientation: landscape) {
+    .progress-indicator {
+      right: 20px;
+      left: auto;
+      top: 50%;
+      bottom: auto;
+      transform: translateY(-50%);
+      flex-direction: column;
     }
   }
 </style>

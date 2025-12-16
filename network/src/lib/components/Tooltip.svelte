@@ -61,16 +61,18 @@
     padding: 10px 12px;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
     min-width: 140px;
+    max-width: 90vw;
     backdrop-filter: blur(8px);
   }
   
   .tooltip-header {
-    font-size: 13px;
+    font-size: clamp(12px, 2vw, 13px);
     font-weight: 600;
     color: #e6edf3;
     margin-bottom: 8px;
     padding-bottom: 6px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    word-break: break-word;
   }
   
   .tooltip-body {
@@ -82,7 +84,7 @@
   .stat {
     display: flex;
     justify-content: space-between;
-    font-size: 11px;
+    font-size: clamp(10px, 1.8vw, 11px);
     gap: 12px;
   }
   
@@ -94,11 +96,68 @@
   
   .stat-label {
     color: #8b949e;
+    flex-shrink: 0;
   }
   
   .stat-value {
     color: #e6edf3;
     font-weight: 500;
     font-variant-numeric: tabular-nums;
+    text-align: right;
+    word-break: break-word;
+  }
+  
+  /* Tablets (768px - 1024px) */
+  @media (max-width: 1024px) {
+    .tooltip {
+      min-width: 130px;
+      padding: 8px 10px;
+    }
+    
+    .stat {
+      gap: 10px;
+    }
+  }
+  
+  /* Small Devices (480px - 768px) */
+  @media (max-width: 768px) {
+    .tooltip {
+      min-width: 120px;
+      max-width: 85vw;
+      padding: 8px 10px;
+    }
+    
+    .tooltip-header {
+      margin-bottom: 6px;
+      font-size: 12px;
+    }
+    
+    .stat {
+      font-size: 10px;
+      gap: 8px;
+    }
+  }
+  
+  /* Very Small Devices (320px - 480px) */
+  @media (max-width: 480px) {
+    .tooltip {
+      min-width: 110px;
+      max-width: 80vw;
+      padding: 6px 8px;
+    }
+    
+    .tooltip-header {
+      margin-bottom: 4px;
+      font-size: 11px;
+    }
+    
+    .tooltip-body {
+      gap: 2px;
+    }
+    
+    .stat {
+      font-size: 9px;
+      gap: 6px;
+    }
   }
 </style>
