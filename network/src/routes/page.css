@@ -66,108 +66,26 @@
 /* Loading Text */
 .loading-text {
   color: #8b949e;
-  font-size: clamp(12px, 2vw, 14px);
+  font-size: 14px;
   margin: 0;
 }
 
-/* ===== RESPONSIVE BREAKPOINTS ===== */
+/* ===== RESPONSIVE DESKTOP BREAKPOINTS ONLY ===== */
 
-/* Tablets & iPad Pro (768px - 1024px) */
+/* Large Monitors (> 1440px) */
+@media (min-width: 1440px) {
+  .spinner {
+    width: 52px;
+    height: 52px;
+    border-width: 4px;
+  }
+}
+
+/* Compact Desktop (< 1024px) */
 @media (max-width: 1024px) {
-  .app {
-    min-height: 100vh;
-  }
-
-  .layout {
-    height: auto;
-    min-height: 100vh;
-  }
-
-  .controls {
-    padding: 8px 12px;
-  }
-
   .spinner {
-    width: 40px;
-    height: 40px;
+    width: 44px;
+    height: 44px;
     border-width: 3px;
-  }
-
-  .loading-screen {
-    min-height: 50vh;
-  }
-}
-
-/* Small Tablets & Large Phones (480px - 768px) */
-@media (max-width: 768px) {
-  .graph-container {
-    min-height: 400px;
-  }
-
-  .spinner {
-    width: 36px;
-    height: 36px;
-    border-width: 3px;
-  }
-
-  .loading-screen {
-    min-height: 40vh;
-  }
-}
-
-/* Small Phones (320px - 480px) */
-@media (max-width: 480px) {
-  .layout {
-    gap: 0;
-  }
-
-  .spinner {
-    width: 32px;
-    height: 32px;
-    border-width: 2px;
-  }
-
-  .loading-screen {
-    min-height: 30vh;
-  }
-
-  .loading-text {
-    font-size: 12px;
-  }
-}
-
-/* Portrait Orientierung bei kleinen Geräten */
-@media (max-width: 600px) and (orientation: portrait) {
-  .layout {
-    min-height: 100vh;
-  }
-}
-
-/* Landscape bei kleinen Geräten */
-@media (max-width: 900px) and (orientation: landscape) {
-  .layout {
-    min-height: auto;
-  }
-
-  .loading-screen {
-    min-height: 30vh;
-  }
-}
-
-/* High DPI Displays (Retina) */
-@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
-  .spinner {
-    border-width: 2px;
-  }
-}
-
-/* Landscape Mode Optimization */
-@media (max-height: 500px) {
-  .layout {
-    height: auto;
-  }
-
-  .graph-container {
-    min-height: 300px;
   }
 }

@@ -31,6 +31,7 @@
   let width = 1200;
   let height = 800;
   let dpr = 1;
+  let scaleFactor = 1; // Proportional scaling factor für alle Größen
   
   let frameId: number | null = null;
   let hoverTimer: ReturnType<typeof setTimeout> | null = null;
@@ -132,6 +133,15 @@
     const rect = canvas.getBoundingClientRect();
     width = rect.width;
     height = rect.height;
+    
+    // Berechne Skalierungsfaktor basierend auf Canvas-Größe
+    // 1200x800 ist die Baseline (= scaleFactor 1.0)
+    const baselineWidth = 1200;
+    const baselineHeight = 800;
+    const widthScale = width / baselineWidth;
+    const heightScale = height / baselineHeight;
+    scaleFactor = Math.min(widthScale, heightScale); // Einheitliche Skalierung
+    
     canvas.width = Math.floor(rect.width * dpr);
     canvas.height = Math.floor(rect.height * dpr);
   }
@@ -175,9 +185,10 @@
     
     // Physics step (skip if reduced motion or dragging or during animation)
     if (!rm && nodes.length > 0 && !isDragging && startAnimationTime === null) {
-      // Build radii map (mit 0.4 skaliert für kleinere Nodes)
+      // Build radii map mit proportionalem Scaling
+      // scaleFactor berücksichtigt unterschiedliche Canvas-Größen
       const radii: Record<string, number> = {};
-      for (const n of nodes) radii[n.id] = Math.max(8, n.size) * 0.4;
+      for (const n of nodes) radii[n.id] = Math.max(8, n.size) * 0.4 * scaleFactor;
       // Fetch and mutate positions from store
       const pos = get(positionsStore);
       

@@ -109,7 +109,7 @@
     color: #e6edf3;
     border: none;
     padding: 6px 12px;
-    font-size: clamp(12px, 2vw, 13px);
+    font-size: 13px;
     cursor: pointer;
     transition: color 0.2s;
     font-family: inherit;
@@ -130,16 +130,7 @@
     background: rgba(29, 185, 84, 0.1);
   }
   
-  /* Touch Device Optimization */
-  @media (hover: none) and (pointer: coarse) {
-    .btn {
-      min-height: 44px;
-      padding: 8px 16px;
-      font-size: 14px;
-    }
-  }
-  
-  /* Tablets (768px - 1024px) */
+  /* Compact Desktop (< 1024px) */
   @media (max-width: 1024px) {
     .control-panel {
       padding: 10px 12px;
@@ -154,58 +145,10 @@
       gap: 4px;
       font-size: 12px;
     }
-  }
-  
-  /* Small Devices (480px - 768px) */
-  @media (max-width: 768px) {
-    .control-panel {
-      flex-direction: column;
-      align-items: stretch;
-      padding: 8px 12px;
-      gap: 10px;
-    }
-    
-    .stats {
-      gap: 12px;
-      flex-direction: column;
-    }
-    
-    .stat {
-      gap: 4px;
-      font-size: 11px;
-      justify-content: space-between;
-    }
-    
-    .controls {
-      gap: 6px;
-      justify-content: space-between;
-    }
     
     .btn {
-      flex: 1;
       font-size: 12px;
-      padding: 6px 8px;
-    }
-  }
-  
-  /* Very Small Devices (320px - 480px) */
-  @media (max-width: 480px) {
-    .control-panel {
-      padding: 6px 8px;
-      gap: 8px;
-    }
-    
-    .stat {
-      font-size: 10px;
-      gap: 2px;
-    }
-    
-    .label {
-      font-size: 9px;
-    }
-    
-    .value {
-      font-size: 11px;
+      padding: 5px 10px;
     }
   }
 </style>

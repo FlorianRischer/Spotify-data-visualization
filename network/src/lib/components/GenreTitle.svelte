@@ -43,7 +43,7 @@
 
   .genre-title {
     font-family: 'Anton', sans-serif;
-    font-size: clamp(80px, 15vw, 160px);
+    font-size: 160px;
     font-weight: 400;
     line-height: 1;
     margin: 0;
@@ -59,42 +59,7 @@
     }
 
     .genre-title {
-      font-size: clamp(60px, 12vw, 120px);
-    }
-  }
-
-  @media (max-width: 768px) {
-    .genre-title-panel {
-      position: static;
-      width: 100%;
-      height: auto;
-      min-height: 100px;
-      padding: 20px;
-      background: rgba(22, 27, 34, 0.5);
-      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-      margin-bottom: 20px;
-    }
-
-    .rotated-text {
-      transform: rotate(0deg);
-    }
-
-    .genre-title {
-      font-size: clamp(40px, 10vw, 80px);
-      letter-spacing: -1px;
-    }
-  }
-
-  @media (max-width: 480px) {
-    .genre-title-panel {
-      min-height: 80px;
-      padding: 16px;
-      margin-bottom: 16px;
-    }
-
-    .genre-title {
-      font-size: clamp(32px, 8vw, 48px);
-      letter-spacing: 0;
+      font-size: 120px;
     }
   }
 </style>
