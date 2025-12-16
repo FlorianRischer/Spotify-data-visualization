@@ -79,8 +79,8 @@
     damping: 0.75,
     jitter: 0.05,
     maxSpeed: 2.2,
-    groupAttraction: 3.5,
-    genreAnchorStrength: 2.5
+    groupAttraction: 5,  // erhöht von 3.5 (stärkere Gruppierung)
+    genreAnchorStrength: 3.2  // erhöht von 2.5 (stärkere Anziehung zu Genre-Ankern)
   };
 
   const BASELINE_SPIRAL_PARAMS = {
@@ -153,31 +153,69 @@
 
   function resize() {
     if (!canvas) return;
-    dpr = window.devicePixelRatio || 1;
-    const rect = canvas.getBoundingClientRect();
-    width = rect.width;
-    height = rect.height;
     
-    // Berechne Skalierungsfaktor basierend auf Canvas-Größe
-    // 1200x800 ist die Baseline (= scaleFactor 1.0)
+    // ============================================
+    // DEVICE PIXEL RATIO (nur für Buffer-Größe)
+    // ============================================
+    dpr = window.devicePixelRatio || 1;
+    
+    // ============================================
+    // CSS PIXEL SPACE (für Simulation)
+    // ============================================
+    const rect = canvas.getBoundingClientRect();
+    const cssWidth = rect.width;
+    const cssHeight = rect.height;
+    
+    // Aktualisiere nur wenn sich CSS-Dimensionen ändern
+    if (cssWidth === width && cssHeight === height) {
+      return; // Keine Änderung
+    }
+    
+    width = cssWidth;
+    height = cssHeight;
+    
+    // ============================================
+    // SCALE FACTOR (nur aus CSS-Pixeln)
+    // ============================================
+    // Baseline = 1200x800 CSS-Pixel
     const baselineWidth = 1200;
     const baselineHeight = 800;
     const widthScale = width / baselineWidth;
     const heightScale = height / baselineHeight;
-    scaleFactor = Math.min(widthScale, heightScale); // Einheitliche Skalierung
+    scaleFactor = Math.min(widthScale, heightScale);
     
-    // Aktualisiere physicsParams mit skalierten Werten
+    // ============================================
+    // LOGGING
+    // ============================================
+    console.log('%c[RESIZE]', 'color:blue;font-weight:bold', {
+      cssW: cssWidth,
+      cssH: cssHeight,
+      dpr: dpr,
+      scaleFactor: scaleFactor.toFixed(3),
+      bufferW: Math.floor(cssWidth * dpr),
+      bufferH: Math.floor(cssHeight * dpr)
+    });
+    
+    // ============================================
+    // PHYSICS PARAMETER UPDATE
+    // ============================================
+    // Alle skalierbaren Parameter werden nur mit scaleFactor multipliziert
     physicsParams.repulsion = BASELINE_PHYSICS_PARAMS.repulsion * scaleFactor;
     physicsParams.restLength = BASELINE_PHYSICS_PARAMS.restLength * scaleFactor;
     physicsParams.jitter = BASELINE_PHYSICS_PARAMS.jitter * scaleFactor;
     physicsParams.maxSpeed = BASELINE_PHYSICS_PARAMS.maxSpeed * scaleFactor;
     physicsParams.groupAttraction = BASELINE_PHYSICS_PARAMS.groupAttraction * scaleFactor;
     physicsParams.genreAnchorStrength = BASELINE_PHYSICS_PARAMS.genreAnchorStrength * scaleFactor;
-    // spring bleibt konstant (keine Skalierung benötigt)
-    // damping bleibt konstant (keine Skalierung benötigt)
+    // spring und damping bleiben konstant (keine Skalierung)
     
-    canvas.width = Math.floor(rect.width * dpr);
-    canvas.height = Math.floor(rect.height * dpr);
+    // ============================================
+    // CANVAS BUFFER SIZE (nur für Rendering-Auflösung)
+    // ============================================
+    // Buffer-Größe = CSS-Pixel × dpr
+    const bufferWidth = Math.floor(cssWidth * dpr);
+    const bufferHeight = Math.floor(cssHeight * dpr);
+    canvas.width = bufferWidth;
+    canvas.height = bufferHeight;
   }
 
   function loop() {
@@ -262,8 +300,8 @@
       // Ansonsten schweben Nodes frei herum (genreAnchors bleibt leer)
       if (uiState.showGenreGrouping && genreAnchors.length === 0 && nodes.length > 0) {
         // Genre-Gruppierung aktiviert: erstelle Ankerpunkte
-        // RESPONSIVE: Genre Anchor Radius wird mit scaleFactor multipliziert (Baseline: 262.5 = 350 × 0.75)
-        const scaledGenreAnchorRadius = 262.5 * scaleFactor;
+        // RESPONSIVE: Genre Anchor Radius wird mit scaleFactor multipliziert (Baseline: 350 für mehr Abstand)
+        const scaledGenreAnchorRadius = 350 * scaleFactor;
         genreAnchors = createCategoryBasedGenreAnchors(nodes as any, scaledGenreAnchorRadius);
       } else if (!uiState.showGenreGrouping && genreAnchors.length > 0) {
         // Genre-Gruppierung deaktiviert: entferne Ankerpunkte

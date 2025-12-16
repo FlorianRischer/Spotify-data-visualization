@@ -98,11 +98,28 @@ export function renderGraph(
   const cameraX = options.cameraX ?? 0;
   const cameraY = options.cameraY ?? 0;
   
+  // WICHTIG: Canvas.width/height sind bereits in Buffer-Pixeln (CSS × dpr)
+  // Simulation läuft in CSS-Pixel-Raum → keine /dpr Divisionen nötig!
+  const cssCanvasWidth = canvas.width / dpr;
+  const cssCanvasHeight = canvas.height / dpr;
+  
   ctx.save();
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.translate(canvas.width / 2, canvas.height / 2);
-  ctx.scale(dpr * cameraZoom, dpr * cameraZoom);
-  // Apply camera pan (towards the target position)
+  
+  // ============================================
+  // TRANSFORM: DPR-Skalierung + Camera
+  // ============================================
+  // setTransform setzt die komplette Transformationsmatrix neu
+  // [a, b, c, d, e, f] = [dpr, 0, 0, dpr, translationX, translationY]
+  ctx.setTransform(
+    dpr * cameraZoom,  // Horizontal Scaling
+    0,                  // Horizontal Skew
+    0,                  // Vertical Skew
+    dpr * cameraZoom,  // Vertical Scaling
+    cssCanvasWidth * dpr / 2,   // Translation X (in Buffer-Pixel)
+    cssCanvasHeight * dpr / 2   // Translation Y (in Buffer-Pixel)
+  );
+  // Camera pan (in CSS-Pixel-Raum, keine Skalierung nötig)
   ctx.translate(-cameraX, -cameraY);
 
   // Genre groups visualization removed - only physics-based grouping
@@ -130,8 +147,9 @@ export function renderGraph(
       ctx.strokeStyle = `rgba(130, 148, 255, ${alpha.toFixed(3)})`;
       ctx.lineWidth = width;
       ctx.beginPath();
-      ctx.moveTo(e.x1 / dpr, e.y1 / dpr);
-      ctx.lineTo(e.x2 / dpr, e.y2 / dpr);
+      // x1, y1, x2, y2 sind bereits im CSS-Pixel-Raum → direkt zeichnen
+      ctx.moveTo(e.x1, e.y1);
+      ctx.lineTo(e.x2, e.y2);
       ctx.stroke();
     }
   }
@@ -170,7 +188,8 @@ export function renderGraph(
       ctx.beginPath();
       const glowSize = isCentered ? 25 : 12;
       ctx.fillStyle = isCentered ? `${color}66` : `${color}44`;
-      ctx.arc(n.x / dpr, n.y / dpr, r + glowSize, 0, Math.PI * 2);
+      // x, y sind bereits im CSS-Pixel-Raum → direkt zeichnen (keine /dpr)
+      ctx.arc(n.x, n.y, r + glowSize, 0, Math.PI * 2);
       ctx.fill();
     }
     
@@ -180,7 +199,7 @@ export function renderGraph(
     ctx.fillStyle = (isHovered || isCentered) ? color : `rgba(100, 110, 130, ${nodeOpacity.toFixed(3)})`;
     ctx.strokeStyle = `rgba(0,0,0,${(0.2 * nodeOpacity).toFixed(3)})`;
     ctx.lineWidth = 1;
-    ctx.arc(n.x / dpr, n.y / dpr, r, 0, Math.PI * 2);
+    ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
     
@@ -189,7 +208,7 @@ export function renderGraph(
       ctx.beginPath();
       ctx.strokeStyle = `${color}aa`;
       ctx.lineWidth = 3;
-      ctx.arc(n.x / dpr, n.y / dpr, r + 5, 0, Math.PI * 2);
+      ctx.arc(n.x, n.y, r + 5, 0, Math.PI * 2);
       ctx.stroke();
     }
     
@@ -198,7 +217,7 @@ export function renderGraph(
       ctx.beginPath();
       ctx.strokeStyle = `${color}`;
       ctx.lineWidth = 4;
-      ctx.arc(n.x / dpr, n.y / dpr, r + 8, 0, Math.PI * 2);
+      ctx.arc(n.x, n.y, r + 8, 0, Math.PI * 2);
       ctx.stroke();
     }
     
@@ -207,7 +226,7 @@ export function renderGraph(
       ctx.beginPath();
       ctx.strokeStyle = "rgba(255, 214, 102, 0.85)";
       ctx.lineWidth = 2.5;
-      ctx.arc(n.x / dpr, n.y / dpr, r + 8, 0, Math.PI * 2);
+      ctx.arc(n.x, n.y, r + 8, 0, Math.PI * 2);
       ctx.stroke();
     }
     
@@ -217,7 +236,7 @@ export function renderGraph(
       ctx.strokeStyle = "#fff";
       ctx.lineWidth = 2;
       ctx.setLineDash([4, 3]);
-      ctx.arc(n.x / dpr, n.y / dpr, r + 11, 0, Math.PI * 2);
+      ctx.arc(n.x, n.y, r + 11, 0, Math.PI * 2);
       ctx.stroke();
       ctx.setLineDash([]);
     }
@@ -238,14 +257,27 @@ export function hitTest(
   cameraX: number = 0,
   cameraY: number = 0
 ): string | null {
-  // Convert screen coordinates to world coordinates
-  // Inverse of: translate(center) -> scale(dpr * zoom) -> translate(-cameraX, -cameraY)
-  const centerX = canvasWidth / 2 / dpr;
-  const centerY = canvasHeight / 2 / dpr;
+  // Convert screen coordinates to CSS-Pixel world coordinates
+  // Screen coords → Buffer coords (÷dpr) → CSS coords
+  const cssCanvasWidth = canvasWidth / dpr;
+  const cssCanvasHeight = canvasHeight / dpr;
   
-  // Mouse relative to center, then unscale by zoom, then add camera offset
-  const worldX = ((mouseX - centerX) / cameraZoom + cameraX) * dpr;
-  const worldY = ((mouseY - centerY) / cameraZoom + cameraY) * dpr;
+  // Mouse position in CSS pixels (from screen pixels)
+  const mouseCssX = mouseX / dpr;
+  const mouseCssY = mouseY / dpr;
+  
+  // Inverse transform of renderGraph:
+  // 1. Translate center to origin (world coords are centered)
+  const centeredX = mouseCssX - cssCanvasWidth / 2;
+  const centeredY = mouseCssY - cssCanvasHeight / 2;
+  
+  // 2. Unscale by cameraZoom
+  const unzoomedX = centeredX / cameraZoom;
+  const unzoomedY = centeredY / cameraZoom;
+  
+  // 3. Add camera pan offset (pan was subtracted in render)
+  const worldX = unzoomedX + cameraX;
+  const worldY = unzoomedY + cameraY;
   
   // Check in reverse order (top-most first)
   for (let i = nodes.length - 1; i >= 0; i--) {
