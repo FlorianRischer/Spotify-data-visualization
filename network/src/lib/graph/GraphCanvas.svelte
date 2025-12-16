@@ -413,8 +413,13 @@
 
   function handleMouseMove(event: MouseEvent) {
     const rect = canvas.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top;
+    // CSS-Pixel Koordinaten relativ zum Canvas
+    const cssX = event.clientX - rect.left;
+    const cssY = event.clientY - rect.top;
+    
+    // Konvertiere zu Buffer-Pixel Koordinaten für hitTest
+    const bufferX = cssX * dpr;
+    const bufferY = cssY * dpr;
     
     // Handle dragging - need to convert to world coordinates for node position
     if (draggedNodeId) {
@@ -423,8 +428,8 @@
       // Convert screen to world coordinates (accounting for camera)
       const centerX = rect.width / 2;
       const centerY = rect.height / 2;
-      const worldX = ((x - centerX) / cameraZoom + cameraX) * dpr;
-      const worldY = ((y - centerY) / cameraZoom + cameraY) * dpr;
+      const worldX = ((cssX - centerX) / cameraZoom + cameraX) * dpr;
+      const worldY = ((cssY - centerY) / cameraZoom + cameraY) * dpr;
       pos[draggedNodeId] = {
         x: worldX - dragOffset.x,
         y: worldY - dragOffset.y
@@ -438,7 +443,8 @@
       return;
     }
     
-    const id = getNodeUnderMouse(x, y);
+    // Übergebe Buffer-Pixel an hitTest
+    const id = getNodeUnderMouse(bufferX, bufferY);
     
     // Hide timer management
     if (hideTimer) {
@@ -453,17 +459,19 @@
       }
       
       hoverNodeId.set(id);
-      hoverPosition.set(id ? { x, y } : null);
+      // Speichere die CSS-Pixel Position für Tooltip
+      hoverPosition.set(id ? { x: cssX, y: cssY } : null);
       
       if (id) {
         scheduleExpansion(id);
-        updateTooltip(id, x + rect.left, y + rect.top);
+        // Übergebe Fenster-Koordinaten für das Tooltip
+        updateTooltip(id, event.clientX, event.clientY);
       } else {
         tooltipData.set(null);
       }
     } else if (id) {
       // Update tooltip position while hovering same node
-      updateTooltip(id, x + rect.left, y + rect.top);
+      updateTooltip(id, event.clientX, event.clientY);
     }
   }
 
@@ -483,10 +491,15 @@
 
   function handleMouseDown(event: MouseEvent) {
     const rect = canvas.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top;
+    // CSS-Pixel Koordinaten relativ zum Canvas
+    const cssX = event.clientX - rect.left;
+    const cssY = event.clientY - rect.top;
     
-    const id = getNodeUnderMouse(x, y);
+    // Konvertiere zu Buffer-Pixel Koordinaten für hitTest
+    const bufferX = cssX * dpr;
+    const bufferY = cssY * dpr;
+    
+    const id = getNodeUnderMouse(bufferX, bufferY);
     if (id) {
       // Start dragging
       draggedNodeId = id;
@@ -497,8 +510,8 @@
         // Convert screen to world coordinates (accounting for camera)
         const centerX = rect.width / 2;
         const centerY = rect.height / 2;
-        const worldX = ((x - centerX) / cameraZoom + cameraX) * dpr;
-        const worldY = ((y - centerY) / cameraZoom + cameraY) * dpr;
+        const worldX = ((cssX - centerX) / cameraZoom + cameraX) * dpr;
+        const worldY = ((cssY - centerY) / cameraZoom + cameraY) * dpr;
         dragOffset = {
           x: worldX - nodePos.x,
           y: worldY - nodePos.y

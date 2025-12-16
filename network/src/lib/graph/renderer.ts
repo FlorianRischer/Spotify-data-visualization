@@ -257,29 +257,29 @@ export function hitTest(
   cameraX: number = 0,
   cameraY: number = 0
 ): string | null {
-  // Canvas dimensions in CSS-Pixel space
-  const cssCanvasWidth = canvasWidth / dpr;
-  const cssCanvasHeight = canvasHeight / dpr;
+  // Input mouseX/Y sind Buffer-Pixel (bereits mit dpr multipliziert)
+  // Canvas dimensions
+  const canvasWidthBuffer = canvasWidth; // bereits Buffer-Pixel
+  const canvasHeightBuffer = canvasHeight; // bereits Buffer-Pixel
   
-  // INVERSE TRANSFORM (umgekehrt zu renderGraph):
-  // Render macht: setTransform(dpr*zoom, 0, 0, dpr*zoom, cssW*dpr/2, cssH*dpr/2) dann translate(-camX, -camY)
+  // INVERSE TRANSFORM:
+  // Render macht: setTransform(dpr*zoom, 0, 0, dpr*zoom, canvasW/2, canvasH/2) dann translate(-camX, -camY)
   // 
   // Inverse:
-  // 1. Rückgängig: camera pan (addiere camX/Y statt zu subtrahieren)
-  // 2. Rückgängig: center translation (cssW*dpr/2, cssH*dpr/2 in Buffer-Pixeln)
-  // 3. Rückgängig: scale (÷ (dpr*zoom))
+  // 1. Rückgängig der Zentrierung (canvas center offset)
+  // 2. Rückgängig der Scale (÷ (dpr*zoom))
+  // 3. Camera pan hinzufügen
   
-  // Mouse ist in Screen-Pixeln
-  // Schritt 1: Rückgängig der Zentrierung (mouseX/Y sind bereits in Buffer-Pixeln da sie von Canvas kommen)
-  const uncenteredX = mouseX - cssCanvasWidth * dpr / 2;
-  const uncenteredY = mouseY - cssCanvasHeight * dpr / 2;
+  // Schritt 1: Rückgängig der Zentrierung (canvasW/2, canvasH/2 in Buffer-Pixeln)
+  const uncenteredX = mouseX - canvasWidthBuffer / 2;
+  const uncenteredY = mouseY - canvasHeightBuffer / 2;
   
   // Schritt 2: Rückgängig der Scale (dpr * cameraZoom)
   const scaleFactor = dpr * cameraZoom;
   const unscaledX = uncenteredX / scaleFactor;
   const unscaledY = uncenteredY / scaleFactor;
   
-  // Schritt 3: Camera pan hinzufügen (in CSS-Pixel-Raum)
+  // Schritt 3: Camera pan hinzufügen
   const worldX = unscaledX + cameraX;
   const worldY = unscaledY + cameraY;
   
