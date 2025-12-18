@@ -2,9 +2,7 @@
   import { graphData, visibleState, showAllNodes } from '$lib/stores';
   import { uiStore } from '$lib/stores/uiStore';
   import { scrollyStore } from '$lib/stores/scrollyStore';
-  import { onMount } from 'svelte';
   
-  let isVisible = false;
   let navPosition = 'calc(50% - 20px)';
   
   $: nodeCount = $graphData?.nodes.length ?? 0;
@@ -32,20 +30,6 @@
     }
   }
   
-  onMount(() => {
-    // Blende die Navigationsleiste nach 14 Sekunden ein
-    const timer = setTimeout(() => {
-      isVisible = true;
-    }, 14000);
-    
-    return () => clearTimeout(timer);
-  });
-  
-  function resetView() {
-    // Trigger re-initialization if needed
-    window.location.reload();
-  }
-  
   function toggleConnections() {
     uiStore.update(state => ({
       ...state,
@@ -58,7 +42,7 @@
   }
 </script>
 
-<div class="control-panel" style="--nav-position: {navPosition}; opacity: {isVisible ? 1 : 0}">
+<div class="control-panel" style="--nav-position: {navPosition}">
   <div class="stats">
     <span class="stat">
       <span class="label">Gesamt:</span>
@@ -91,7 +75,21 @@
     flex-wrap: wrap;
     width: fit-content;
     white-space: nowrap;
-    transition: opacity 0.5s ease-in-out;
+    opacity: 0;
+    transform: scale(0);
+    animation: blobAppear 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    animation-delay: 14s;
+  }
+
+  @keyframes blobAppear {
+    0% {
+      opacity: 0;
+      transform: scale(0);
+    }
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
   }
   
   .stats {
