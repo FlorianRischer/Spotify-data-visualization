@@ -18,9 +18,19 @@
   position: relative;
 }
 
-/* Control Panel Section */
-.controls {
-  flex-shrink: 0;
+/* Control Panel Wrapper */
+.control-panel-wrapper {
+  position: fixed;
+  top: var(--nav-position, 50%);
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 0;
+  background: transparent;
+  z-index: 10;
+  pointer-events: auto;
+  width: auto;
+  max-width: 90vw;
+  transition: top 0.3s ease-out;
 }
 
 /* Graph Container */

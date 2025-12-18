@@ -30,6 +30,7 @@ export interface RenderOptions {
   cameraX?: number;
   cameraY?: number;
   focusedCategory?: string | null; // For category-based focus effect
+  categoryFilterProgress?: number; // 0-1 animation progress for category filter (smooth transition)
   hoverScaleMap?: Map<string, { scale: number; velocity: number; startTime: number }>; // For organic hover animation
   categoryLabels?: CategoryAnchor[]; // Mini-Headings für Overview-Kategorien
   overviewTransitionProgress?: number; // 0-1 progress of overview transition
@@ -129,15 +130,16 @@ function renderCategoryLabels(
   for (const label of labels) {
     ctx.save();
     
-    // Move to label position (offset to the left of group center)
-    ctx.translate(label.x - 110, label.y);
+    // Move to label position (offset slightly to the left of group center)
+    // Adjusted offset to position subheadings a bit closer, but not too far
+    ctx.translate(label.x - 80, label.y);
     
     // Rotate 90 degrees to make text vertical (like the main "Overview" heading)
     // Use 270deg (same as genre title)
     ctx.rotate(-Math.PI / 2);
     
-    // Set up text style - match Anton font from GenreTitle
-    ctx.font = '400 32px "Anton", sans-serif';
+    // Set up text style - match Anton font from GenreTitle but slightly smaller
+    ctx.font = '400 24px "Anton", sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     
@@ -160,7 +162,7 @@ export function renderGraph(
   edges: RenderEdge[],
   options: RenderOptions
 ) {
-  const { hoveredId, focusedId, centeredNodeId, showConnections, animatingNodes, reducedMotion, dpr, now, groups, focusedCategory, hoverScaleMap } = options;
+  const { hoveredId, focusedId, centeredNodeId, showConnections, animatingNodes, reducedMotion, dpr, now, groups, focusedCategory, categoryFilterProgress, hoverScaleMap } = options;
   const cameraZoom = options.cameraZoom ?? 1;
   const cameraX = options.cameraX ?? 0;
   const cameraY = options.cameraY ?? 0;
@@ -265,7 +267,9 @@ export function renderGraph(
     if (hasCenteredNode && !isCentered) {
       dimFactor = 0.3;
     } else if (focusedCategory && !isInFocusedCategory) {
-      dimFactor = 0.2; // More aggressive blur for category focus
+      // Smoothly interpolate between normal (1) and dimmed (0.2) based on animation progress
+      const animProgress = categoryFilterProgress ?? 1;
+      dimFactor = 1 - (animProgress * 0.8); // From 1 to 0.2
     } else if (hoverInfluence > 0.1) {
       // Nodes near hovered node become more transparent (water displacement effect)
       dimFactor = 1 - (hoverInfluence * 0.35);

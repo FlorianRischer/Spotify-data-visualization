@@ -409,17 +409,17 @@
           </div>
         {/if}
 
+        {#if !$isStartAnimationRunning}
+          <div class="control-panel-wrapper" transition:fade={{ duration: 300 }}>
+            <ControlPanel />
+          </div>
+        {/if}
+
         <section class="graph-container">
           <GraphCanvas />
         </section>
       </div>
     </ScrollyContainer>
-    
-    {#if !$isStartAnimationRunning}
-      <div transition:fade={{ duration: 300 }}>
-        <ProgressIndicator />
-      </div>
-    {/if}
     <Tooltip />
   {/if}
 </main>

@@ -1,13 +1,43 @@
 <script lang="ts">
   import { graphData, visibleState, showAllNodes } from '$lib/stores';
   import { uiStore } from '$lib/stores/uiStore';
+  import { scrollyStore } from '$lib/stores/scrollyStore';
+  import { onMount } from 'svelte';
+  
+  let isVisible = false;
+  let navPosition = 'calc(50% - 20px)';
   
   $: nodeCount = $graphData?.nodes.length ?? 0;
   $: edgeCount = $graphData?.edges.length ?? 0;
   $: visibleNodeCount = $visibleState?.nodes.size ?? 0;
   $: visibleEdgeCount = $visibleState?.edges.size ?? 0;
   $: showConnections = $uiStore.showConnections ?? false;
-  $: showGenreGrouping = $uiStore.showGenreGrouping ?? false;
+  
+  // Berechne die vertikale Position basierend auf Phase und Navbar-Animation-Progress
+  $: if ($scrollyStore.phase === 'intro') {
+    // In Intro: zentriert
+    navPosition = 'calc(50vh - 20px)';
+  } else if ($scrollyStore.isAnimatingCamera) {
+    // Während Kamera-Animation: fahre nach unten basierend auf Progress
+    const animProgress = $scrollyStore.navbarAnimationProgress;
+    // Von Mitte (50vh) zu unten (calc(100vh - 60px))
+    const startPos = 50; // vh
+    const endPos = 100 - (60 / window.innerHeight * 100); // vh für unten mit 60px Padding
+    const currentPos = startPos + (endPos - startPos) * animProgress;
+    navPosition = `calc(${currentPos}vh - 20px)`;
+  } else if ($scrollyStore.phase !== 'intro') {
+    // Nach Animation: unten fixiert
+    navPosition = 'calc(100vh - 60px)';
+  }
+  
+  onMount(() => {
+    // Blende die Navigationsleiste nach 14 Sekunden ein
+    const timer = setTimeout(() => {
+      isVisible = true;
+    }, 14000);
+    
+    return () => clearTimeout(timer);
+  });
   
   function resetView() {
     // Trigger re-initialization if needed
@@ -21,46 +51,27 @@
     }));
   }
   
-  function toggleGenreGrouping() {
-    uiStore.update(state => ({
-      ...state,
-      showGenreGrouping: !state.showGenreGrouping
-    }));
-  }
-  
   function handleShowAll() {
     showAllNodes();
   }
 </script>
 
-<div class="control-panel">
+<div class="control-panel" style="--nav-position: {navPosition}; opacity: {isVisible ? 1 : 0}">
   <div class="stats">
     <span class="stat">
-      <span class="label">Sichtbar:</span>
-      <span class="value">{visibleNodeCount} Genres</span>
-    </span>
-    <span class="stat">
       <span class="label">Gesamt:</span>
-      <span class="value">{nodeCount} Genres, {edgeCount} Verbindungen</span>
+      <span class="value">{nodeCount} Genres, {edgeCount} Links</span>
     </span>
   </div>
   
   <div class="controls">
     <button 
       class="btn" 
-      class:active={showGenreGrouping}
-      on:click={toggleGenreGrouping}
-      title="Genres nach Kategorie gruppieren"
-    >
-      Genre Kategorien
-    </button>
-    <button 
-      class="btn" 
       class:active={showConnections}
       on:click={toggleConnections}
-      title="Verbindungen anzeigen"
+      title="Display Links"
     >
-      Verbindungen
+      Display Links
     </button>
   </div>
 </div>
@@ -71,10 +82,14 @@
     justify-content: space-between;
     align-items: center;
     padding: 12px 16px;
-    background: rgba(255, 255, 255, 0.03);
-    border-radius: 10px;
+    background: rgba(239, 83, 80, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 50px;
     gap: 16px;
     flex-wrap: wrap;
+    width: fit-content;
+    white-space: nowrap;
+    transition: opacity 0.5s ease-in-out;
   }
   
   .stats {
@@ -90,12 +105,13 @@
   }
   
   .label {
-    color: #8b949e;
+    color: #ffffff;
+    font-weight: 700;
   }
   
   .value {
-    color: #e6edf3;
-    font-weight: 500;
+    color: #ffffff;
+    font-weight: 700;
   }
   
   .controls {
@@ -105,29 +121,32 @@
   }
   
   .btn {
-    background: transparent;
-    color: #e6edf3;
+    background: rgba(255, 255, 255, 0.1);
+    color: #ffffff;
     border: none;
     padding: 6px 12px;
     font-size: 13px;
     cursor: pointer;
-    transition: color 0.2s;
+    transition: all 0.2s;
     font-family: inherit;
-    border-radius: 4px;
+    border-radius: 50px;
     white-space: nowrap;
+    font-weight: 500;
   }
   
   .btn:hover {
-    color: #1db954;
+    color: rgb(255, 255, 255);
+    background: rgba(239, 83, 80, 0.7);
+    font-weight: 700;
   }
   
   .btn:active {
-    background: rgba(29, 185, 84, 0.1);
+    background: rgba(29, 185, 84, 0.15);
   }
   
   .btn.active {
-    color: #1db954;
-    background: rgba(29, 185, 84, 0.1);
+    color: rgba(239, 83, 80, 1);
+    background: rgb(255, 255, 255);
   }
   
   /* Compact Desktop (< 1024px) */

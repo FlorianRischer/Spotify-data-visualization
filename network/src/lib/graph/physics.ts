@@ -109,7 +109,7 @@ export function createCategoryBasedGenreAnchors(
     // Positioniere Genres um ihre Kategorie-Position
     // Bei nur einem Genre ist es genau auf dem Kreis
     // Bei mehreren Genres bilden sie einen kleinen Cluster
-    const clusterRadius = Math.min(40, 200 / genreCount); // Kleinere Cluster für große Kategorien
+    const clusterRadius = Math.min(28, 140 / genreCount); // Kleinere Cluster für große Kategorien
     
     for (let genreIdx = 0; genreIdx < genreCount; genreIdx++) {
       const genre = genresInCategory[genreIdx];

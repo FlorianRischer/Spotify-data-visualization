@@ -20,8 +20,9 @@
   let lastPhase: string = 'intro';
   let lastFocusedCategory: GenreCategory | null = null;
   let lastCameraAnimationTime = 0;
+  let lastScrollProgress = 0; // Track Scroll-Richtung
   const MIN_ANIMATION_INTERVAL = 1500; // Mindestabstand zwischen Animationen
-  const CAMERA_ANIMATION_DURATION = 1000; // Muss mit cameraController Duration übereinstimmen
+  const CAMERA_ANIMATION_DURATION = 1500; // Erhöht auf 1500ms für smoothere Animation
   const TITLE_ANIMATION_DURATION = 500; // Dauer der Titel-Animation
   const TITLE_START_DELAY = CAMERA_ANIMATION_DURATION - TITLE_ANIMATION_DURATION; // Titel startet so, dass beide enden zur gleichen Zeit
 
@@ -39,6 +40,7 @@
       const position = $scrollyStore.categoryPositions[focusedCategory];
       const categoryIndex = $scrollyStore.focusedCategoryIndex;
       const totalCategories = $scrollyStore.genreGroupQueue.length;
+      const isLastCategory = categoryIndex === totalCategories - 1;
       
       if (position) {
         console.log(`Zoom zu Kategorie: ${focusedCategory}`, position);
@@ -64,15 +66,31 @@
             isAnimatingCamera: false
           }));
           
-          // Nach letzter Kategorie: Wechsel zu Overview
-          if (categoryIndex === totalCategories - 1) {
+          // Nach letzter Kategorie (Reggae): Wechsel zu Overview mit gleicher Animation
+          if (isLastCategory) {
+            // Warte kurz, dann starte Overview-Animation
             setTimeout(() => {
+              scrollyStore.update(state => ({
+                ...state,
+                isAnimatingCamera: true
+              }));
+              
+              // Kamera zur Overview animieren
               cameraController.animateToOverview(CAMERA_ANIMATION_DURATION);
-              // Wechsel Titel schneller (nach 600ms der Animation)
+              
+              // Titel-Wechsel am Ende der Kamera-Animation (nicht mit Delay davor)
               setTimeout(() => {
                 activateOverview();
-              }, 600);
-            }, CAMERA_ANIMATION_DURATION);
+              }, CAMERA_ANIMATION_DURATION);
+              
+              // Animation abschließen
+              setTimeout(() => {
+                scrollyStore.update(state => ({
+                  ...state,
+                  isAnimatingCamera: false
+                }));
+              }, CAMERA_ANIMATION_DURATION);
+            }, 300); // Kurze Pause nach letzter Kategorie
           }
         }, CAMERA_ANIMATION_DURATION);
       }
@@ -82,6 +100,42 @@
   onMount(() => {
     // Initialisiere Kategorie-Queue aus Graph-Daten
     initializeCategoryQueue();
+    
+    // Animation Loop für Navbar während Kamera-Animation
+    let animationStartTime: number | null = null;
+    let lastIsAnimating = false;
+    
+    const animationLoop = () => {
+      const currentState = get(scrollyStore);
+      
+      if (currentState.isAnimatingCamera && !lastIsAnimating) {
+        // Animation startet
+        animationStartTime = performance.now();
+        lastIsAnimating = true;
+      } else if (!currentState.isAnimatingCamera && lastIsAnimating) {
+        // Animation endet
+        animationStartTime = null;
+        lastIsAnimating = false;
+        scrollyStore.update(state => ({
+          ...state,
+          navbarAnimationProgress: 0
+        }));
+      }
+      
+      if (currentState.isAnimatingCamera && animationStartTime !== null) {
+        const elapsed = performance.now() - animationStartTime;
+        const progress = Math.min(elapsed / CAMERA_ANIMATION_DURATION, 1);
+        
+        scrollyStore.update(state => ({
+          ...state,
+          navbarAnimationProgress: progress
+        }));
+      }
+      
+      requestAnimationFrame(animationLoop);
+    };
+    
+    const rafId = requestAnimationFrame(animationLoop);
     
     // Scroll-Handler
     const handleScroll = () => {
@@ -96,8 +150,12 @@
       const scrollHeight = document.documentElement.scrollHeight - window.innerHeight;
       const progress = scrollHeight > 0 ? scrollTop / scrollHeight : 0;
       
+      // Erkenne Scroll-Richtung
+      const isScrollingDown = progress > lastScrollProgress;
+      lastScrollProgress = progress;
+      
       updateScrollProgress(progress);
-      handlePhaseTransitions(progress);
+      handlePhaseTransitions(progress, isScrollingDown);
     };
 
     window.addEventListener('scroll', handleScroll, { passive: true });
@@ -108,6 +166,7 @@
 
     return () => {
       window.removeEventListener('scroll', handleScroll);
+      cancelAnimationFrame(rafId);
       cameraController.reset();
     };
   });
@@ -131,14 +190,20 @@
     setGenreGroupQueue(sortedCategories, categoryCounts);
   }
 
-  function handlePhaseTransitions(progress: number) {
+  function handlePhaseTransitions(progress: number, isScrollingDown: boolean = true) {
     const currentState = get(scrollyStore);
     const newPhase = currentState.phase;
 
     // Phase-Wechsel erkennen
     if (newPhase !== lastPhase) {
-      onPhaseChange(lastPhase, newPhase);
+      onPhaseChange(lastPhase, newPhase, isScrollingDown);
       lastPhase = newPhase;
+    }
+
+    // Backward Navigation: Overview → Zoom (beim Zurückscroll)
+    if (newPhase === 'zoom' && lastPhase === 'overview' && !isScrollingDown) {
+      console.log('📍 Zurück von Overview zu Zoom');
+      lastFocusedCategory = null; // Reset, damit nächste Kategorie animiert wird
     }
 
     // Summary-Phase: Zurück zur Übersicht
@@ -148,8 +213,8 @@
     }
   }
 
-  function onPhaseChange(oldPhase: string, newPhase: string) {
-    console.log(`📍 Phase: ${oldPhase} → ${newPhase}`);
+  function onPhaseChange(oldPhase: string, newPhase: string, isScrollingDown: boolean = true) {
+    console.log(`📍 Phase: ${oldPhase} → ${newPhase} (${isScrollingDown ? 'down' : 'up'})`);
 
     // Intro → Categorization: Aktiviere Genre-Gruppierung
     if (oldPhase === 'intro' && newPhase === 'categorization') {
@@ -162,21 +227,29 @@
       setCategorizationComplete();
     }
 
-    // Overview-Modus: Verteile Nodes über Screen
-    if (newPhase === 'overview') {
-      console.log('📍 Wechsel zu Overview-Modus');
+    // Zoom → Overview (beim Scrollen zu Reggae / nach letzter Kategorie)
+    if (oldPhase === 'zoom' && newPhase === 'overview' && isScrollingDown) {
+      console.log('📍 Wechsel zu Overview-Modus nach Reggae');
       // Die GraphCanvas wird automatisch Overview-Ankerpunkte aktivieren
+    }
+
+    // Overview → Zoom (Zurückscroll, neue Gruppierung)
+    if (oldPhase === 'overview' && newPhase === 'zoom' && !isScrollingDown) {
+      console.log('📍 Zurück zu Zoom aus Overview - Gruppierungen werden neu sortiert');
+      // Kategorie-Queue neu initialisieren für neue Sortierung
+      initializeCategoryQueue();
+      lastFocusedCategory = null;
     }
 
     // Summary: Reset Genre-Gruppierung optional
     if (newPhase === 'summary') {
-      cameraController.animateToOverview(1500);
+      cameraController.animateToOverview(CAMERA_ANIMATION_DURATION);
       lastFocusedCategory = null;
     }
     
     // Intro: Reset
     if (newPhase === 'intro') {
-      cameraController.animateToOverview(1000);
+      cameraController.animateToOverview(CAMERA_ANIMATION_DURATION);
       lastFocusedCategory = null;
     }
   }

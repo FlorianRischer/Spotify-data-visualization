@@ -65,6 +65,7 @@
   let cameraX = 0;
   let cameraY = 0;
   let focusedCategory: string | null = null;
+  let categoryFilterProgress = 0; // 0-1 animation progress (instant now)
   
   // Centered/focused node state
   let centeredNodeId: string | null = null;
@@ -357,8 +358,8 @@
       if (isOverviewMode && overviewTransitionStartTime === null) {
         overviewTransitionStartTime = performance.now();
         wasInOverviewMode = true;
-        // Lösche alte Ankerpunkte beim Wechsel zu Overview
-        genreAnchors = [];
+        // NICHT sofort Ankerpunkte löschen - das verursacht Laggen
+        // genreAnchors werden erst gelöscht wenn neue Overview-Anchors bereit sind
       } else if (!isOverviewMode) {
         overviewTransitionStartTime = null;
       }
@@ -372,16 +373,27 @@
       }
       
       // Erstelle Ankerpunkte basierend auf Mode mit Transition-Verzögerung
-      if (isOverviewMode && overviewTransitionProgress > 0.75 && genreAnchors.length === 0 && nodes.length > 0) {
+      if (isOverviewMode && overviewTransitionProgress > 0.75 && nodes.length > 0) {
         // Overview-Modus: verteile Gruppen über den Screen (nach 75% der Transition, wenn Kamera vollständig fertig ist)
-        const scaledWidth = canvas.width / dpr;
-        const scaledHeight = canvas.height / dpr;
-        genreAnchors = createOverviewAnchors(nodes as any, scaledWidth, scaledHeight, 300);
-        // Erstelle auch Mini-Headings für jede Kategorie
-        categoryLabels = createOverviewCategoryLabels(nodes as any, genreAnchors);
+        // Prüfe ob wir neue Overview-Anchors brauchen (nicht schon Overview-Anchors haben)
+        const needsNewAnchors = genreAnchors.length === 0 || categoryLabels.length === 0;
+        if (needsNewAnchors) {
+          const scaledWidth = canvas.width / dpr;
+          const scaledHeight = canvas.height / dpr;
+          genreAnchors = createOverviewAnchors(nodes as any, scaledWidth, scaledHeight, 300);
+          // Erstelle auch Mini-Headings für jede Kategorie
+          categoryLabels = createOverviewCategoryLabels(nodes as any, genreAnchors);
+        }
+      } else if (!isOverviewMode && wasInOverviewMode && nodes.length > 0) {
+        // Gerade aus Overview zurückgekommen: wechsle Ankerpunkte zurück zur Genre-Gruppierung
+        const scaledGenreAnchorRadius = 350 * scaleFactor;
+        genreAnchors = createCategoryBasedGenreAnchors(nodes as any, scaledGenreAnchorRadius);
+        categoryLabels = []; // Keine Mini-Headings im normalen Modus
+        wasInOverviewMode = false; // Reset flag
+        // Starte Transition, damit Nodes neu positioniert werden
+        transitionStartTime = performance.now();
       } else if (!isOverviewMode && uiState.showGenreGrouping && genreAnchors.length === 0 && nodes.length > 0) {
         // Genre-Gruppierung aktiviert: erstelle Ankerpunkte im Kreis
-        // Oder wenn man gerade aus Overview zurückkommt
         const scaledGenreAnchorRadius = 350 * scaleFactor;
         genreAnchors = createCategoryBasedGenreAnchors(nodes as any, scaledGenreAnchorRadius);
         categoryLabels = []; // Keine Mini-Headings im normalen Modus
@@ -396,6 +408,9 @@
       // Wenn Genre-Gruppierung aktiv ist: verwende genreAnchorStrength, sonst 0
       const activeGenreAnchorStrength = (uiState.showGenreGrouping || isOverviewMode) ? physicsParams.genreAnchorStrength : 0;
       
+      // Während Overview-Transition (bevor neue Anchors da sind): halte Nodes stabil
+      const isWaitingForOverviewAnchors = isOverviewMode && overviewTransitionProgress < 0.75;
+      
       // Für Overview-Transition: verstärke genreAnchorStrength graduell UND STÄRKER
       const finalGenreAnchorStrength = isOverviewMode 
         ? activeGenreAnchorStrength * overviewTransitionProgress * 1.5 
@@ -403,17 +418,24 @@
       
       const transitionPhysicsParams = {
         ...physicsParams,
-        // Reduziere Krfte während Transition - nicht zu aggressiv
-        repulsion: isOverviewMode 
-          ? physicsParams.repulsion * 0.4  // Schwächere Repulsion im Overview
-          : physicsParams.repulsion * (0.3 + transitionProgress * 0.7),
-        maxSpeed: isOverviewMode 
-          ? physicsParams.maxSpeed * 0.8  // Höhere maxSpeed im Overview für schnellere Verteilung
-          : physicsParams.maxSpeed * 0.5, // Keep nodes slow during transition
-        damping: isOverviewMode 
-          ? 0.75  // Weniger Damping im Overview für bessere Verteilung
-          : 0.85, // High damping for smooth, slow motion
-        // Erhh genreAnchorStrength graduell während bergang (nur wenn aktiv)
+        // Reduziere Kräfte während Transition - nicht zu aggressiv
+        // Während wir auf Overview-Anchors warten: Nodes sehr stabil halten
+        repulsion: isWaitingForOverviewAnchors
+          ? physicsParams.repulsion * 0.2  // Sehr schwache Repulsion während Warten
+          : isOverviewMode 
+            ? physicsParams.repulsion * 0.4  // Schwächere Repulsion im Overview
+            : physicsParams.repulsion * (0.3 + transitionProgress * 0.7),
+        maxSpeed: isWaitingForOverviewAnchors
+          ? physicsParams.maxSpeed * 0.3  // Sehr langsam während Warten auf Anchors
+          : isOverviewMode 
+            ? physicsParams.maxSpeed * 0.8  // Höhere maxSpeed im Overview für schnellere Verteilung
+            : physicsParams.maxSpeed * 0.5, // Keep nodes slow during transition
+        damping: isWaitingForOverviewAnchors
+          ? 0.95  // Sehr hohes Damping - Nodes bleiben fast stehen
+          : isOverviewMode 
+            ? 0.75  // Weniger Damping im Overview für bessere Verteilung
+            : 0.85, // High damping for smooth, slow motion
+        // Erhöhe genreAnchorStrength graduell während Übergang (nur wenn aktiv)
         genreAnchorStrength: finalGenreAnchorStrength
       };
       
@@ -517,6 +539,14 @@
       }
     }
     
+    // Berechne Kategorie-Filter-Animations-Progress
+    // Instant auf 1 setzen wenn Kategorie aktiv ist, sonst 0 - keine Animation
+    if (focusedCategory !== null) {
+      categoryFilterProgress = 1; // Instant vollständig gedimmt
+    } else {
+      categoryFilterProgress = 0; // Instant zurück zu normal
+    }
+    
     renderGraph(ctx, canvas, nodes, edges, {
       hoveredId,
       focusedId,
@@ -532,6 +562,7 @@
       cameraX,
       cameraY,
       focusedCategory,
+      categoryFilterProgress,
       hoverScaleMap,
       categoryLabels,
       overviewTransitionProgress,
@@ -603,8 +634,8 @@
       // Convert screen to world coordinates (accounting for camera)
       const centerX = rect.width / 2;
       const centerY = rect.height / 2;
-      const worldX = ((cssX - centerX) / cameraZoom + cameraX) * dpr;
-      const worldY = ((cssY - centerY) / cameraZoom + cameraY) * dpr;
+      const worldX = (cssX - centerX) / cameraZoom + cameraX;
+      const worldY = (cssY - centerY) / cameraZoom + cameraY;
       pos[draggedNodeId] = {
         x: worldX - dragOffset.x,
         y: worldY - dragOffset.y
@@ -711,8 +742,8 @@
         // Convert screen to world coordinates (accounting for camera)
         const centerX = rect.width / 2;
         const centerY = rect.height / 2;
-        const worldX = ((cssX - centerX) / cameraZoom + cameraX) * dpr;
-        const worldY = ((cssY - centerY) / cameraZoom + cameraY) * dpr;
+        const worldX = (cssX - centerX) / cameraZoom + cameraX;
+        const worldY = (cssY - centerY) / cameraZoom + cameraY;
         dragOffset = {
           x: worldX - nodePos.x,
           y: worldY - nodePos.y

@@ -104,5 +104,5 @@ interface UIState {
 export const uiStore = writable<UIState>({
   showArtistGroups: false,
   showConnections: false,
-  showGenreGrouping: false
+  showGenreGrouping: true
 });

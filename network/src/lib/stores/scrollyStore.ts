@@ -19,6 +19,7 @@ export interface ScrollyState {
   categorizationComplete: boolean;
   displayedCategory: GenreCategory | null; // Für Genre-Titel-Animation erst nach Kamera-Zoom
   isInOverview: boolean; // Zeigt an, ob wir im Overview-Modus sind
+  navbarAnimationProgress: number; // 0-1 Progress der Navbar-Animation während Kamera-Zoom
 }
 
 const initialState: ScrollyState = {
@@ -36,17 +37,19 @@ const initialState: ScrollyState = {
   introAnimationComplete: false,
   categorizationComplete: false,
   displayedCategory: 'Intro' as GenreCategory,
-  isInOverview: false
+  isInOverview: false,
+  navbarAnimationProgress: 0
 };
 
 export const scrollyStore = writable<ScrollyState>(initialState);
 
 /**
  * Berechnet die aktuelle Phase basierend auf Scroll-Progress
+ * Phasen-Grenzen: 0-0.25 intro | 0.25-0.35 categorization | 0.35-0.95 zoom | 0.95-1.0 summary
  */
 function calculatePhase(progress: number): ScrollyPhase {
   if (progress < 0.25) return 'intro';
-  if (progress < 0.45) return 'categorization';
+  if (progress < 0.35) return 'categorization';
   if (progress < 0.95) return 'zoom';
   return 'summary';
 }
@@ -54,14 +57,14 @@ function calculatePhase(progress: number): ScrollyPhase {
 /**
  * Berechnet den fokussierten Kategorie-Index für Zoom-Phase
  * Mit Hysterese um Flackern zu vermeiden
+ * Zoom-Phase: 0.35-0.95 (60% des gesamten Scroll-Fortschritts)
  */
 function calculateFocusedCategoryIndex(progress: number, totalCategories: number): number {
-  if (progress < 0.45 || totalCategories === 0) return -1;
+  if (progress < 0.35 || totalCategories === 0) return -1;  // Vor Zoom-Phase
   if (progress >= 0.95) return -1; // Summary phase
   
-  // Map 0.45-0.95 to 0-(totalCategories-1)
-  // Verwende Math.ceil statt Math.floor für bessere Übergänge
-  const zoomProgress = (progress - 0.45) / 0.5;
+  // Map 0.35-0.95 to 0-(totalCategories-1)
+  const zoomProgress = (progress - 0.35) / 0.6;  // 0.6 = 0.95 - 0.35
   const rawIndex = zoomProgress * totalCategories;
   
   // Mit Hysterese: mehr Zeit pro Kategorie für stabiler Fokus
@@ -90,6 +93,7 @@ export function updateScrollProgress(progress: number) {
 
 /**
  * Setzt die Kategorie-Warteschlange sortiert nach Größe (absteigend)
+ * Reggae wird immer als Ankerpunkt am Ende platziert
  * Platziert sie auf einem Kreis beginnend mit 12 Uhr im Uhrzeigersinn
  */
 export function setGenreGroupQueue(
@@ -97,11 +101,18 @@ export function setGenreGroupQueue(
   nodeCounts: Partial<Record<GenreCategory, number>>
 ) {
   // Sortiere Queue nach Anzahl der Genres (absteigend) - größte zuerst
-  const sortedQueue = [...queue].sort((a, b) => {
+  let sortedQueue = [...queue].sort((a, b) => {
     const countA = nodeCounts[a] || 0;
     const countB = nodeCounts[b] || 0;
     return countB - countA;
   });
+
+  // Reggae als Ankerpunkt: immer an letzter Position
+  const reggaeIndex = sortedQueue.indexOf('Reggae' as GenreCategory);
+  if (reggaeIndex !== -1 && reggaeIndex !== sortedQueue.length - 1) {
+    sortedQueue.splice(reggaeIndex, 1); // Entferne Reggae
+    sortedQueue.push('Reggae' as GenreCategory); // Füge am Ende ein
+  }
 
   // Berechne Positionen auf einem Kreis
   // 12 Uhr = -π/2, dann im Uhrzeigersinn
