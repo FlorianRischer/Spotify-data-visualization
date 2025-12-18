@@ -14,20 +14,22 @@
   $: showConnections = $uiStore.showConnections ?? false;
   
   // Berechne die vertikale Position basierend auf Phase und Navbar-Animation-Progress
-  $: if ($scrollyStore.phase === 'intro') {
-    // In Intro: zentriert
-    navPosition = 'calc(50vh - 20px)';
-  } else if ($scrollyStore.isAnimatingCamera) {
-    // Während Kamera-Animation: fahre nach unten basierend auf Progress
-    const animProgress = $scrollyStore.navbarAnimationProgress;
-    // Von Mitte (50vh) zu unten (calc(100vh - 60px))
-    const startPos = 50; // vh
-    const endPos = 100 - (60 / window.innerHeight * 100); // vh für unten mit 60px Padding
-    const currentPos = startPos + (endPos - startPos) * animProgress;
-    navPosition = `calc(${currentPos}vh - 20px)`;
-  } else if ($scrollyStore.phase !== 'intro') {
-    // Nach Animation: unten fixiert
-    navPosition = 'calc(100vh - 60px)';
+  $: {
+    if ($scrollyStore.phase === 'intro') {
+      // In Intro: zentriert
+      navPosition = 'calc(50vh - 20px)';
+    } else if ($scrollyStore.isAnimatingCamera) {
+      // Während Kamera-Animation: fahre nach unten basierend auf Progress
+      const animProgress = $scrollyStore.navbarAnimationProgress;
+      // Von Mitte (50vh) zu unten (92vh)
+      const startPos = 50; // vh
+      const endPos = 92; // vh
+      const currentPos = startPos + (endPos - startPos) * animProgress;
+      navPosition = `calc(${currentPos}vh - 20px)`;
+    } else {
+      // Nach Animation: unten fixiert
+      navPosition = 'calc(100vh - 60px)';
+    }
   }
   
   onMount(() => {
