@@ -18,19 +18,17 @@
   position: relative;
 }
 
-/* Control Panel Wrapper */
+/* Control Panel Wrapper - nur für fade transition, Position wird von ControlPanel selbst gesteuert */
 .control-panel-wrapper {
   position: fixed;
-  top: var(--nav-position, 50%);
-  left: 50%;
-  transform: translate(-50%, -50%);
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   padding: 0;
   background: transparent;
   z-index: 10;
-  pointer-events: auto;
-  width: auto;
-  max-width: 90vw;
-  transition: top 0.3s ease-out;
+  pointer-events: none;
 }
 
 /* Graph Container */

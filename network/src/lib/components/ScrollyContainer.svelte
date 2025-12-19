@@ -113,12 +113,12 @@
         animationStartTime = performance.now();
         lastIsAnimating = true;
       } else if (!currentState.isAnimatingCamera && lastIsAnimating) {
-        // Animation endet
+        // Animation endet - setze Progress auf 1 um unten fixiert zu bleiben
         animationStartTime = null;
         lastIsAnimating = false;
         scrollyStore.update(state => ({
           ...state,
-          navbarAnimationProgress: 0
+          navbarAnimationProgress: 1
         }));
       }
       
