@@ -56,9 +56,9 @@
               </svg>
             </div>
             <div class="card-content">
-              <h3 class="card-title">Genre Network</h3>
+              <h3 class="card-title">Genre Expoloration</h3>
               <p class="card-description">
-                Entdecke die Verbindungen zwischen deinen gehörten Genres in einem interaktiven Netzwerk-Graphen
+                Explore my whole Spotify listening history through an interactive genre network
               </p>
             </div>
             <div class="card-arrow">
@@ -81,7 +81,7 @@
             <div class="card-content">
               <h3 class="card-title">Timeline View</h3>
               <p class="card-description">
-                Verfolge deine musikalische Entwicklung über die Zeit
+                See how my musical tastes have evolved over time
               </p>
               <span class="coming-soon-badge">Coming Soon</span>
             </div>
@@ -96,19 +96,15 @@
               </svg>
             </div>
             <div class="card-content">
-              <h3 class="card-title">Statistics</h3>
+              <h3 class="card-title">Project Info</h3>
               <p class="card-description">
-                Detaillierte Statistiken zu deinen Hörgewohnheiten
+                Learn more about the project and its creator
               </p>
               <span class="coming-soon-badge">Coming Soon</span>
             </div>
           </div>
         </div>
       </section>
-
-      <footer class="landing-footer" in:fade={{ duration: 600, delay: 1400 }}>
-        <p>Infodesign Semester Projekt 2025</p>
-      </footer>
     {/if}
   </div>
 </main>
@@ -275,19 +271,6 @@
     width: fit-content;
   }
 
-  /* Footer */
-  .landing-footer {
-    text-align: center;
-    padding: 40px 0;
-    border-top: 1px solid rgba(0, 0, 0, 0.08);
-  }
-
-  .landing-footer p {
-    font-family: 'Inter', sans-serif;
-    font-size: 14px;
-    color: #999;
-    margin: 0;
-  }
 
   /* Responsive */
   @media (max-width: 768px) {
