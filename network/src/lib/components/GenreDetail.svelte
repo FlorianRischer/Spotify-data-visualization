@@ -20,12 +20,16 @@
   // Animation distance - gleich wie GenreTitle
   const flyDistance = 150;
   
-  // Reactive animation params based on scroll direction - für X-Achse (horizontal)
-  $: inX = scrollDirection === 'down' ? flyDistance : -flyDistance;
-  $: outX = scrollDirection === 'down' ? -flyDistance : flyDistance;
+  // Reactive animation params based on scroll direction - für X-Achse (horizontal) - gespiegelt
+  $: inX = scrollDirection === 'down' ? -flyDistance : flyDistance;
+  $: outX = scrollDirection === 'down' ? flyDistance : -flyDistance;
 
   // Verwende displayedCategory statt focusedCategory - wird nur nach Kamera-Zoom gesetzt (wie GenreTitle)
   $: displayedCategory = $scrollyStore.displayedCategory;
+  
+  // Nur sichtbar in zoom und detail Phasen, nicht in overview/summary
+  $: phase = $scrollyStore.phase;
+  $: isVisible = displayedCategory && (phase === 'zoom' || phase === 'detail');
   
   // Track scroll direction based on category changes - gleich wie GenreTitle
   $: {
@@ -263,13 +267,15 @@
   .genre-detail {
     position: fixed;
     right: 120px;
-    top: 50%;
+    top: 20%;
     transform: translateY(-50%);
     max-width: 300px;
     z-index: 8;
     opacity: 0;
     transition: opacity 0.5s ease-in-out;
     pointer-events: none;
+    width: 100%;
+    height: auto;
   }
 
   .genre-detail.visible {
@@ -289,11 +295,18 @@
     border: 1px solid rgba(255, 255, 255, 0.1);
     max-height: 600px;
     overflow-y: auto;
+    scroll-behavior: smooth;
     scrollbar-width: thin;
     scrollbar-color: rgba(0, 0, 0, 0.3) rgba(255, 255, 255, 0.05);
     display: flex;
     flex-direction: column;
     justify-content: flex-start;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    will-change: transform, opacity;
+    mask-image: linear-gradient(to bottom, transparent 0%, black 5%, black 95%, transparent 100%);
   }
 
   .detail-content::-webkit-scrollbar {
@@ -331,7 +344,6 @@
     --data-font-weight: 300;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
     gap: 12px;
     align-items: flex-start;
   }
