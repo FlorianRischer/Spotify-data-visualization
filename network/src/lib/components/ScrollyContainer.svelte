@@ -66,32 +66,9 @@
             isAnimatingCamera: false
           }));
           
-          // Nach letzter Kategorie (Reggae): Wechsel zu Overview mit gleicher Animation
-          if (isLastCategory) {
-            // Warte kurz, dann starte Overview-Animation
-            setTimeout(() => {
-              scrollyStore.update(state => ({
-                ...state,
-                isAnimatingCamera: true
-              }));
-              
-              // Kamera zur Overview animieren
-              cameraController.animateToOverview(CAMERA_ANIMATION_DURATION);
-              
-              // Titel-Wechsel am Ende der Kamera-Animation (nicht mit Delay davor)
-              setTimeout(() => {
-                activateOverview();
-              }, CAMERA_ANIMATION_DURATION);
-              
-              // Animation abschließen
-              setTimeout(() => {
-                scrollyStore.update(state => ({
-                  ...state,
-                  isAnimatingCamera: false
-                }));
-              }, CAMERA_ANIMATION_DURATION);
-            }, 300); // Kurze Pause nach letzter Kategorie
-          }
+          // Bei letzter Kategorie (Reggae): Warte auf manuelles Scrolling
+          // Der Nutzer kann jetzt selbst entscheiden, zur Overview zu gehen
+          // (keine automatische Animation mehr)
         }, CAMERA_ANIMATION_DURATION);
       }
     }
@@ -230,7 +207,28 @@
     // Zoom → Overview (beim Scrollen zu Reggae / nach letzter Kategorie)
     if (oldPhase === 'zoom' && newPhase === 'overview' && isScrollingDown) {
       console.log('📍 Wechsel zu Overview-Modus nach Reggae');
-      // Die GraphCanvas wird automatisch Overview-Ankerpunkte aktivieren
+      
+      // Starte Kamera-Animation zur Overview
+      scrollyStore.update(state => ({
+        ...state,
+        isAnimatingCamera: true
+      }));
+      
+      // Animiere Kamera zur Overview
+      cameraController.animateToOverview(CAMERA_ANIMATION_DURATION);
+      
+      // Wechsle Titel nach Animation
+      setTimeout(() => {
+        activateOverview();
+      }, CAMERA_ANIMATION_DURATION);
+      
+      // Beende Animation
+      setTimeout(() => {
+        scrollyStore.update(state => ({
+          ...state,
+          isAnimatingCamera: false
+        }));
+      }, CAMERA_ANIMATION_DURATION);
     }
 
     // Overview → Zoom (Zurückscroll, neue Gruppierung)
