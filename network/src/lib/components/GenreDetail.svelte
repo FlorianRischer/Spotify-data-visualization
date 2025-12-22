@@ -1,17 +1,46 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
+  import { fly } from 'svelte/transition';
+  import { cubicOut } from 'svelte/easing';
   import { scrollyStore } from '$lib/stores/scrollyStore';
   import { graphData } from '$lib/stores';
 
   let isVisible = false;
   let displayedText = '';
   let typewriterActive = false;
-  let lastCategory: string | null = null;
-  let lastUpdateTime = 0;
   let typingAnimationId: number | null = null;
   let prefersReducedMotion = false;
   let isHovering = false;
   let displayedLines: Array<{ text: string; isLabel: boolean }> = [];
+  
+  // Gleiche Logik wie GenreTitle
+  let previousCategory: string | null = null;
+  let scrollDirection: 'down' | 'up' = 'down';
+
+  // Animation distance - gleich wie GenreTitle
+  const flyDistance = 150;
+  
+  // Reactive animation params based on scroll direction - für X-Achse (horizontal)
+  $: inX = scrollDirection === 'down' ? flyDistance : -flyDistance;
+  $: outX = scrollDirection === 'down' ? -flyDistance : flyDistance;
+
+  // Verwende displayedCategory statt focusedCategory - wird nur nach Kamera-Zoom gesetzt (wie GenreTitle)
+  $: displayedCategory = $scrollyStore.displayedCategory;
+  
+  // Track scroll direction based on category changes - gleich wie GenreTitle
+  $: {
+    if (previousCategory !== null && displayedCategory !== previousCategory) {
+      const prevIndex = $scrollyStore.genreGroupQueue.indexOf(previousCategory as any);
+      const currIndex = $scrollyStore.genreGroupQueue.indexOf(displayedCategory as any);
+      
+      if (currIndex > prevIndex || (prevIndex === -1 && currIndex >= 0)) {
+        scrollDirection = 'down';
+      } else if (currIndex < prevIndex || (currIndex === -1 && prevIndex >= 0)) {
+        scrollDirection = 'up';
+      }
+    }
+    previousCategory = displayedCategory;
+  }
 
   interface DetailContent {
     playcount: string;
@@ -27,27 +56,14 @@
     artists: ''
   };
 
-  // Berechne Detail-Infos basierend auf fokussierter Kategorie
-  $: if ($scrollyStore.focusedCategory && $graphData?.nodes) {
-    updateDetailContent($scrollyStore.focusedCategory, $graphData.nodes);
+  // Berechne Detail-Infos basierend auf displayedCategory (wie GenreTitle)
+  $: if (displayedCategory && $graphData?.nodes) {
+    updateDetailContent(displayedCategory, $graphData.nodes);
+    displayFullText();
   } else {
     isVisible = false;
     displayedText = '';
     typewriterActive = false;
-  }
-
-  // Starte Typewriter wenn sich Kategorie ändert und Kamera animiert
-  $: if (
-    $scrollyStore.focusedCategory &&
-    $scrollyStore.focusedCategory !== lastCategory &&
-    $scrollyStore.isAnimatingCamera
-  ) {
-    const now = performance.now();
-    if (now - lastUpdateTime > 500) {
-      lastCategory = $scrollyStore.focusedCategory;
-      lastUpdateTime = now;
-      startTypewriter();
-    }
   }
 
   function updateDetailContent(category: string, nodes: any[]) {
@@ -138,66 +154,18 @@
     }
   }
 
-  function startTypewriter() {
+  function displayFullText() {
     if (typingAnimationId !== null) {
-      cancelAnimationFrame(typingAnimationId);
-    }
-
-    displayedLines = [];
-    typewriterActive = true;
-    
-    if (prefersReducedMotion) {
-      // Instant display wenn reduced motion
-      displayedLines = buildFullText();
-      typewriterActive = false;
-      return;
-    }
-
-    const fullLines = buildFullText();
-    let currentLineIndex = 0;
-    let currentCharIndex = 0;
-    const charDelay = 8; // ms pro Zeichen
-    const lineDelay = 30; // ms zwischen Zeilen
-    const sectionDelay = 250; // ms zwischen Abschnitten
-
-    const typeNextChar = (timestamp: number) => {
-      if (currentLineIndex < fullLines.length) {
-        const currentLine = fullLines[currentLineIndex];
-        const currentText = currentLine.text;
-        
-        if (currentCharIndex < currentText.length) {
-          // Zeige ein Zeichen hinzu
-          displayedLines = [
-            ...fullLines.slice(0, currentLineIndex),
-            {
-              ...currentLine,
-              text: currentText.slice(0, currentCharIndex + 1)
-            }
-          ];
-          currentCharIndex++;
-          
-          typingAnimationId = setTimeout(() => {
-            typingAnimationId = requestAnimationFrame(typeNextChar);
-          }, charDelay) as unknown as number;
-        } else {
-          // Zeile fertig, gehe zur nächsten
-          const isEmptyLine = currentText === '';
-          const delay = isEmptyLine ? sectionDelay : lineDelay;
-          
-          currentLineIndex++;
-          currentCharIndex = 0;
-          
-          typingAnimationId = setTimeout(() => {
-            typingAnimationId = requestAnimationFrame(typeNextChar);
-          }, delay) as unknown as number;
-        }
+      if (typeof typingAnimationId === 'number' && typingAnimationId > 100000) {
+        cancelAnimationFrame(typingAnimationId as unknown as number);
       } else {
-        typewriterActive = false;
-        typingAnimationId = null;
+        clearTimeout(typingAnimationId);
       }
-    };
+    }
 
-    typingAnimationId = requestAnimationFrame(typeNextChar) as unknown as number;
+    displayedLines = buildFullText();
+    typewriterActive = false;
+    typingAnimationId = null;
   }
 
   function buildFullText(): Array<{ text: string; isLabel: boolean }> {
@@ -272,20 +240,23 @@
   on:mouseleave={handleMouseLeave}
   on:wheel|stopPropagation|preventDefault={handleWheel}
 >
-  <div class="detail-content">
-    <div class="detail-text">
-      {#each displayedLines as line (line)}
-        {#if line.isLabel}
-          <div class="label">{line.text}</div>
-        {:else}
-          <div class="data-value">{line.text}</div>
-        {/if}
-      {/each}
-      {#if typewriterActive}
-        <span class="cursor"></span>
-      {/if}
+  {#key displayedCategory}
+    <div
+      class="detail-content"
+      in:fly={{ x: inX, duration: 500, easing: cubicOut }}
+      out:fly={{ x: outX, duration: 500, easing: cubicOut }}
+    >
+      <div class="detail-text">
+        {#each displayedLines as line (line)}
+          {#if line.isLabel}
+            <div class="label">{line.text}</div>
+          {:else}
+            <div class="data-value">{line.text}</div>
+          {/if}
+        {/each}
+      </div>
     </div>
-  </div>
+  {/key}
 </div>
 
 <style>
@@ -320,6 +291,10 @@
     overflow-y: auto;
     scrollbar-width: thin;
     scrollbar-color: rgba(0, 0, 0, 0.3) rgba(255, 255, 255, 0.05);
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    width: 100%;
   }
 
   .detail-content::-webkit-scrollbar {
@@ -357,7 +332,9 @@
     --data-font-weight: 300;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
     gap: 12px;
+    align-items: flex-start;
   }
 
   .label {
