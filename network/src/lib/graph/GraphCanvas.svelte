@@ -26,6 +26,7 @@
   import { renderGraph, hitTest, type RenderNode, type RenderEdge } from "./renderer";
   import { stepPhysics, createPhysicsState, createGenreAnchors, createCategoryBasedGenreAnchors, createOverviewAnchors, createOverviewCategoryLabels, type GenreAnchor, type CategoryAnchor } from "$lib/graph/physics";
   import { positions as positionsStore } from "$lib/stores";
+  import { savePositionSnapshot, getPositionSnapshot, hasSnapshot } from "$lib/stores/positionsStore";
 
   let canvas: HTMLCanvasElement;
   let ctx: CanvasRenderingContext2D | null = null;
@@ -893,6 +894,35 @@
     // Focus canvas for keyboard
     canvas.focus();
   });
+
+  // Speichern und Wiederherstellen von Node-Positionen beim Scrollen
+  $: if (focusedCategory && nodes.length > 0) {
+    const scrollState = get(scrollyStore);
+    
+    // Speichern: Wenn neue Kategorie fokussiert wird beim Scroll nach unten
+    if (scrollState.isScrollingDown && focusedCategory) {
+      const positions = nodes.map(n => ({
+        id: n.id,
+        x: n.x,
+        y: n.y,
+        size: n.size
+      }));
+      savePositionSnapshot(focusedCategory, positions);
+    }
+  }
+
+  // Wiederherstellen beim Rückwärts-Scrolling aus Overview
+  $: if (focusedCategory && !get(scrollyStore).isScrollingDown && nodes.length > 0) {
+    const snapshot = getPositionSnapshot(focusedCategory);
+    if (snapshot && snapshot.length > 0) {
+      // Setze die Positionen direkt
+      const pos = get(positionsStore);
+      snapshot.forEach(s => {
+        pos[s.id] = { x: s.x, y: s.y };
+      });
+      positionsStore.set(pos);
+    }
+  }
 
   onDestroy(() => {
     if (frameId) cancelAnimationFrame(frameId);

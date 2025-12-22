@@ -389,7 +389,7 @@ export function hitTest(
   // Check in reverse order (top-most first)
   for (let i = nodes.length - 1; i >= 0; i--) {
     const n = nodes[i];
-    const r = (Math.max(8, n.size) * 0.4) + 8; // hit area slightly larger
+    const r = Math.max(8, n.size) * 0.4; // hit radius matches node size exactly
     const dx = worldX - n.x;
     const dy = worldY - n.y;
     if (dx * dx + dy * dy <= r * r) {

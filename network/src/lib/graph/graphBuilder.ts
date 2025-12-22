@@ -16,8 +16,8 @@ import { getCategoryColor } from "./categoryColors";
 const DEFAULT_OPTIONS: Required<Pick<GraphBuildOptions, "topK" | "sizeScale" | "minSize" | "maxSize">> = {
   topK: 3,
   sizeScale: 1.0,
-  minSize: 6,
-  maxSize: 42
+  minSize: 8,
+  maxSize: 18
 };
 
 function clamp(value: number, min: number, max: number): number {
@@ -186,22 +186,24 @@ function applyDegrees(nodes: GenreNode[], adj: Record<string, AdjacencyEntry[]>)
   return Array.from(nodeMap.values()).sort((a, b) => a.label.localeCompare(b.label));
 }
 
-// Apply size based on degree (number of connections) instead of totalMinutes
-function applySizeByDegree(
+// Apply size based on totalMinutes instead of degree (number of connections)
+function applySizeByTotalMinutes(
   nodes: GenreNode[], 
   opts: Required<typeof DEFAULT_OPTIONS>
 ): GenreNode[] {
   if (nodes.length === 0) return nodes;
   
-  // Find min/max degree for normalization
-  const degrees = nodes.map(n => n.degree);
-  const minDegree = Math.min(...degrees);
-  const maxDegree = Math.max(...degrees);
-  const degreeRange = maxDegree - minDegree || 1;
+  // Find min/max totalMinutes for normalization
+  const minutes = nodes.map(n => n.totalMinutes);
+  const minMinutes = Math.min(...minutes);
+  const maxMinutes = Math.max(...minutes);
+  const minutesRange = maxMinutes - minMinutes || 1;
   
   return nodes.map(node => {
-    // Normalize degree to 0-1 range, then apply to size range
-    const normalized = (node.degree - minDegree) / degreeRange;
+    // Normalize totalMinutes to 0-1 range using power curve (0.6)
+    // This emphasizes differences in the lower range (0-50 hours)
+    const linear = (node.totalMinutes - minMinutes) / minutesRange;
+    const normalized = Math.pow(linear, 0.6);
     const size = opts.minSize + normalized * (opts.maxSize - opts.minSize);
     
     return {
@@ -408,8 +410,8 @@ export function buildGraph(input: GraphBuildInput, options?: GraphBuildOptions):
   const adjacency = buildAdjacency(edges);
   const nodesWithDegree = applyDegrees(nodes, adjacency);
   
-  // Apply size based on degree (connections) instead of totalMinutes
-  const nodesWithSize = applySizeByDegree(nodesWithDegree, opts);
+  // Apply size based on totalMinutes instead of degree (connections)
+  const nodesWithSize = applySizeByTotalMinutes(nodesWithDegree, opts);
   
   // Use diverse selection instead of just top-K by popularity
   const topK = selectDiverseGenres(nodesWithSize, edges, adjacency, opts.topK);

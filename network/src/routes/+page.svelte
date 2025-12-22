@@ -4,6 +4,7 @@
   import { GraphCanvas, ControlPanel, Tooltip, GenreTitle } from "$lib/components";
   import ScrollyContainer from "$lib/components/ScrollyContainer.svelte";
   import ProgressIndicator from "$lib/components/ProgressIndicator.svelte";
+  import GenreDetail from "$lib/components/GenreDetail.svelte";
   import { graphData, initVisible, setPositions } from "$lib/stores";
   import { uiStore, isStartAnimationRunning } from "$lib/stores/uiStore";
   import { buildGraph, computeForceLayout, transformSpotifyData, loadStreamingHistory } from "$lib/graph";
@@ -417,6 +418,7 @@
 
         <section class="graph-container">
           <GraphCanvas />
+          <GenreDetail />
         </section>
       </div>
     </ScrollyContainer>
