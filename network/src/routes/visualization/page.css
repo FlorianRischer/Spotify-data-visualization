@@ -1,0 +1,99 @@
+/* Main App Container */
+.app {
+  min-height: 100vh;
+  padding: 0;
+  background: #FAF1EC;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Layout Grid */
+.layout {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  width: 100%;
+  height: 100vh;
+  flex: 1;
+  position: relative;
+}
+
+/* Control Panel Wrapper - nur für fade transition, Position wird von ControlPanel selbst gesteuert */
+.control-panel-wrapper {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 0;
+  background: transparent;
+  z-index: 10;
+  pointer-events: none;
+}
+
+/* Graph Container */
+.graph-container {
+  flex: 1;
+  background: transparent;
+  padding: 0;
+  overflow: hidden;
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+/* Loading Screen */
+.loading-screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+}
+
+.loading-content {
+  text-align: center;
+}
+
+/* Loading Spinner Animation */
+.spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid rgba(29, 185, 84, 0.1);
+  border-top-color: #1db954;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 16px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Loading Text */
+.loading-text {
+  color: #8b949e;
+  font-size: 14px;
+  margin: 0;
+}
+
+/* ===== RESPONSIVE DESKTOP BREAKPOINTS ONLY ===== */
+
+/* Large Monitors (> 1440px) */
+@media (min-width: 1440px) {
+  .spinner {
+    width: 52px;
+    height: 52px;
+    border-width: 4px;
+  }
+}
+
+/* Compact Desktop (< 1024px) */
+@media (max-width: 1024px) {
+  .spinner {
+    width: 44px;
+    height: 44px;
+    border-width: 3px;
+  }
+}

@@ -1,429 +1,316 @@
 <script lang="ts">
-  import { onMount } from "svelte";
-  import { fade } from "svelte/transition";
-  import { GraphCanvas, ControlPanel, Tooltip, GenreTitle } from "$lib/components";
-  import ScrollyContainer from "$lib/components/ScrollyContainer.svelte";
-  import ProgressIndicator from "$lib/components/ProgressIndicator.svelte";
-  import GenreDetail from "$lib/components/GenreDetail.svelte";
-  import { graphData, initVisible, setPositions } from "$lib/stores";
-  import { uiStore, isStartAnimationRunning } from "$lib/stores/uiStore";
-  import { buildGraph, computeForceLayout, transformSpotifyData, loadStreamingHistory } from "$lib/graph";
+  import { onMount } from 'svelte';
+  import { fly, fade } from 'svelte/transition';
+  import { cubicOut } from 'svelte/easing';
   import "../app.css";
-  import "./page.css";
 
-  let isLoading = true;
-  let loadingStatus = "Lädt Streaming-Daten...";
-  let lastGraphInput: any = null; // store original graph input for rebuilding
+  let mounted = false;
 
-  // ===================================================================
-  // DATEN-STRATEGIE (gemäß PRD & IMPLEMENTATION_PLAN):
-  // 1. Zuerst: Precomputed JSON laden (keine API-Calls nötig)
-  // 2. Fallback: localStorage Cache (lokale Kopie)
-  // 3. Letzter Ausweg: Live API mit Rate-Limit-Schutz
-  // ===================================================================
-
-  const CACHE_KEY = "spotify_artist_cache";
-  const CACHE_VERSION = "v1"; // Keep v1 to preserve existing user cache!
-  const CACHE_VERSION_LEGACY = ["v1", "v2"]; // Accept both versions
-  const MIN_ARTISTS_NEEDED = 50; // Minimum für den Graph
-  const FETCH_MORE_ARTISTS = false; // Wenn true, werden API calls gemacht um mehr Artists zu holen
-  const MAX_API_CALLS_PER_SESSION = 5000; // Maximale API calls pro Session
-
-  // -----------------------
-  // Normalisierung (WICHTIG!)
-  // -----------------------
-  function normKey(name: string): string {
-    return name.trim().toLowerCase().replace(/\s+/g, " ");
-  }
-
-  /**
-   * Lädt vorberechnete Artist-Genre-Daten aus /static/ (erste Wahl: die exportierte Datei)
-   * Fallback zu standard artist-cache.json
-   * Dies ist die bevorzugte Methode laut PRD ("Vorberechnung")
-   */
-  async function loadPrecomputedCache(): Promise<Map<string, any>> {
-    // Try /artist-cache-2025-12-13.json first (main exported cache)
-    const dataSources = [
-      "/artist-cache-2025-12-13.json",
-      "/artist-cache.json" // fallback to old cache
-    ];
-
-    for (const source of dataSources) {
-      try {
-        const response = await fetch(source);
-        if (response.ok) {
-          const data = await response.json();
-
-          // Filter out placeholder entries
-          const validEntries = Object.entries(data).filter(
-            ([key, val]: [string, any]) => key !== "_info" && val && typeof val === "object" && val.id
-          );
-
-          if (validEntries.length > 0) {
-            // Normalize keys
-            const normalizedEntries: Array<[string, any]> = validEntries.map(([key, val]) => [normKey(key), val]);
-            console.log(`📂 Loaded precomputed cache from ${source} with`, normalizedEntries.length, "artists");
-            return new Map(normalizedEntries);
-          }
-        }
-      } catch (e) {
-        console.log(`📂 Source ${source} not available`);
-      }
-    }
-
-    console.log("📂 No precomputed cache available from any source");
-    return new Map();
-  }
-
-  /**
-   * Lädt localStorage Cache als Fallback - unterstützt alte und neue Versionen
-   */
-  function loadLocalCache(): Map<string, any> {
-    try {
-      const cached = localStorage.getItem(CACHE_KEY);
-      if (cached) {
-        const { version, data, timestamp } = JSON.parse(cached);
-        // Accept any known version, cache valid for 30 days
-        if (CACHE_VERSION_LEGACY.includes(version) && Date.now() - timestamp < 30 * 24 * 60 * 60 * 1000) {
-          const validEntries = Object.entries(data).filter(([_, val]: [string, any]) => {
-            // accept genre hits OR negative caching
-            if (!val || typeof val !== "object") return false;
-            if (val.notFound) return true;
-            return val.id && val.genres && val.genres.length > 0;
-          });
-
-          // Normalize keys
-          const normalizedEntries: Array<[string, any]> = validEntries.map(([key, val]) => [normKey(key), val]);
-
-          console.log("💾 Loaded", normalizedEntries.length, "artists from localStorage");
-          return new Map(normalizedEntries);
-        }
-      }
-    } catch (e) {
-      console.warn("Failed to load localStorage cache:", e);
-    }
-    return new Map();
-  }
-
-  function saveLocalCache(cache: Map<string, any>) {
-    try {
-      const data = Object.fromEntries(cache);
-      localStorage.setItem(
-        CACHE_KEY,
-        JSON.stringify({
-          version: CACHE_VERSION,
-          data,
-          timestamp: Date.now()
-        })
-      );
-      console.log("💾 Saved", cache.size, "artists to localStorage");
-    } catch (e) {
-      console.warn("Failed to save cache:", e);
-    }
-  }
-
-  /**
-   * Exportiert den lokalen Cache als artist-cache.json zum Download
-   * Kann dann in /static/artist-cache.json kopiert werden
-   */
-  function exportCacheToJSON() {
-    try {
-      const cached = localStorage.getItem(CACHE_KEY);
-      if (!cached) {
-        console.warn("❌ No cache found to export");
-        alert("Kein Cache zum Exportieren vorhanden. Lade erst Genres.");
-        return;
-      }
-
-      const { data } = JSON.parse(cached);
-      
-      // Add metadata
-      const exportData = {
-        _info: {
-          exportDate: new Date().toISOString(),
-          artistCount: Object.keys(data).length,
-          instructions: "Copy this file to /static/artist-cache.json to use as precomputed cache"
-        },
-        ...data
-      };
-
-      // Create blob and download
-      const json = JSON.stringify(exportData, null, 2);
-      const blob = new Blob([json], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `artist-cache-${new Date().toISOString().split("T")[0]}.json`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-
-      console.log(`✅ Downloaded cache with ${exportData._info.artistCount} artists`);
-      alert(`✅ Cache mit ${exportData._info.artistCount} Artists heruntergeladen!\n\nDie Datei in /static/artist-cache.json kopieren um API-Calls zu sparen.`);
-    } catch (e) {
-      console.error("Failed to export cache:", e);
-      alert(`❌ Export fehlgeschlagen: ${e}`);
-    }
-  }
-
-  /**
-   * Kombiniert alle Cache-Quellen (precomputed + localStorage)
-   */
-  async function loadAllCaches(): Promise<Map<string, any>> {
-    const precomputed = await loadPrecomputedCache();
-    const local = loadLocalCache();
-
-    // Merge: localStorage überschreibt precomputed (für neuere Daten)
-    const merged = new Map([...precomputed, ...local]);
-    console.log(`📊 Combined cache: ${merged.size} artists total`);
-    return merged;
-  }
-
-  /**
-   * Server-seitiger Spotify Lookup:
-   * Erwartet: GET /api/spotify-search?artist=<name>&token=<token>
-   * Antwort: { id, name, genres, popularity?, followers? }
-   * Rate-limit: 429 mit Retry-After Header
-   */
-  async function searchArtist(artistName: string, token: string): Promise<any> {
-    if (!artistName || artistName.trim() === "") return null;
-
-    try {
-      const response = await fetch(`/api/spotify-search?artist=${encodeURIComponent(artistName)}&token=${encodeURIComponent(token)}`);
-
-      if (response.status === 429) {
-        const retryAfter = response.headers.get("Retry-After");
-        return { rateLimited: true, retryAfter: retryAfter ? parseInt(retryAfter) : 30 };
-      }
-
-      if (response.status === 404 || !response.ok) {
-        return null;
-      }
-
-      return await response.json();
-    } catch (error) {
-      console.error(`❌ Error searching for "${artistName}":`, error);
-      return null;
-    }
-  }
-
-  /**
-   * Hauptfunktion: Versucht Daten aus Cache zu laden,
-   * nur bei Bedarf Live-API mit strengem Rate-Limit-Schutz
-   */
-  async function getArtistsWithGenres(uniqueArtists: string[]): Promise<any[]> {
-    // Schritt 1: Alle verfügbaren Cache-Daten laden (Keys sind normalisiert!)
-    const cache = await loadAllCaches();
-
-    const artistsWithGenres: any[] = [];
-    let successCount = 0;
-
-    // 1) Cache Treffer
-    for (const rawName of uniqueArtists) {
-      const key = normKey(rawName);
-      const cached = cache.get(key);
-
-      if (cached?.id && Array.isArray(cached.genres) && cached.genres.length > 0) {
-        artistsWithGenres.push({ originalName: rawName, ...cached });
-        successCount++;
-      }
-    }
-
-    console.log(`📊 Found ${successCount}/${uniqueArtists.length} artists with genres in cache`);
-
-    // ✅ API-Calls sind vollständig deaktiviert - nur gecachte Daten verwenden
-    console.log(`✅ Using cached data only. No API calls. Found ${artistsWithGenres.length} artists with genres.`);
-    saveLocalCache(cache);
-    return artistsWithGenres;
-  }
-
-  onMount(async () => {
-    try {
-      // Load all streaming history JSON files
-      loadingStatus = "Lädt Streaming-Daten...";
-      const streamingFiles = [
-        "/spotify-data/Streaming_History_Audio_2018-2020_0.json",
-        "/spotify-data/Streaming_History_Audio_2020-2021_1.json",
-        "/spotify-data/Streaming_History_Audio_2021_2.json",
-        "/spotify-data/Streaming_History_Audio_2021_3.json",
-        "/spotify-data/Streaming_History_Audio_2021-2022_4.json",
-        "/spotify-data/Streaming_History_Audio_2022_5.json",
-        "/spotify-data/Streaming_History_Audio_2022-2023_6.json",
-        "/spotify-data/Streaming_History_Audio_2023_7.json",
-        "/spotify-data/Streaming_History_Audio_2023-2024_8.json",
-        "/spotify-data/Streaming_History_Audio_2024_9.json",
-        "/spotify-data/Streaming_History_Audio_2024-2025_10.json",
-        "/spotify-data/Streaming_History_Audio_2025_11.json"
-      ];
-
-      const streamingHistory = await loadStreamingHistory(streamingFiles);
-      console.log(`Loaded ${streamingHistory.length} streaming entries`);
-
-      // Extract unique artists
-      loadingStatus = "Extrahiere Artists...";
-      const uniqueArtists = Array.from(
-        new Set(
-          streamingHistory
-            .map((d) => d.master_metadata_album_artist_name)
-            .filter((name): name is string => Boolean(name))
-        )
-      );
-      console.log(`Found ${uniqueArtists.length} unique artists`);
-
-      // Load artists with genres (from cache first, then API)
-      loadingStatus = "Lade Artist-Genres...";
-      const artistsWithGenres = await getArtistsWithGenres(uniqueArtists);
-      console.log(`Found genres for ${artistsWithGenres.length} artists`);
-
-      // Fallback auf Demo-Daten wenn keine Genres gefunden wurden
-      if (artistsWithGenres.length === 0) {
-        console.warn("No genres found, falling back to demo data");
-        loadingStatus = "Keine Genres gefunden, verwende Demo-Daten...";
-
-        const { createDemoGraphInput } = await import("$lib/graph");
-        lastGraphInput = createDemoGraphInput();
-
-        const built = buildGraph(lastGraphInput, {
-          topK: 10,
-          sizeScale: 1.0,
-          minSize: 10,
-          maxSize: 45,
-          groupByArtist: false
-        });
-
-        graphData.set(built);
-
-        loadingStatus = "Berechne Layout...";
-        const layoutResult = computeForceLayout(built.nodes, built.edges, {
-          seed: Math.floor(Math.random() * 10000),
-          iterations: 150,
-          chargeStrength: -150,
-          linkDistance: 200,
-          linkStrength: 0.05
-        });
-
-        setPositions(layoutResult.positions);
-        initVisible();
-        isLoading = false;
-        return;
-      }
-
-      // Transform data to graph input
-      loadingStatus = "Erstelle Graph...";
-      lastGraphInput = transformSpotifyData(streamingHistory, artistsWithGenres);
-      console.log(`Created graph with ${lastGraphInput.genreStats.length} genres and ${lastGraphInput.artists.length} artists`);
-
-      const built = buildGraph(lastGraphInput, {
-        topK: 10,
-        sizeScale: 1.0,
-        minSize: 10,
-        maxSize: 45,
-        groupByArtist: false
-      });
-
-      graphData.set(built);
-
-      // Compute force layout
-      loadingStatus = "Berechne Layout...";
-      const layoutResult = computeForceLayout(built.nodes, built.edges, {
-        seed: Math.floor(Math.random() * 10000),
-        iterations: 150,
-        chargeStrength: -150,
-        linkDistance: 200,
-        linkStrength: 0.05
-      });
-
-      setPositions(layoutResult.positions);
-      initVisible();
-      isLoading = false;
-    } catch (error) {
-      console.error("Error loading data:", error);
-      loadingStatus = `Fehler: ${error instanceof Error ? error.message : String(error)}. Verwende Demo-Daten...`;
-
-      try {
-        const { createDemoGraphInput } = await import("$lib/graph");
-        lastGraphInput = createDemoGraphInput();
-
-        const built = buildGraph(lastGraphInput, {
-          topK: 10,
-          sizeScale: 1.0,
-          minSize: 10,
-          maxSize: 45,
-          groupByArtist: false
-        });
-
-        graphData.set(built);
-
-        const layoutResult = computeForceLayout(built.nodes, built.edges, {
-          seed: Math.floor(Math.random() * 10000),
-          iterations: 150,
-          chargeStrength: -150,
-          linkDistance: 200,
-          linkStrength: 0.05
-        });
-
-        setPositions(layoutResult.positions);
-        initVisible();
-        isLoading = false;
-      } catch (fallbackError) {
-        loadingStatus = `Kritischer Fehler: ${fallbackError}`;
-        console.error("Fallback failed:", fallbackError);
-      }
-    }
-  });
-
-  // Subscribe to UI state changes for artist grouping toggle
-  uiStore.subscribe((state) => {
-    if (lastGraphInput && isLoading === false) {
-      const rebuilt = buildGraph(lastGraphInput, {
-        topK: 10,
-        sizeScale: 1.0,
-        minSize: 10,
-        maxSize: 45,
-        groupByArtist: state.showArtistGroups
-      });
-      graphData.set(rebuilt);
-    }
+  onMount(() => {
+    setTimeout(() => {
+      mounted = true;
+    }, 100);
   });
 </script>
 
 <svelte:head>
   <title>Musical Brain Activity</title>
-  <meta name="description" content="Neural Network Graph visualizing your music genre preferences" />
+  <meta name="description" content="Explore your Spotify listening history through interactive visualizations" />
 </svelte:head>
 
-<main class="app">
-  {#if isLoading}
-    <div class="loading-screen">
-      <div class="loading-content">
-        <div class="spinner"></div>
-        <p class="loading-text">{loadingStatus}</p>
-      </div>
-    </div>
-  {:else}
-    <ScrollyContainer>
-      <div class="layout">
-        {#if !$isStartAnimationRunning}
-          <div transition:fade={{ duration: 300 }}>
-            <GenreTitle />
-          </div>
-        {/if}
+<main class="landing">
+  <div class="landing-content">
+    {#if mounted}
+      <header class="hero" in:fade={{ duration: 800, delay: 200 }}>
+        <h1 class="title" in:fly={{ y: 50, duration: 800, delay: 400, easing: cubicOut }}>
+          Musical Brain Activity
+        </h1>
+        <p class="subtitle" in:fly={{ y: 30, duration: 800, delay: 600, easing: cubicOut }}>
+          Visualisiere deine Spotify-Hörgewohnheiten
+        </p>
+      </header>
 
-        {#if !$isStartAnimationRunning}
-          <div class="control-panel-wrapper" transition:fade={{ duration: 300 }}>
-            <ControlPanel />
-          </div>
-        {/if}
+      <section class="visualizations" in:fade={{ duration: 800, delay: 800 }}>
+        <h2 class="section-title" in:fly={{ y: 30, duration: 600, delay: 900, easing: cubicOut }}>
+          Visualisierungen
+        </h2>
 
-        <section class="graph-container">
-          <GraphCanvas />
-          <GenreDetail />
-        </section>
-      </div>
-    </ScrollyContainer>
-    <Tooltip />
-  {/if}
+        <div class="card-grid">
+          <a 
+            href="/visualization" 
+            class="vis-card"
+            in:fly={{ y: 50, duration: 600, delay: 1000, easing: cubicOut }}
+          >
+            <div class="card-icon">
+              <svg viewBox="0 0 100 100" class="network-icon">
+                <circle cx="50" cy="30" r="8" fill="currentColor" />
+                <circle cx="25" cy="60" r="6" fill="currentColor" />
+                <circle cx="75" cy="60" r="6" fill="currentColor" />
+                <circle cx="40" cy="80" r="5" fill="currentColor" />
+                <circle cx="60" cy="80" r="5" fill="currentColor" />
+                <line x1="50" y1="30" x2="25" y2="60" stroke="currentColor" stroke-width="2" />
+                <line x1="50" y1="30" x2="75" y2="60" stroke="currentColor" stroke-width="2" />
+                <line x1="25" y1="60" x2="40" y2="80" stroke="currentColor" stroke-width="2" />
+                <line x1="75" y1="60" x2="60" y2="80" stroke="currentColor" stroke-width="2" />
+                <line x1="40" y1="80" x2="60" y2="80" stroke="currentColor" stroke-width="2" />
+              </svg>
+            </div>
+            <div class="card-content">
+              <h3 class="card-title">Genre Network</h3>
+              <p class="card-description">
+                Entdecke die Verbindungen zwischen deinen gehörten Genres in einem interaktiven Netzwerk-Graphen
+              </p>
+            </div>
+            <div class="card-arrow">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M5 12h14M12 5l7 7-7 7" />
+              </svg>
+            </div>
+          </a>
+
+          <!-- Placeholder für zukünftige Visualisierungen -->
+          <div class="vis-card coming-soon" in:fly={{ y: 50, duration: 600, delay: 1100, easing: cubicOut }}>
+            <div class="card-icon">
+              <svg viewBox="0 0 100 100" class="timeline-icon">
+                <rect x="10" y="60" width="15" height="30" fill="currentColor" opacity="0.4" />
+                <rect x="30" y="40" width="15" height="50" fill="currentColor" opacity="0.6" />
+                <rect x="50" y="25" width="15" height="65" fill="currentColor" opacity="0.8" />
+                <rect x="70" y="35" width="15" height="55" fill="currentColor" />
+              </svg>
+            </div>
+            <div class="card-content">
+              <h3 class="card-title">Timeline View</h3>
+              <p class="card-description">
+                Verfolge deine musikalische Entwicklung über die Zeit
+              </p>
+              <span class="coming-soon-badge">Coming Soon</span>
+            </div>
+          </div>
+
+          <div class="vis-card coming-soon" in:fly={{ y: 50, duration: 600, delay: 1200, easing: cubicOut }}>
+            <div class="card-icon">
+              <svg viewBox="0 0 100 100" class="stats-icon">
+                <circle cx="50" cy="50" r="35" fill="none" stroke="currentColor" stroke-width="8" stroke-dasharray="70 30" />
+                <circle cx="50" cy="50" r="25" fill="none" stroke="currentColor" stroke-width="6" stroke-dasharray="50 50" opacity="0.6" />
+                <circle cx="50" cy="50" r="15" fill="currentColor" opacity="0.4" />
+              </svg>
+            </div>
+            <div class="card-content">
+              <h3 class="card-title">Statistics</h3>
+              <p class="card-description">
+                Detaillierte Statistiken zu deinen Hörgewohnheiten
+              </p>
+              <span class="coming-soon-badge">Coming Soon</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <footer class="landing-footer" in:fade={{ duration: 600, delay: 1400 }}>
+        <p>Infodesign Semester Projekt 2025</p>
+      </footer>
+    {/if}
+  </div>
 </main>
+
+<style>
+  .landing {
+    min-height: 100vh;
+    background: #FAF1EC;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 60px 24px;
+  }
+
+  .landing-content {
+    max-width: 1200px;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 80px;
+  }
+
+  /* Hero Section */
+  .hero {
+    text-align: center;
+    padding: 60px 0;
+  }
+
+  .title {
+    font-family: 'Anton', sans-serif;
+    font-size: clamp(48px, 10vw, 120px);
+    font-weight: 400;
+    color: #1a1a1a;
+    text-transform: uppercase;
+    letter-spacing: -2px;
+    line-height: 1;
+    margin: 0 0 24px 0;
+  }
+
+  .subtitle {
+    font-family: 'Inter', sans-serif;
+    font-size: clamp(16px, 2vw, 24px);
+    color: #666;
+    font-weight: 300;
+    margin: 0;
+  }
+
+  /* Visualizations Section */
+  .visualizations {
+    display: flex;
+    flex-direction: column;
+    gap: 40px;
+  }
+
+  .section-title {
+    font-family: 'Anton', sans-serif;
+    font-size: 32px;
+    font-weight: 400;
+    color: #1a1a1a;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin: 0;
+  }
+
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 24px;
+  }
+
+  /* Visualization Card */
+  .vis-card {
+    background: rgba(255, 255, 255, 0.6);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 16px;
+    padding: 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    text-decoration: none;
+    color: inherit;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .vis-card:not(.coming-soon):hover {
+    transform: translateY(-4px);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+    border-color: rgba(0, 0, 0, 0.15);
+  }
+
+  .vis-card:not(.coming-soon):hover .card-arrow {
+    transform: translateX(4px);
+    opacity: 1;
+  }
+
+  .vis-card.coming-soon {
+    cursor: default;
+    opacity: 0.7;
+  }
+
+  .card-icon {
+    width: 80px;
+    height: 80px;
+    color: #1a1a1a;
+  }
+
+  .card-icon svg {
+    width: 100%;
+    height: 100%;
+  }
+
+  .card-content {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 1;
+  }
+
+  .card-title {
+    font-family: 'Anton', sans-serif;
+    font-size: 24px;
+    font-weight: 400;
+    color: #1a1a1a;
+    text-transform: uppercase;
+    margin: 0;
+  }
+
+  .card-description {
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    color: #666;
+    line-height: 1.6;
+    margin: 0;
+  }
+
+  .card-arrow {
+    position: absolute;
+    right: 32px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 24px;
+    height: 24px;
+    color: #1a1a1a;
+    opacity: 0.5;
+    transition: all 0.3s ease;
+  }
+
+  .coming-soon-badge {
+    display: inline-block;
+    font-family: 'Inter', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #888;
+    background: rgba(0, 0, 0, 0.05);
+    padding: 4px 12px;
+    border-radius: 100px;
+    margin-top: 8px;
+    width: fit-content;
+  }
+
+  /* Footer */
+  .landing-footer {
+    text-align: center;
+    padding: 40px 0;
+    border-top: 1px solid rgba(0, 0, 0, 0.08);
+  }
+
+  .landing-footer p {
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    color: #999;
+    margin: 0;
+  }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .landing {
+      padding: 40px 16px;
+    }
+
+    .landing-content {
+      gap: 60px;
+    }
+
+    .hero {
+      padding: 40px 0;
+    }
+
+    .card-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .card-arrow {
+      display: none;
+    }
+  }
+</style>
 
 
