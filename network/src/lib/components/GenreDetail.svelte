@@ -296,8 +296,7 @@
     max-height: 600px;
     overflow-y: auto;
     scroll-behavior: smooth;
-    scrollbar-width: thin;
-    scrollbar-color: rgba(0, 0, 0, 0.3) rgba(255, 255, 255, 0.05);
+    scrollbar-width: none;
     display: flex;
     flex-direction: column;
     justify-content: flex-start;
@@ -310,21 +309,7 @@
   }
 
   .detail-content::-webkit-scrollbar {
-    width: 6px;
-  }
-
-  .detail-content::-webkit-scrollbar-track {
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 8px;
-  }
-
-  .detail-content::-webkit-scrollbar-thumb {
-    background: rgba(0, 0, 0, 0.3);
-    border-radius: 8px;
-  }
-
-  .detail-content::-webkit-scrollbar-thumb:hover {
-    background: rgba(0, 0, 0, 0.5);
+    display: none;
   }
 
   .detail-text {
