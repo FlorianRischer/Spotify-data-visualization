@@ -16,6 +16,7 @@
   // Gleiche Logik wie GenreTitle
   let previousCategory: string | null = null;
   let scrollDirection: 'down' | 'up' = 'down';
+  let isFirstAppearance = true; // Track ob es das erste Erscheinen ist
 
   // Animation distance - gleich wie GenreTitle
   const flyDistance = 150;
@@ -27,9 +28,9 @@
   // Verwende displayedCategory statt focusedCategory - wird nur nach Kamera-Zoom gesetzt (wie GenreTitle)
   $: displayedCategory = $scrollyStore.displayedCategory;
   
-  // Nur sichtbar in zoom und detail Phasen, nicht in overview/summary
+  // Nur sichtbar in zoom und detail Phasen, nicht in overview/summary UND nur wenn Inhalt vorhanden
   $: phase = $scrollyStore.phase;
-  $: isVisible = displayedCategory && (phase === 'zoom' || phase === 'detail');
+  $: isVisible = displayedCategory && (phase === 'zoom' || phase === 'detail') && displayedLines.length > 0;
   
   // Track scroll direction based on category changes - gleich wie GenreTitle
   $: {
@@ -42,6 +43,7 @@
       } else if (currIndex < prevIndex || (currIndex === -1 && prevIndex >= 0)) {
         scrollDirection = 'up';
       }
+      isFirstAppearance = false; // Nach dem ersten Wechsel ist es kein erstes Erscheinen mehr
     }
     previousCategory = displayedCategory;
   }
@@ -65,7 +67,7 @@
     updateDetailContent(displayedCategory, $graphData.nodes);
     displayFullText();
   } else {
-    isVisible = false;
+    displayedLines = [];
     displayedText = '';
     typewriterActive = false;
   }
@@ -244,23 +246,25 @@
   on:mouseleave={handleMouseLeave}
   on:wheel|stopPropagation|preventDefault={handleWheel}
 >
-  {#key displayedCategory}
-    <div
-      class="detail-content"
-      in:fly={{ x: inX, duration: 500, easing: cubicOut }}
-      out:fly={{ x: outX, duration: 500, easing: cubicOut }}
-    >
-      <div class="detail-text">
-        {#each displayedLines as line (line)}
-          {#if line.isLabel}
-            <div class="label">{line.text}</div>
-          {:else}
-            <div class="data-value">{line.text}</div>
-          {/if}
-        {/each}
+  {#if displayedLines.length > 0}
+    {#key displayedCategory}
+      <div
+        class="detail-content"
+        in:fly={{ x: inX, duration: 500, easing: cubicOut }}
+        out:fly={{ x: outX, duration: 500, easing: cubicOut }}
+      >
+        <div class="detail-text">
+          {#each displayedLines as line (line)}
+            {#if line.isLabel}
+              <div class="label">{line.text}</div>
+            {:else}
+              <div class="data-value">{line.text}</div>
+            {/if}
+          {/each}
+        </div>
       </div>
-    </div>
-  {/key}
+    {/key}
+  {/if}
 </div>
 
 <style>
