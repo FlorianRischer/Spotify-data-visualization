@@ -375,14 +375,14 @@
       const groups = uiState.showArtistGroups ? graphState?.groups : undefined;
       
       // Bestimme welche Ankerpunkte zu verwenden sind
-      const isOverviewMode = scrollState.phase === 'overview' || scrollState.isInOverview;
+      // Overview-Modus kann durch Scroll ODER manuellen Button aktiviert werden
+      const isOverviewMode = scrollState.phase === 'overview' || scrollState.isInOverview || uiState.isOverviewModeManual;
       
       // Starte Overview-Transition wenn in Overview-Modus gewechselt wird
       if (isOverviewMode && overviewTransitionStartTime === null) {
         overviewTransitionStartTime = performance.now();
         wasInOverviewMode = true;
-        // Automatisch Links anzeigen im Overview-Modus
-        uiStore.update(state => ({ ...state, showConnections: true }));
+        // Links werden jetzt im BottomHeader automatisch aktiviert
         // NICHT sofort Ankerpunkte löschen - das verursacht Laggen
         // genreAnchors werden erst gelöscht wenn neue Overview-Anchors bereit sind
       } else if (!isOverviewMode) {

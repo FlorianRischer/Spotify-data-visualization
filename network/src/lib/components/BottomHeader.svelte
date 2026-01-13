@@ -4,10 +4,12 @@
 
   let scrollContainer: HTMLElement;
   let isLinksActive = false;
+  let isOverviewActive = false;
 
-  // Subscribe to uiStore to track links state
+  // Subscribe to uiStore to track links and overview state
   const unsubscribe = uiStore.subscribe(state => {
     isLinksActive = state.showConnections;
+    isOverviewActive = state.isOverviewModeManual;
   });
 
   onMount(() => {
@@ -22,13 +24,16 @@
   }
 
   function handleOverview() {
-    // Scroll to overview section (top of the visualization)
-    if (scrollContainer) {
-      scrollContainer.scrollTo({ top: 0, behavior: 'smooth' });
-    } else {
-      // Fallback: scroll window to top
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
+    // Toggle overview mode manually
+    uiStore.update(state => {
+      const newOverviewState = !state.isOverviewModeManual;
+      return {
+        ...state,
+        isOverviewModeManual: newOverviewState,
+        // Automatically show connections when entering overview
+        showConnections: newOverviewState ? true : state.showConnections
+      };
+    });
   }
 
   function handleDisplayLinks() {
@@ -45,7 +50,7 @@
     <button class="nav-button" on:click={handleMainMenu} title="Zurück zum Hauptmenü">
       Main Menu
     </button>
-    <button class="nav-button" on:click={handleOverview} title="Zu Overview scrollen">
+    <button class="nav-button" class:active={isOverviewActive} on:click={handleOverview} title="Overview aktivieren/deaktivieren">
       Overview
     </button>
     <button class="nav-button" class:active={isLinksActive} on:click={handleDisplayLinks} title="Links anzeigen/verbergen">

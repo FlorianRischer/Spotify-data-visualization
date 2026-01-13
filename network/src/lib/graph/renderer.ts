@@ -197,32 +197,74 @@ export function renderGraph(
 
   // Genre groups visualization removed - only physics-based grouping
 
-  // Draw edges if enabled
+  // Draw edges if enabled - OPTIMIZED: batch rendering
   if (showConnections) {
-    const edgeAlphaBase = edges.length > 400 ? 0.08 : 0.18;
-    ctx.lineCap = "round";
+    // Build node category lookup once (avoids O(n) find() per edge)
+    const nodeCategory = new Map<string, string>();
+    for (const n of nodes) {
+      nodeCategory.set(n.id, n.category || '');
+    }
+    
+    // Group edges by style for batched rendering
+    const normalEdges: RenderEdge[] = [];
+    const dimmedEdges: RenderEdge[] = [];
+    const highlightedEdges: RenderEdge[] = [];
+    
     for (const e of edges) {
       const isHighlighted = hoveredId === e.source || hoveredId === e.target;
-      let alpha = isHighlighted ? 0.5 : edgeAlphaBase + Math.min(0.2, e.weight * 0.015);
       
-      // Dim edges if category is focused and neither node is in that category
-      if (focusedCategory) {
-        const sourceNode = nodes.find(n => n.id === e.source);
-        const targetNode = nodes.find(n => n.id === e.target);
-        const isInFocusedCategory = (sourceNode?.category === focusedCategory) || (targetNode?.category === focusedCategory);
-        if (!isInFocusedCategory) {
-          alpha *= 0.15; // Significantly dim edges outside focus
+      if (isHighlighted) {
+        highlightedEdges.push(e);
+      } else if (focusedCategory) {
+        const srcCat = nodeCategory.get(e.source);
+        const tgtCat = nodeCategory.get(e.target);
+        const isInFocusedCategory = srcCat === focusedCategory || tgtCat === focusedCategory;
+        if (isInFocusedCategory) {
+          normalEdges.push(e);
+        } else {
+          dimmedEdges.push(e);
         }
+      } else {
+        normalEdges.push(e);
       }
-      
-      const width = isHighlighted ? 3 : Math.min(5, 1 + e.weight * 0.2);
-      
-      ctx.strokeStyle = `rgba(130, 148, 255, ${alpha.toFixed(3)})`;
-      ctx.lineWidth = width;
+    }
+    
+    const edgeAlphaBase = edges.length > 400 ? 0.25 : 0.4;
+    ctx.lineCap = "round";
+    
+    // Batch draw dimmed edges (single path, single stroke)
+    if (dimmedEdges.length > 0) {
+      ctx.strokeStyle = `rgba(100, 120, 200, ${(edgeAlphaBase * 0.3).toFixed(3)})`;
+      ctx.lineWidth = 1;
       ctx.beginPath();
-      // x1, y1, x2, y2 sind bereits im CSS-Pixel-Raum → direkt zeichnen
-      ctx.moveTo(e.x1, e.y1);
-      ctx.lineTo(e.x2, e.y2);
+      for (const e of dimmedEdges) {
+        ctx.moveTo(e.x1, e.y1);
+        ctx.lineTo(e.x2, e.y2);
+      }
+      ctx.stroke();
+    }
+    
+    // Batch draw normal edges (single path, single stroke)
+    if (normalEdges.length > 0) {
+      ctx.strokeStyle = `rgba(100, 120, 200, ${edgeAlphaBase.toFixed(3)})`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      for (const e of normalEdges) {
+        ctx.moveTo(e.x1, e.y1);
+        ctx.lineTo(e.x2, e.y2);
+      }
+      ctx.stroke();
+    }
+    
+    // Draw highlighted edges individually (they need different style)
+    if (highlightedEdges.length > 0) {
+      ctx.strokeStyle = `rgba(100, 120, 200, 0.7)`;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      for (const e of highlightedEdges) {
+        ctx.moveTo(e.x1, e.y1);
+        ctx.lineTo(e.x2, e.y2);
+      }
       ctx.stroke();
     }
   }

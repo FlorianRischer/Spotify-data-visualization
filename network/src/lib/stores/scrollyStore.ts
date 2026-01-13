@@ -51,12 +51,12 @@ export const scrollyStore = writable<ScrollyState>(initialState);
 
 /**
  * Berechnet die aktuelle Phase basierend auf Scroll-Progress
- * Phasen-Grenzen: 0-0.25 intro | 0.25-0.35 categorization | 0.35-0.98 zoom | 0.98-1.0 overview
+ * Phasen-Grenzen: 0-0.10 intro | 0.10-0.18 categorization | 0.18-0.98 zoom | 0.98-1.0 overview
  * Das letzte Genre bleibt lange in der Zoom-Phase, um automatisches Wechseln zu vermeiden
  */
 function calculatePhase(progress: number): ScrollyPhase {
-  if (progress < 0.25) return 'intro';
-  if (progress < 0.35) return 'categorization';
+  if (progress < 0.10) return 'intro';
+  if (progress < 0.18) return 'categorization';
   if (progress < 0.98) return 'zoom';
   return 'overview';
 }
@@ -64,15 +64,15 @@ function calculatePhase(progress: number): ScrollyPhase {
 /**
  * Berechnet den fokussierten Kategorie-Index für Zoom-Phase
  * Mit Hysterese um Flackern zu vermeiden
- * Zoom-Phase: 0.35-0.95 (60% des gesamten Scroll-Fortschritts)
- * Das letzte Genre bleibt fokussiert bis man wirklich zur Overview scrollt (0.95-1.0)
+ * Zoom-Phase: 0.18-0.98 (80% des gesamten Scroll-Fortschritts)
+ * Das letzte Genre bleibt fokussiert bis man wirklich zur Overview scrollt (0.98-1.0)
  */
 function calculateFocusedCategoryIndex(progress: number, totalCategories: number): number {
-  if (progress < 0.35 || totalCategories === 0) return -1;  // Vor Zoom-Phase
+  if (progress < 0.18 || totalCategories === 0) return -1;  // Vor Zoom-Phase
   if (progress > 0.98) return -1; // Erst in der letzten 2% zur Overview wechseln
   
-  // Map 0.35-0.98 to 0-(totalCategories-1)
-  const zoomProgress = (progress - 0.35) / 0.63;  // 0.63 = 0.98 - 0.35
+  // Map 0.18-0.98 to 0-(totalCategories-1)
+  const zoomProgress = (progress - 0.18) / 0.80;  // 0.80 = 0.98 - 0.18
   const rawIndex = Math.min(zoomProgress * totalCategories, totalCategories - 1);
   
   // Mit Hysterese: mehr Zeit pro Kategorie für stabiler Fokus

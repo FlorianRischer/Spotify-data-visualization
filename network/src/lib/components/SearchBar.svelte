@@ -3,6 +3,7 @@
   import { fade } from 'svelte/transition';
   import { searchStore, updateSearchQuery, clearSearch, setSearchBarPosition, setFocusMode } from '$lib/stores/searchStore';
   import { scrollyStore } from '$lib/stores/scrollyStore';
+  import { uiStore } from '$lib/stores/uiStore';
   import { graphData } from '$lib/stores/graphStore';
   import { get } from 'svelte/store';
 
@@ -14,8 +15,9 @@
   $: isFocusMode = $searchStore.isFocusMode;
   $: hasMatches = $searchStore.matchedNodeIds.size > 0;
 
-  // Reactive subscription to scrolly store
-  $: isOverviewMode = $scrollyStore.phase === 'overview' || $scrollyStore.isInOverview;
+  // Reactive subscription to scrolly store and uiStore for overview mode
+  // Overview can be triggered by scroll OR manual button
+  $: isOverviewMode = $scrollyStore.phase === 'overview' || $scrollyStore.isInOverview || $uiStore.isOverviewModeManual;
   $: {
     if (isOverviewMode && !isVisible) {
       isVisible = true;

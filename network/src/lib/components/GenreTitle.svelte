@@ -1,5 +1,6 @@
 <script lang="ts">
   import { scrollyStore } from '$lib/stores/scrollyStore';
+  import { uiStore } from '$lib/stores/uiStore';
   import { fly } from 'svelte/transition';
   import { cubicOut } from 'svelte/easing';
 
@@ -7,7 +8,9 @@
   let scrollDirection: 'down' | 'up' = 'down';
 
   // Verwende displayedCategory statt focusedCategory - wird nur nach Kamera-Zoom gesetzt
-  $: displayedCategory = $scrollyStore.displayedCategory;
+  // Im manuellen Overview-Modus zeige "Overview" an
+  $: isManualOverview = $uiStore.isOverviewModeManual;
+  $: displayedCategory = isManualOverview ? 'Overview' : $scrollyStore.displayedCategory;
   
   // Track scroll direction based on category changes
   $: {

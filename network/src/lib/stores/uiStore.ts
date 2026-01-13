@@ -99,10 +99,12 @@ interface UIState {
   showArtistGroups: boolean; // Controls genre grouping visualization
   showConnections: boolean; // Controls edge visibility
   showGenreGrouping: boolean; // Controls category-based genre clustering (activates genre anchors)
+  isOverviewModeManual: boolean; // Manual toggle for overview mode (via button)
 }
 
 export const uiStore = writable<UIState>({
   showArtistGroups: false,
   showConnections: false,
-  showGenreGrouping: true
+  showGenreGrouping: true,
+  isOverviewModeManual: false
 });
