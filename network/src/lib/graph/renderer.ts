@@ -35,6 +35,10 @@ export interface RenderOptions {
   categoryLabels?: CategoryAnchor[]; // Mini-Headings für Overview-Kategorien
   overviewTransitionProgress?: number; // 0-1 progress of overview transition
   overviewTransitionStartTime?: number | null; // When overview transition started (for delayed label display)
+  // Search state
+  searchMatchedIds?: Set<string>; // IDs of nodes that match the search
+  isSearchActive?: boolean; // Whether search is active
+  isFocusMode?: boolean; // Whether focus mode is active (after Enter press)
 }
 
 // Color palette for genres
@@ -249,6 +253,11 @@ export function renderGraph(
     const hasCenteredNode = !!centeredNodeId;
     const isInFocusedCategory = focusedCategory && n.category === focusedCategory;
     
+    // Search state - only dim non-matching nodes, no highlight
+    const isSearchActive = options.isSearchActive ?? false;
+    const isSearchMatch = isSearchActive && options.searchMatchedIds?.has(n.id);
+    const isFocusMode = options.isFocusMode ?? false;
+    
     // Calculate influence from hovered node (push-away + dim effect)
     let hoverInfluence = 0;
     if (hoveredNode && !isHovered && hoveredNodeScale > 1) {
@@ -260,12 +269,25 @@ export function renderGraph(
       hoverInfluence = Math.max(0, 1 - (distance / influenceRadius)) * (hoveredNodeScale - 1);
     }
     
-    // Size multiplier for centered node
-    const sizeMultiplier = isCentered ? 2.5 : 1;
-    // Dim other nodes when one is centered OR when a category is focused OR when affected by hover
+    // Size multiplier: focused mode enlarges matched nodes significantly
+    let sizeMultiplier = 1;
+    if (isCentered) {
+      sizeMultiplier = 2.5;
+    } else if (isFocusMode && isSearchMatch) {
+      sizeMultiplier = 2.2; // Larger in focus mode
+    } else if (isSearchMatch) {
+      sizeMultiplier = 1.4; // Slightly larger when matched
+    } else if (isFocusMode && isSearchActive) {
+      sizeMultiplier = 0.6; // Shrink non-matches in focus mode
+    }
+    
+    // Dim other nodes when one is centered OR when a category is focused OR when affected by hover OR when search is active
     let dimFactor = 1;
     if (hasCenteredNode && !isCentered) {
       dimFactor = 0.3;
+    } else if (isSearchActive && !isSearchMatch) {
+      // Dim non-matching nodes during search (subtler effect)
+      dimFactor = 0.25;
     } else if (focusedCategory && !isInFocusedCategory) {
       // Smoothly interpolate between normal (1) and dimmed (0.2) based on animation progress
       const animProgress = categoryFilterProgress ?? 1;
@@ -282,7 +304,7 @@ export function renderGraph(
     const hoverScale = hoverScaleMap?.get(n.id)?.scale ?? 1;
     const scaledRadius = r * hoverScale;
     
-    // Shadow/glow for centered node only (not for hover)
+    // Shadow/glow for centered node only (no glow for search matches)
     if (isCentered && !reducedMotion) {
       ctx.beginPath();
       const glowSize = 25;
@@ -296,7 +318,7 @@ export function renderGraph(
     ctx.beginPath();
     const nodeOpacity = opacity * dimFactor;
     // When hovered: use stronger color tint with full opacity
-    // When not hovered: use default muted color
+    // When not hovered: use default muted color (no special treatment for search matches)
     if (isHovered && !isCentered) {
       ctx.fillStyle = hexColorWithAlpha(color, Math.min(0.8, hoverScale * 0.6));
     } else if (isCentered) {
@@ -340,10 +362,10 @@ export function renderGraph(
     }
   }
 
-  // Render mini category labels for Overview mode
-  if (options.categoryLabels && options.categoryLabels.length > 0 && options.overviewTransitionProgress !== undefined) {
-    renderCategoryLabels(ctx, options.categoryLabels, options.overviewTransitionProgress, options.overviewTransitionStartTime ?? undefined, options.now);
-  }
+  // Mini category labels disabled - using GenreTitle component instead
+  // if (options.categoryLabels && options.categoryLabels.length > 0 && options.overviewTransitionProgress !== undefined) {
+  //   renderCategoryLabels(ctx, options.categoryLabels, options.overviewTransitionProgress, options.overviewTransitionStartTime ?? undefined, options.now);
+  // }
 
   ctx.restore();
 }

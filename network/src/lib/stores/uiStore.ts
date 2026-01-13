@@ -103,6 +103,6 @@ interface UIState {
 
 export const uiStore = writable<UIState>({
   showArtistGroups: false,
-  showConnections: true,
+  showConnections: false,
   showGenreGrouping: true
 });

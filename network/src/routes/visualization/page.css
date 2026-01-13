@@ -5,6 +5,7 @@
   background: #FAF1EC;
   display: flex;
   flex-direction: column;
+  padding-bottom: 57px;
 }
 
 /* Layout Grid */
@@ -16,19 +17,6 @@
   height: 100vh;
   flex: 1;
   position: relative;
-}
-
-/* Control Panel Wrapper - nur für fade transition, Position wird von ControlPanel selbst gesteuert */
-.control-panel-wrapper {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  padding: 0;
-  background: transparent;
-  z-index: 10;
-  pointer-events: none;
 }
 
 /* Graph Container */

@@ -1,9 +1,8 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { fade } from "svelte/transition";
-  import { GraphCanvas, ControlPanel, Tooltip, GenreTitle } from "$lib/components";
+  import { GraphCanvas, Tooltip, GenreTitle, BottomHeader, SearchBar } from "$lib/components";
   import ScrollyContainer from "$lib/components/ScrollyContainer.svelte";
-  import ProgressIndicator from "$lib/components/ProgressIndicator.svelte";
   import GenreDetail from "$lib/components/GenreDetail.svelte";
   import { graphData, initVisible, setPositions } from "$lib/stores";
   import { uiStore, isStartAnimationRunning } from "$lib/stores/uiStore";
@@ -410,19 +409,15 @@
           </div>
         {/if}
 
-        {#if !$isStartAnimationRunning}
-          <div class="control-panel-wrapper" transition:fade={{ duration: 300 }}>
-            <ControlPanel />
-          </div>
-        {/if}
-
         <section class="graph-container">
           <GraphCanvas />
           <GenreDetail />
         </section>
       </div>
     </ScrollyContainer>
+    <SearchBar />
     <Tooltip />
+    <BottomHeader />
   {/if}
 </main>
 

@@ -5,6 +5,10 @@ import type { GenreCategory } from "$lib/graph/genreMapping";
 export interface PhysicsState {
   vx: Record<string, number>;
   vy: Record<string, number>;
+  // Wander direction for smooth random movement (angle in radians)
+  wanderAngle: Record<string, number>;
+  // Wander strength per node
+  wanderStrength: Record<string, number>;
 }
 
 export interface PhysicsParams {
@@ -16,6 +20,19 @@ export interface PhysicsParams {
   maxSpeed: number; // clamp velocity
   groupAttraction?: number; // strength of artist group attraction (optional)
   genreAnchorStrength?: number; // strength of attraction to genre anchor points (0-1, 0=disabled)
+  wanderEnabled?: boolean; // enable smooth random pathing (for overview mode)
+  wanderStrength?: number; // strength of wander force
+  wanderTurnRate?: number; // how fast wander direction changes (radians per second)
+}
+
+// Search bar force configuration
+export interface SearchBarForce {
+  position: { x: number; y: number };
+  repulsionRadius: number; // Radius where repulsion starts
+  repulsionStrength: number; // Strength of repulsion for non-matched nodes
+  attractionStrength: number; // Strength of attraction for matched nodes
+  matchedNodeIds: Set<string>; // IDs of nodes that match the search
+  isActive: boolean; // Whether search is active
 }
 
 // Genre-Ankerpunkte auf Kreis verteilt
@@ -36,11 +53,17 @@ export interface CategoryAnchor {
 export function createPhysicsState(nodeIds: string[]): PhysicsState {
   const vx: Record<string, number> = {};
   const vy: Record<string, number> = {};
+  const wanderAngle: Record<string, number> = {};
+  const wanderStrength: Record<string, number> = {};
   for (const id of nodeIds) {
     vx[id] = 0;
     vy[id] = 0;
+    // Random initial wander direction for each node
+    wanderAngle[id] = Math.random() * Math.PI * 2;
+    // Varying wander strength for organic feel
+    wanderStrength[id] = 0.7 + Math.random() * 0.6;
   }
-  return { vx, vy };
+  return { vx, vy, wanderAngle, wanderStrength };
 }
 
 /**
@@ -288,9 +311,10 @@ export function stepPhysics(
   dt = 1 / 60,
   bounds?: { width: number; height: number },
   groups?: ArtistGroup[],
-  genreAnchors?: GenreAnchor[]
+  genreAnchors?: GenreAnchor[],
+  searchBarForce?: SearchBarForce
 ) {
-  const { repulsion, spring, restLength, damping, jitter, maxSpeed, groupAttraction = 0, genreAnchorStrength = 0 } = params;
+  const { repulsion, spring, restLength, damping, jitter, maxSpeed, groupAttraction = 0, genreAnchorStrength = 0, wanderEnabled = false, wanderStrength = 0.8, wanderTurnRate = 0.5 } = params;
   
   // Node-node repulsion
   for (let i = 0; i < nodes.length; i++) {
@@ -424,14 +448,146 @@ export function stepPhysics(
     }
   }
   
+  // Search bar forces: attract matching nodes above the bar, strict exclusion zone
+  // Matching nodes gather above the search bar, all nodes stay away from the bar itself
+  if (searchBarForce && searchBarForce.isActive) {
+    const { position, repulsionRadius, repulsionStrength, attractionStrength, matchedNodeIds } = searchBarForce;
+    const hasMatches = matchedNodeIds.size > 0;
+    
+    // Strict exclusion zone - rectangular area around search bar
+    const exclusionWidth = 150; // Half-width of exclusion zone
+    const exclusionHeight = 30; // Half-height of exclusion zone
+    
+    // Target position for matches: above the search bar
+    const matchTargetY = position.y - 80; // 80px above center
+    
+    for (const n of nodes) {
+      const pos = positions[n.id];
+      if (!pos) continue;
+      
+      const dx = pos.x - position.x;
+      const dy = pos.y - position.y;
+      const d = Math.sqrt(dx * dx + dy * dy) + 1e-6;
+      
+      const isMatch = matchedNodeIds.has(n.id);
+      
+      // STRICT EXCLUSION: Push nodes out of search bar rectangle
+      const inExclusionX = Math.abs(dx) < exclusionWidth;
+      const inExclusionY = Math.abs(dy) < exclusionHeight;
+      if (inExclusionX && inExclusionY) {
+        // Node is inside exclusion zone - push it out strongly
+        const pushStrength = 200;
+        // Push in the direction of least resistance
+        if (Math.abs(dx) / exclusionWidth > Math.abs(dy) / exclusionHeight) {
+          // Closer to horizontal edge - push horizontally
+          const pushX = dx > 0 ? pushStrength : -pushStrength;
+          state.vx[n.id] += pushX * dt;
+        } else {
+          // Closer to vertical edge - push vertically (prefer upward)
+          const pushY = dy > 0 ? pushStrength : -pushStrength * 1.5; // Stronger push upward
+          state.vy[n.id] += pushY * dt;
+        }
+      }
+      
+      if (isMatch && hasMatches) {
+        // Attract matching nodes to position ABOVE the search bar
+        const targetDx = pos.x - position.x;
+        const targetDy = pos.y - matchTargetY;
+        const targetD = Math.sqrt(targetDx * targetDx + targetDy * targetDy) + 1e-6;
+        
+        // Pull towards target position above search bar
+        const pullStrength = attractionStrength * Math.min(targetD / 50, 2);
+        const fx = -(targetDx / targetD) * pullStrength * 0.3; // Weak horizontal centering
+        const fy = -(targetDy / targetD) * pullStrength; // Strong vertical pull
+        state.vx[n.id] += fx * dt;
+        state.vy[n.id] += fy * dt;
+        
+        // Reduce wander for matched nodes so they stay near target
+        state.vx[n.id] *= 0.92;
+        state.vy[n.id] *= 0.92;
+      } else {
+        // Repel non-matching nodes - stronger when there are matches
+        const effectiveRadius = hasMatches ? repulsionRadius * 1.5 : repulsionRadius;
+        const strengthMultiplier = hasMatches ? 2.0 : 1.0;
+        
+        if (d < effectiveRadius) {
+          const falloff = 1 - (d / effectiveRadius);
+          const repelForce = repulsionStrength * strengthMultiplier * falloff * falloff * 1.5;
+          const fx = (dx / d) * repelForce;
+          const fy = (dy / d) * repelForce;
+          state.vx[n.id] += fx * dt;
+          state.vy[n.id] += fy * dt;
+        }
+      }
+    }
+    
+    // Extra: matching nodes repel non-matching nodes nearby (making room)
+    if (hasMatches) {
+      for (const matchId of matchedNodeIds) {
+        const matchPos = positions[matchId];
+        if (!matchPos) continue;
+        
+        for (const n of nodes) {
+          if (matchedNodeIds.has(n.id)) continue; // Skip other matches
+          const otherPos = positions[n.id];
+          if (!otherPos) continue;
+          
+          const dx = otherPos.x - matchPos.x;
+          const dy = otherPos.y - matchPos.y;
+          const d = Math.sqrt(dx * dx + dy * dy) + 1e-6;
+          
+          // Push non-matches away from matches
+          const pushRadius = 80;
+          if (d < pushRadius) {
+            const falloff = 1 - (d / pushRadius);
+            const pushForce = 40 * falloff;
+            const fx = (dx / d) * pushForce;
+            const fy = (dy / d) * pushForce;
+            state.vx[n.id] += fx * dt;
+            state.vy[n.id] += fy * dt;
+          }
+        }
+      }
+    }
+  }
+  
+  // Wander force - smooth random pathing
+  if (wanderEnabled) {
+    for (const n of nodes) {
+      if (!positions[n.id]) continue;
+      
+      // Initialize wander state if not present
+      if (state.wanderAngle[n.id] === undefined) {
+        state.wanderAngle[n.id] = Math.random() * Math.PI * 2;
+        state.wanderStrength[n.id] = 0.7 + Math.random() * 0.6;
+      }
+      
+      // Slowly change wander direction (smooth turning)
+      const turnAmount = (Math.random() - 0.5) * wanderTurnRate * dt * 60;
+      state.wanderAngle[n.id] += turnAmount;
+      
+      // Apply wander force in current direction
+      const angle = state.wanderAngle[n.id];
+      const strength = wanderStrength * (state.wanderStrength[n.id] || 1);
+      const fx = Math.cos(angle) * strength;
+      const fy = Math.sin(angle) * strength;
+      
+      state.vx[n.id] += fx * dt;
+      state.vy[n.id] += fy * dt;
+    }
+  }
+  
   // Integrate velocities, apply damping, jitter, clamp, and boundary checks
   for (const n of nodes) {
     if (!positions[n.id]) continue;
     let vx = (state.vx[n.id] || 0) * (1 - damping);
     let vy = (state.vy[n.id] || 0) * (1 - damping);
     
-    vx += (Math.random() - 0.5) * jitter;
-    vy += (Math.random() - 0.5) * jitter;
+    // Only add jitter if wander is not enabled (wander provides smoother motion)
+    if (!wanderEnabled) {
+      vx += (Math.random() - 0.5) * jitter;
+      vy += (Math.random() - 0.5) * jitter;
+    }
     
     // clamp speed
     const speed = Math.sqrt(vx * vx + vy * vy);
@@ -451,21 +607,35 @@ export function stepPhysics(
       const maxX = bounds.width / 2 - margin;
       const maxY = bounds.height / 2 - margin;
       
-      // Bounce off walls with velocity reversal
+      // Bounce off walls with velocity reversal and wander direction change
       if (positions[n.id].x < -maxX) {
         positions[n.id].x = -maxX;
         vx = Math.abs(vx) * 0.5; // bounce back with damping
+        // Reverse wander direction horizontally
+        if (state.wanderAngle[n.id] !== undefined) {
+          state.wanderAngle[n.id] = Math.PI - state.wanderAngle[n.id];
+        }
       } else if (positions[n.id].x > maxX) {
         positions[n.id].x = maxX;
         vx = -Math.abs(vx) * 0.5;
+        if (state.wanderAngle[n.id] !== undefined) {
+          state.wanderAngle[n.id] = Math.PI - state.wanderAngle[n.id];
+        }
       }
       
       if (positions[n.id].y < -maxY) {
         positions[n.id].y = -maxY;
         vy = Math.abs(vy) * 0.5;
+        // Reverse wander direction vertically
+        if (state.wanderAngle[n.id] !== undefined) {
+          state.wanderAngle[n.id] = -state.wanderAngle[n.id];
+        }
       } else if (positions[n.id].y > maxY) {
         positions[n.id].y = maxY;
         vy = -Math.abs(vy) * 0.5;
+        if (state.wanderAngle[n.id] !== undefined) {
+          state.wanderAngle[n.id] = -state.wanderAngle[n.id];
+        }
       }
     }
     

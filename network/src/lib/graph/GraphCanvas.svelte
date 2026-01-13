@@ -23,8 +23,9 @@
     uiStore
   } from "$lib/stores/uiStore";
   import { scrollyStore, setIntroComplete } from "$lib/stores/scrollyStore";
+  import { searchStore } from "$lib/stores/searchStore";
   import { renderGraph, hitTest, type RenderNode, type RenderEdge } from "./renderer";
-  import { stepPhysics, createPhysicsState, createGenreAnchors, createCategoryBasedGenreAnchors, createOverviewAnchors, createOverviewCategoryLabels, type GenreAnchor, type CategoryAnchor } from "$lib/graph/physics";
+  import { stepPhysics, createPhysicsState, createGenreAnchors, createCategoryBasedGenreAnchors, createOverviewAnchors, createOverviewCategoryLabels, type GenreAnchor, type CategoryAnchor, type SearchBarForce } from "$lib/graph/physics";
   import { positions as positionsStore } from "$lib/stores";
   import { savePositionSnapshot, getPositionSnapshot, hasSnapshot } from "$lib/stores/positionsStore";
 
@@ -49,6 +50,7 @@
   let physicsState = createPhysicsState([]);
   let genreAnchors: GenreAnchor[] = []; // Vordefinierte Genre-Positionen
   let categoryLabels: CategoryAnchor[] = []; // Mini-Headings für Kategorien im Overview
+  let originalRadii: Record<string, number> = {}; // Store original radii for search scaling
   
   // Drag state
   let draggedNodeId: string | null = null;
@@ -311,10 +313,30 @@
     // Physics step (skip if reduced motion or during animation)
     // Keep running even while dragging so nearby nodes can react/escape
     if (!rm && nodes.length > 0 && startAnimationTime === null && settlingTime === null) {
+      // Get search state for physics collision radii
+      const searchState = get(searchStore);
+      const isSearchActive = searchState.isSearchActive;
+      const isFocusMode = searchState.isFocusMode;
+      const matchedIds = searchState.matchedNodeIds;
+      
       // Build radii map mit proportionalem Scaling
       // scaleFactor berücksichtigt unterschiedliche Canvas-Größen
+      // Include search/focus mode scaling for proper collision detection
       const radii: Record<string, number> = {};
-      for (const n of nodes) radii[n.id] = Math.max(8, n.size) * 0.4 * scaleFactor;
+      for (const n of nodes) {
+        let sizeMultiplier = 1;
+        const isMatch = matchedIds.has(n.id);
+        
+        if (isFocusMode && isMatch) {
+          sizeMultiplier = 2.2; // Same as renderer focus mode
+        } else if (isMatch) {
+          sizeMultiplier = 1.4; // Same as renderer search match
+        } else if (isFocusMode && isSearchActive) {
+          sizeMultiplier = 0.6; // Shrink non-matches in focus mode
+        }
+        
+        radii[n.id] = Math.max(8, n.size) * 0.4 * scaleFactor * sizeMultiplier;
+      }
       // Fetch and mutate positions from store
       const pos = get(positionsStore);
       
@@ -359,6 +381,8 @@
       if (isOverviewMode && overviewTransitionStartTime === null) {
         overviewTransitionStartTime = performance.now();
         wasInOverviewMode = true;
+        // Automatisch Links anzeigen im Overview-Modus
+        uiStore.update(state => ({ ...state, showConnections: true }));
         // NICHT sofort Ankerpunkte löschen - das verursacht Laggen
         // genreAnchors werden erst gelöscht wenn neue Overview-Anchors bereit sind
       } else if (!isOverviewMode) {
@@ -374,17 +398,11 @@
       }
       
       // Erstelle Ankerpunkte basierend auf Mode mit Transition-Verzögerung
-      if (isOverviewMode && overviewTransitionProgress > 0.75 && nodes.length > 0) {
-        // Overview-Modus: verteile Gruppen über den Screen (nach 75% der Transition, wenn Kamera vollständig fertig ist)
-        // Prüfe ob wir neue Overview-Anchors brauchen (nicht schon Overview-Anchors haben)
-        const needsNewAnchors = genreAnchors.length === 0 || categoryLabels.length === 0;
-        if (needsNewAnchors) {
-          const scaledWidth = canvas.width / dpr;
-          const scaledHeight = canvas.height / dpr;
-          genreAnchors = createOverviewAnchors(nodes as any, scaledWidth, scaledHeight, 300);
-          // Erstelle auch Mini-Headings für jede Kategorie
-          categoryLabels = createOverviewCategoryLabels(nodes as any, genreAnchors);
-        }
+      // Im Overview-Modus: KEINE Ankerpunkte mehr - Nodes schweben frei
+      if (isOverviewMode) {
+        // Overview-Modus: Keine Gruppierung, Nodes schweben frei mit Suchleiste
+        genreAnchors = [];
+        categoryLabels = [];
       } else if (!isOverviewMode && wasInOverviewMode && nodes.length > 0) {
         // Gerade aus Overview zurückgekommen: wechsle Ankerpunkte zurück zur Genre-Gruppierung
         const scaledGenreAnchorRadius = 350 * scaleFactor;
@@ -406,44 +424,50 @@
       }
       
       // Angepasste Physics-Parameter für sanften Übergang
-      // Wenn Genre-Gruppierung aktiv ist: verwende genreAnchorStrength, sonst 0
-      const activeGenreAnchorStrength = (uiState.showGenreGrouping || isOverviewMode) ? physicsParams.genreAnchorStrength : 0;
+      // Im Overview: keine Anchor-Strength, aber sanfte Bewegung
+      const activeGenreAnchorStrength = isOverviewMode ? 0 : (uiState.showGenreGrouping ? physicsParams.genreAnchorStrength : 0);
       
-      // Während Overview-Transition (bevor neue Anchors da sind): halte Nodes stabil
-      const isWaitingForOverviewAnchors = isOverviewMode && overviewTransitionProgress < 0.75;
-      
-      // Für Overview-Transition: verstärke genreAnchorStrength graduell UND STÄRKER
-      const finalGenreAnchorStrength = isOverviewMode 
-        ? activeGenreAnchorStrength * overviewTransitionProgress * 1.5 
-        : activeGenreAnchorStrength;
+      // Overview-Modus: sanftere Parameter für freies Schweben
+      const finalGenreAnchorStrength = activeGenreAnchorStrength;
       
       const transitionPhysicsParams = {
         ...physicsParams,
-        // Reduziere Kräfte während Transition - nicht zu aggressiv
-        // Während wir auf Overview-Anchors warten: Nodes sehr stabil halten
-        repulsion: isWaitingForOverviewAnchors
-          ? physicsParams.repulsion * 0.2  // Sehr schwache Repulsion während Warten
-          : isOverviewMode 
-            ? physicsParams.repulsion * 0.4  // Schwächere Repulsion im Overview
-            : physicsParams.repulsion * (0.3 + transitionProgress * 0.7),
-        maxSpeed: isWaitingForOverviewAnchors
-          ? physicsParams.maxSpeed * 0.3  // Sehr langsam während Warten auf Anchors
-          : isOverviewMode 
-            ? physicsParams.maxSpeed * 0.8  // Höhere maxSpeed im Overview für schnellere Verteilung
-            : physicsParams.maxSpeed * 0.5, // Keep nodes slow during transition
-        damping: isWaitingForOverviewAnchors
-          ? 0.95  // Sehr hohes Damping - Nodes bleiben fast stehen
-          : isOverviewMode 
-            ? 0.75  // Weniger Damping im Overview für bessere Verteilung
-            : 0.85, // High damping for smooth, slow motion
-        // Erhöhe genreAnchorStrength graduell während Übergang (nur wenn aktiv)
-        genreAnchorStrength: finalGenreAnchorStrength
+        // Overview: sanfte Repulsion für gleichmäßige Verteilung
+        repulsion: isOverviewMode 
+          ? physicsParams.repulsion * 0.3  // Sanftere Repulsion im Overview
+          : physicsParams.repulsion * (0.3 + transitionProgress * 0.7),
+        maxSpeed: isOverviewMode 
+          ? 0.8  // Langsame, sanfte Bewegung
+          : physicsParams.maxSpeed * 0.5,
+        damping: isOverviewMode 
+          ? 0.03  // Niedriges Damping = Nodes behalten Geschwindigkeit
+          : 0.85,
+        jitter: isOverviewMode
+          ? 0  // Kein Jitter im Overview - Wander übernimmt
+          : physicsParams.jitter,
+        // Keine Ankerpunkte im Overview
+        genreAnchorStrength: finalGenreAnchorStrength,
+        // Wander-Bewegung für sanftes zufälliges Schweben im Overview
+        wanderEnabled: isOverviewMode,
+        wanderStrength: 1.0, // Sanfte Wanderbewegung
+        wanderTurnRate: 0.2  // Sehr langsame Richtungsänderungen
       };
+      
+      // SearchBar Force für Overview-Modus - IMMER aktiv im Overview (nicht nur bei Suche)
+      // searchState already declared above for radii calculation
+      const searchBarForce: SearchBarForce | undefined = isOverviewMode ? {
+        position: { x: 0, y: 0 }, // Immer in der Mitte
+        repulsionRadius: 180, // Radius für Abstoßung
+        repulsionStrength: 120, // Stärkere Abstoßung für nicht-matchende Nodes
+        attractionStrength: searchState.matchedNodeIds.size > 0 ? 80 : 0, // Attraktion nur wenn Suche aktiv
+        matchedNodeIds: searchState.matchedNodeIds,
+        isActive: true // Immer aktiv im Overview
+      } : undefined;
       
       stepPhysics(nodes, edges, pos, radii, physicsState, transitionPhysicsParams, 1/60, {
         width: canvas.width / dpr,
         height: canvas.height / dpr
-      }, groups, genreAnchors);
+      }, groups, genreAnchors, searchBarForce);
       
       // During transition: blend positions from animation end to physics equilibrium
       if (transitionProgress < 1 && initialPositions) {
@@ -548,6 +572,9 @@
       categoryFilterProgress = 0; // Instant zurück zu normal
     }
     
+    // Get search state for rendering
+    const searchState = get(searchStore);
+    
     renderGraph(ctx, canvas, nodes, edges, {
       hoveredId,
       focusedId,
@@ -567,7 +594,11 @@
       hoverScaleMap,
       categoryLabels,
       overviewTransitionProgress,
-      overviewTransitionStartTime
+      overviewTransitionStartTime,
+      // Search state
+      searchMatchedIds: searchState.matchedNodeIds,
+      isSearchActive: searchState.isSearchActive,
+      isFocusMode: searchState.isFocusMode
     });
     
     frameId = requestAnimationFrame(loop);
