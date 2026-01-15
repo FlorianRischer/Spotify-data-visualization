@@ -106,6 +106,7 @@ export function createGenreAnchors(genreIds: string[], radius: number = 350): Ge
  * Erstellt Ankerpunkte für Genres mit Kategorien-Clustering
  * Genres in der gleichen Kategorie werden zusammen positioniert
  * Die Kategorien sind gleichmäßig auf dem Kreis verteilt
+ * SORTIERUNG: Nach totalMinutes (Gesamtspielzeit) - größter Anteil oben
  */
 export function createCategoryBasedGenreAnchors(
   nodes: GenreNode[],
@@ -124,10 +125,14 @@ export function createCategoryBasedGenreAnchors(
     categoriesMap.get(category)!.push(node);
   }
   
-  // Sortiere Kategorien nach Größe (absteigend) - größte zuerst
-  // Dies entspricht der Anordnung in der Zoom-Phase
+  // Sortiere Kategorien nach Gesamtspielzeit (totalMinutes) - größte zuerst
+  // Dies platziert die meistgehörten Kategorien oben in der Mitte
   const categories = Array.from(categoriesMap.entries())
-    .sort((a, b) => b[1].length - a[1].length) // Absteigend nach Anzahl
+    .sort((a, b) => {
+      const totalMinutesA = a[1].reduce((sum, node) => sum + (node.totalMinutes || 0), 0);
+      const totalMinutesB = b[1].reduce((sum, node) => sum + (node.totalMinutes || 0), 0);
+      return totalMinutesB - totalMinutesA; // Absteigend nach Gesamtspielzeit
+    })
     .map(entry => entry[0]);
   
   const categoryCount = categories.length;
@@ -178,7 +183,7 @@ export function createCategoryBasedGenreAnchors(
 /**
  * Erstellt Ankerpunkte für Overview-Modus
  * Verteilt 17 Kategorien über den verfügbaren Screen-Bereich (rechts vom Genre-Titel)
- * Verhindert Überlappungen zwischen den Gruppen
+ * SORTIERUNG: Nach totalMinutes (Gesamtspielzeit) - meistgehört oben links
  */
 export function createOverviewAnchors(
   nodes: GenreNode[],
@@ -199,9 +204,13 @@ export function createOverviewAnchors(
     categoriesMap.get(category)!.push(node);
   }
   
-  // Sortiere Kategorien nach Größe (absteigend)
+  // Sortiere Kategorien nach Gesamtspielzeit (totalMinutes) - meistgehört zuerst
   const categories = Array.from(categoriesMap.entries())
-    .sort((a, b) => b[1].length - a[1].length)
+    .sort((a, b) => {
+      const totalMinutesA = a[1].reduce((sum, node) => sum + (node.totalMinutes || 0), 0);
+      const totalMinutesB = b[1].reduce((sum, node) => sum + (node.totalMinutes || 0), 0);
+      return totalMinutesB - totalMinutesA;
+    })
     .map(entry => entry[0]);
   
   const categoryCount = categories.length; // 17 Kategorien

@@ -135,27 +135,20 @@ export function updateScrollProgress(progress: number) {
 }
 
 /**
- * Setzt die Kategorie-Warteschlange sortiert nach Größe (absteigend)
- * Reggae wird immer als Ankerpunkt am Ende platziert
- * Platziert sie auf einem Kreis beginnend mit 12 Uhr im Uhrzeigersinn
+ * Setzt die Kategorie-Warteschlange sortiert nach Gesamtspielzeit (totalMinutes)
+ * Die meistgehörte Kategorie startet oben in der Mitte (12 Uhr)
+ * Platziert sie auf einem Kreis im Uhrzeigersinn
  */
 export function setGenreGroupQueue(
   queue: GenreCategory[], 
-  nodeCounts: Partial<Record<GenreCategory, number>>
+  categoryMinutes: Partial<Record<GenreCategory, number>>
 ) {
-  // Sortiere Queue nach Anzahl der Genres (absteigend) - größte zuerst
+  // Sortiere Queue nach Gesamtspielzeit (absteigend) - meistgehört zuerst
   let sortedQueue = [...queue].sort((a, b) => {
-    const countA = nodeCounts[a] || 0;
-    const countB = nodeCounts[b] || 0;
-    return countB - countA;
+    const minutesA = categoryMinutes[a] || 0;
+    const minutesB = categoryMinutes[b] || 0;
+    return minutesB - minutesA;
   });
-
-  // Reggae als Ankerpunkt: immer an letzter Position
-  const reggaeIndex = sortedQueue.indexOf('Reggae' as GenreCategory);
-  if (reggaeIndex !== -1 && reggaeIndex !== sortedQueue.length - 1) {
-    sortedQueue.splice(reggaeIndex, 1); // Entferne Reggae
-    sortedQueue.push('Reggae' as GenreCategory); // Füge am Ende ein
-  }
 
   // Berechne Positionen auf einem Kreis
   // 12 Uhr = -π/2, dann im Uhrzeigersinn
@@ -175,7 +168,7 @@ export function setGenreGroupQueue(
   scrollyStore.update(state => ({
     ...state,
     genreGroupQueue: sortedQueue,
-    categoryNodeCounts: nodeCounts,
+    categoryNodeCounts: categoryMinutes,
     categoryPositions
   }));
 }
@@ -303,24 +296,14 @@ export function activateOverview() {
 
 /**
  * Navigiert zum nächsten Step (Pfeiltaste runter)
- * Intro → Kategorisierung → Genre 1 → Genre 2 → ... → Overview
+ * Intro/Kategorisierung → Genre 1 → Genre 2 → ... → Overview
  */
 export function navigateToNextStep(): boolean {
   const state = get(scrollyStore);
   const totalCategories = state.genreGroupQueue.length;
   
-  // Intro → Kategorisierung
-  if (state.phase === 'intro') {
-    scrollyStore.update(s => ({
-      ...s,
-      phase: 'categorization',
-      isScrollingDown: true
-    }));
-    return true;
-  }
-  
-  // Kategorisierung → Erstes Genre
-  if (state.phase === 'categorization') {
+  // Intro oder Kategorisierung → Direkt zum ersten Genre
+  if (state.phase === 'intro' || state.phase === 'categorization') {
     const firstCategory = state.genreGroupQueue[0];
     if (firstCategory) {
       scrollyStore.update(s => ({
@@ -328,7 +311,8 @@ export function navigateToNextStep(): boolean {
         phase: 'zoom',
         focusedCategoryIndex: 0,
         focusedCategory: firstCategory,
-        isScrollingDown: true
+        isScrollingDown: true,
+        introAnimationComplete: true
       }));
     }
     return true;
@@ -388,7 +372,7 @@ export function navigateToPreviousStep(): boolean {
     return true;
   }
   
-  // Zoom: Vorherige Kategorie oder zurück zu Kategorisierung
+  // Zoom: Vorherige Kategorie oder zurück zur Kategorisierung/Übersicht
   if (state.phase === 'zoom') {
     const prevIndex = state.focusedCategoryIndex - 1;
     
@@ -403,7 +387,7 @@ export function navigateToPreviousStep(): boolean {
       }));
       return true;
     } else {
-      // Zurück zur Kategorisierung
+      // Beim ersten Genre: Zurück zur Kategorisierungsübersicht
       scrollyStore.update(s => ({
         ...s,
         phase: 'categorization',
@@ -415,14 +399,10 @@ export function navigateToPreviousStep(): boolean {
     }
   }
   
-  // Kategorisierung → Intro
+  // Kategorisierung: Bleibt hier (kein weiteres Zurück zu intro)
   if (state.phase === 'categorization') {
-    scrollyStore.update(s => ({
-      ...s,
-      phase: 'intro',
-      isScrollingDown: false
-    }));
-    return true;
+    // Keine weitere Rückwärts-Navigation - wir bleiben in der Kategorisierung
+    return false;
   }
   
   return false;

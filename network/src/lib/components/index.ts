@@ -9,6 +9,7 @@ export { default as SearchBar } from './SearchBar.svelte';
 export { default as ScrollyContainer } from './ScrollyContainer.svelte';
 export { default as GenreDetail } from './GenreDetail.svelte';
 export { default as ProgressIndicator } from './ProgressIndicator.svelte';
+export { default as NavigationHint } from './NavigationHint.svelte';
 
 // Re-export from subfolders
 export * from './landing';

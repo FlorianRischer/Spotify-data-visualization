@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { fade } from "svelte/transition";
-  import { GraphCanvas, Tooltip, GenreTitle, BottomHeader, SearchBar } from "$lib/components";
+  import { GraphCanvas, Tooltip, GenreTitle, BottomHeader, SearchBar, NavigationHint } from "$lib/components";
   import ScrollyContainer from "$lib/components/ScrollyContainer.svelte";
   import GenreDetail from "$lib/components/GenreDetail.svelte";
   import { LoadingScreen } from "$lib/components/visualization";
@@ -196,6 +196,7 @@
     </ScrollyContainer>
     <SearchBar />
     <Tooltip />
+    <NavigationHint />
     {#if showBottomHeader}
       <div transition:fade={{ duration: 400 }}>
         <BottomHeader />

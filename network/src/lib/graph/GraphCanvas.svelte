@@ -509,7 +509,7 @@
             attractionRadius: 300 * scaleFactor,
             attractionStrength: 1.5,
             slowdownRadius: 80 * scaleFactor,
-            slowdownFactor: 0.3,
+            slowdownFactor: 0.1,
             isActive: true,
             tetheredMode: false
           };

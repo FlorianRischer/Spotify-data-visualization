@@ -30,33 +30,29 @@
   // Keyboard Navigation State
   let isNavigating = false; // Verhindert doppelte Navigationen während Animation
 
-  // Genres für Richtungswechsel (basierend auf Kreisposition)
-  const DIRECTION_CHANGE_GENRES = {
-    // Ab diesen Genres ändert sich die Navigationsrichtung
-    rightDownToLeftDown: 'Specialty', // Wechsel von rechts-unten nach links-unten
-    leftDownToLeftUp: 'Experimental', // Wechsel von links-unten nach links-oben
-    leftUpToRightUp: 'Soul'           // Wechsel von links-oben nach rechts-oben
-  };
-
-  // Bestimmt die Navigationsrichtung basierend auf aktuellem Genre
+  // Bestimmt die Navigationsrichtung basierend auf Position im Kreis
+  // Die Kategorien sind auf einem Kreis angeordnet, beginnend bei 12 Uhr im Uhrzeigersinn
+  // Richtungswechsel erfolgen bei 25%, 50% und 75% der Kreisumrundung
   type NavigationDirection = 'right-down' | 'left-down' | 'left-up' | 'right-up';
   
   function getNavigationDirectionForIndex(index: number, queue: GenreCategory[]): NavigationDirection {
     if (queue.length === 0 || index < 0) return 'right-down';
     
-    // Finde die Indizes der Richtungswechsel-Genres
-    const specialtyIndex = queue.indexOf(DIRECTION_CHANGE_GENRES.rightDownToLeftDown as GenreCategory);
-    const experimentalIndex = queue.indexOf(DIRECTION_CHANGE_GENRES.leftDownToLeftUp as GenreCategory);
-    const soulIndex = queue.indexOf(DIRECTION_CHANGE_GENRES.leftUpToRightUp as GenreCategory);
+    const totalCategories = queue.length;
+    const positionPercent = index / totalCategories;
     
-    // Bestimme Richtung basierend auf Position
-    if (soulIndex !== -1 && index >= soulIndex) {
+    // Richtungswechsel basierend auf Position im Kreis:
+    // 0-25%: rechts-unten (3 Uhr Sektor)
+    // 25-50%: links-unten (6 Uhr Sektor)  
+    // 50-75%: links-oben (9 Uhr Sektor)
+    // 75-100%: rechts-oben (12 Uhr Sektor, zurück zum Start)
+    if (positionPercent >= 0.75) {
       return 'right-up';
     }
-    if (experimentalIndex !== -1 && index >= experimentalIndex) {
+    if (positionPercent >= 0.5) {
       return 'left-up';
     }
-    if (specialtyIndex !== -1 && index >= specialtyIndex) {
+    if (positionPercent >= 0.25) {
       return 'left-down';
     }
     return 'right-down';
@@ -244,19 +240,20 @@
     const state = get(graphData);
     if (!state?.nodes) return;
 
-    const categoryCounts: Partial<Record<GenreCategory, number>> = {};
+    // Berechne totalMinutes pro Kategorie für Sortierung
+    const categoryMinutes: Partial<Record<GenreCategory, number>> = {};
     
     for (const node of state.nodes) {
       const cat = (node.category || 'Specialty & Other') as GenreCategory;
-      categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
+      categoryMinutes[cat] = (categoryMinutes[cat] || 0) + (node.totalMinutes || 0);
     }
 
-    // Sortiere nach Größe (absteigend)
-    const sortedCategories = Object.entries(categoryCounts)
+    // Sortiere nach Gesamtspielzeit (totalMinutes) - größte zuerst
+    const sortedCategories = Object.entries(categoryMinutes)
       .sort(([, a], [, b]) => (b || 0) - (a || 0))
       .map(([cat]) => cat as GenreCategory);
 
-    setGenreGroupQueue(sortedCategories, categoryCounts);
+    setGenreGroupQueue(sortedCategories, categoryMinutes);
   }
 
   function handlePhaseTransitions(isScrollingDown: boolean = true) {
@@ -328,6 +325,12 @@
           isAnimatingCamera: false
         }));
       }, CAMERA_ANIMATION_DURATION);
+    }
+    
+    // Intro → Zoom (direkter Sprung): Auch Intro als complete markieren
+    if (oldPhase === 'intro' && newPhase === 'zoom') {
+      setIntroComplete();
+      uiStore.update(s => ({ ...s, showGenreGrouping: true }));
     }
 
     // Categorization abgeschlossen → Zoom zum ersten Genre
