@@ -1,6 +1,7 @@
 <script lang="ts">
   import { scrollyStore, jumpToCategory } from '$lib/stores/scrollyStore';
   import type { GenreCategory } from '$lib/graph/genreMapping';
+  import { fly } from 'svelte/transition';
 
   let hoveredCategory: GenreCategory | null = null;
 
@@ -8,6 +9,7 @@
   $: focusedCategory = $scrollyStore.focusedCategory;
   $: focusedIndex = $scrollyStore.focusedCategoryIndex;
   $: categoryNodeCounts = $scrollyStore.categoryNodeCounts;
+  $: introComplete = $scrollyStore.introAnimationComplete;
 
   function handleCategoryClick(category: GenreCategory) {
     jumpToCategory(category);
@@ -20,8 +22,12 @@
   }
 </script>
 
-{#if genreGroupQueue.length > 0}
-  <nav class="progress-indicator" aria-label="Genre-Kategorien Navigation">
+{#if genreGroupQueue.length > 0 && introComplete}
+  <nav 
+    class="progress-indicator" 
+    aria-label="Genre-Kategorien Navigation"
+    in:fly={{ x: 20, duration: 500, delay: 200 }}
+  >
     {#each genreGroupQueue as category, idx}
       {@const isActive = category === focusedCategory}
       {@const isHovered = category === hoveredCategory}

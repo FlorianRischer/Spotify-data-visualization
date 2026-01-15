@@ -25,7 +25,7 @@
   import { scrollyStore, setIntroComplete } from "$lib/stores/scrollyStore";
   import { searchStore } from "$lib/stores/searchStore";
   import { renderGraph, hitTest, type RenderNode, type RenderEdge } from "./renderer";
-  import { stepPhysics, createPhysicsState, createGenreAnchors, createCategoryBasedGenreAnchors, createOverviewAnchors, createOverviewCategoryLabels, type GenreAnchor, type CategoryAnchor, type SearchBarForce } from "$lib/graph/physics";
+  import { stepPhysics, createPhysicsState, createGenreAnchors, createCategoryBasedGenreAnchors, createOverviewAnchors, createOverviewCategoryLabels, type GenreAnchor, type CategoryAnchor, type SearchBarForce, type CursorForce } from "$lib/graph/physics";
   import { positions as positionsStore } from "$lib/stores";
   import { savePositionSnapshot, getPositionSnapshot, hasSnapshot } from "$lib/stores/positionsStore";
 
@@ -56,6 +56,10 @@
   let draggedNodeId: string | null = null;
   let dragOffset = { x: 0, y: 0 };
   let isDragging = false;
+  
+  // Cursor position for attraction force (in world coordinates)
+  let cursorWorldPosition: { x: number; y: number } | null = null;
+  let isCursorOnCanvas = false;
   
   // Hover scale animation state (for organic water-droplet effect)
   let hoverScaleMap = new Map<string, { scale: number; velocity: number; startTime: number }>();
@@ -238,8 +242,23 @@
     canvas.height = bufferHeight;
   }
 
-  function loop() {
+  // Frame timing for smooth 60fps
+  let lastFrameTime = 0;
+  const TARGET_FRAME_TIME = 1000 / 60; // 16.67ms
+  
+  function loop(timestamp?: number) {
     if (!ctx || !canvas) return;
+    
+    // Frame rate limiting for consistent 60fps
+    const currentTime = timestamp || performance.now();
+    const deltaTime = currentTime - lastFrameTime;
+    
+    if (deltaTime < TARGET_FRAME_TIME * 0.9) {
+      // Skip frame if too soon
+      frameId = requestAnimationFrame(loop);
+      return;
+    }
+    lastFrameTime = currentTime;
     
     clearExpiredAnimations();
     
@@ -464,10 +483,56 @@
         isActive: true // Immer aktiv im Overview
       } : undefined;
       
+      // Cursor attraction force - different behavior for Overview vs Grouped mode
+      // Disabled when in genre detail view (focusedCategory is set during scrollytelling)
+      let cursorForce: CursorForce | undefined = undefined;
+      const isInGenreDetailView = focusedCategory !== null || centeredNodeId !== null;
+      
+      // Delay cursor attraction in overview mode until nodes have settled (2 seconds after transition start)
+      const OVERVIEW_UI_DELAY = 2000; // 2 seconds delay
+      const overviewCursorReady = isOverviewMode && overviewTransitionStartTime !== null && 
+        (performance.now() - overviewTransitionStartTime) > OVERVIEW_UI_DELAY;
+      
+      // Update scrollyStore with overviewUIReady state for other components (BottomHeader, GenreTitle)
+      const currentScrollState = get(scrollyStore);
+      if (overviewCursorReady && !currentScrollState.overviewUIReady) {
+        scrollyStore.update(s => ({ ...s, overviewUIReady: true }));
+      } else if (!isOverviewMode && currentScrollState.overviewUIReady) {
+        scrollyStore.update(s => ({ ...s, overviewUIReady: false }));
+      }
+      
+      if (isCursorOnCanvas && cursorWorldPosition && !isDragging && !isInGenreDetailView) {
+        if (isOverviewMode && overviewCursorReady) {
+          // Overview mode: free-floating attraction (only after delay)
+          cursorForce = {
+            position: cursorWorldPosition,
+            attractionRadius: 300 * scaleFactor,
+            attractionStrength: 1.5,
+            slowdownRadius: 80 * scaleFactor,
+            slowdownFactor: 0.3,
+            isActive: true,
+            tetheredMode: false
+          };
+        } else if (!isOverviewMode && uiState.showGenreGrouping && genreAnchors.length > 0) {
+          // Grouped mode: tethered attraction - nodes stay near their anchors
+          cursorForce = {
+            position: cursorWorldPosition,
+            attractionRadius: 200 * scaleFactor, // 30% larger radius for grouped mode
+            attractionStrength: 6.0, // Stronger attraction
+            slowdownRadius: 100 * scaleFactor,
+            slowdownFactor: 0.4,
+            isActive: true,
+            tetheredMode: true,
+            maxTetherDistance: 140 * scaleFactor, // Max distance from anchor
+            tetherStrength: 0.2 // Spring back strength
+          };
+        }
+      }
+      
       stepPhysics(nodes, edges, pos, radii, physicsState, transitionPhysicsParams, 1/60, {
         width: canvas.width / dpr,
         height: canvas.height / dpr
-      }, groups, genreAnchors, searchBarForce);
+      }, groups, genreAnchors, searchBarForce, cursorForce);
       
       // During transition: blend positions from animation end to physics equilibrium
       if (transitionProgress < 1 && initialPositions) {
@@ -605,7 +670,15 @@
   }
 
   function getNodeUnderMouse(x: number, y: number): string | null {
-    return hitTest(nodes, x, y, canvas.width, canvas.height, dpr, cameraZoom, cameraX, cameraY);
+    const searchState = get(searchStore);
+    return hitTest(
+      nodes, x, y, canvas.width, canvas.height, dpr, cameraZoom, cameraX, cameraY,
+      searchState.matchedNodeIds,
+      searchState.isSearchActive,
+      searchState.isFocusMode,
+      centeredNodeId,
+      hoverScaleMap
+    );
   }
 
   function scheduleExpansion(nodeId: string) {
@@ -659,18 +732,23 @@
     const bufferX = cssX * dpr;
     const bufferY = cssY * dpr;
     
+    // Update cursor world position for attraction force
+    const centerX = rect.width / 2;
+    const centerY = rect.height / 2;
+    cursorWorldPosition = {
+      x: (cssX - centerX) / cameraZoom + cameraX,
+      y: (cssY - centerY) / cameraZoom + cameraY
+    };
+    isCursorOnCanvas = true;
+    
     // Handle dragging - need to convert to world coordinates for node position
     if (draggedNodeId) {
       isDragging = true; // Mark as dragging on first move
       const pos = get(positionsStore);
       // Convert screen to world coordinates (accounting for camera)
-      const centerX = rect.width / 2;
-      const centerY = rect.height / 2;
-      const worldX = (cssX - centerX) / cameraZoom + cameraX;
-      const worldY = (cssY - centerY) / cameraZoom + cameraY;
       pos[draggedNodeId] = {
-        x: worldX - dragOffset.x,
-        y: worldY - dragOffset.y
+        x: cursorWorldPosition.x - dragOffset.x,
+        y: cursorWorldPosition.y - dragOffset.y
       };
       positionsStore.set(pos);
       // Reset velocity to prevent physics interference
@@ -741,6 +819,10 @@
     if (hoveredId) {
       hoverScaleMap.delete(hoveredId);
     }
+    
+    // Reset cursor tracking for attraction force
+    isCursorOnCanvas = false;
+    cursorWorldPosition = null;
     
     // Reset cursor when leaving canvas
     canvas.style.cursor = 'default';

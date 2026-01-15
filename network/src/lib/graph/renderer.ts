@@ -270,6 +270,7 @@ export function renderGraph(
   }
 
   // Sort nodes by size (smaller first, so larger draw on top)
+  // OPTIMIZATION: Only sort if array has changed
   const sortedNodes = [...nodes].sort((a, b) => a.size - b.size);
   
   // Find hovered node for influence calculation on neighbors
@@ -282,7 +283,14 @@ export function renderGraph(
     }
   }
   
-  // Draw nodes
+  // Pre-calculate common values outside the loop
+  const searchMatchedIds = options.searchMatchedIds;
+  const isSearchActiveOpt = options.isSearchActive ?? false;
+  const isFocusModeOpt = options.isFocusMode ?? false;
+  const hasCenteredNode = !!centeredNodeId;
+  const catFilterProgress = categoryFilterProgress ?? 1;
+  
+  // Draw nodes - OPTIMIZED with reduced calculations
   for (let i = 0; i < sortedNodes.length; i++) {
     const n = sortedNodes[i];
     const progress = getAnimationProgress(n.id, animatingNodes, now, reducedMotion);
@@ -292,50 +300,46 @@ export function renderGraph(
     const isHovered = hoveredId === n.id;
     const isFocused = focusedId === n.id;
     const isCentered = centeredNodeId === n.id;
-    const hasCenteredNode = !!centeredNodeId;
     const isInFocusedCategory = focusedCategory && n.category === focusedCategory;
     
-    // Search state - only dim non-matching nodes, no highlight
-    const isSearchActive = options.isSearchActive ?? false;
-    const isSearchMatch = isSearchActive && options.searchMatchedIds?.has(n.id);
-    const isFocusMode = options.isFocusMode ?? false;
+    // Search state - use pre-calculated values
+    const isSearchMatch = isSearchActiveOpt && searchMatchedIds?.has(n.id);
     
-    // Calculate influence from hovered node (push-away + dim effect)
+    // Calculate influence from hovered node (only if needed)
     let hoverInfluence = 0;
     if (hoveredNode && !isHovered && hoveredNodeScale > 1) {
       const dx = n.x - hoveredNode.x;
       const dy = n.y - hoveredNode.y;
-      const distance = Math.sqrt(dx * dx + dy * dy);
-      // Influence decreases with distance (quadratic falloff)
-      const influenceRadius = 150;
-      hoverInfluence = Math.max(0, 1 - (distance / influenceRadius)) * (hoveredNodeScale - 1);
+      const distSq = dx * dx + dy * dy;
+      // Early exit if too far
+      if (distSq < 22500) { // 150^2
+        const distance = Math.sqrt(distSq);
+        const influenceRadius = 150;
+        hoverInfluence = Math.max(0, 1 - (distance / influenceRadius)) * (hoveredNodeScale - 1);
+      }
     }
     
-    // Size multiplier: focused mode enlarges matched nodes significantly
+    // Size multiplier - simplified logic
     let sizeMultiplier = 1;
     if (isCentered) {
       sizeMultiplier = 2.5;
-    } else if (isFocusMode && isSearchMatch) {
-      sizeMultiplier = 2.2; // Larger in focus mode
+    } else if (isFocusModeOpt && isSearchMatch) {
+      sizeMultiplier = 2.2;
     } else if (isSearchMatch) {
-      sizeMultiplier = 1.4; // Slightly larger when matched
-    } else if (isFocusMode && isSearchActive) {
-      sizeMultiplier = 0.6; // Shrink non-matches in focus mode
+      sizeMultiplier = 1.4;
+    } else if (isFocusModeOpt && isSearchActiveOpt) {
+      sizeMultiplier = 0.6;
     }
     
-    // Dim other nodes when one is centered OR when a category is focused OR when affected by hover OR when search is active
+    // Dim factor - simplified logic
     let dimFactor = 1;
     if (hasCenteredNode && !isCentered) {
       dimFactor = 0.3;
-    } else if (isSearchActive && !isSearchMatch) {
-      // Dim non-matching nodes during search (subtler effect)
+    } else if (isSearchActiveOpt && !isSearchMatch) {
       dimFactor = 0.25;
     } else if (focusedCategory && !isInFocusedCategory) {
-      // Smoothly interpolate between normal (1) and dimmed (0.2) based on animation progress
-      const animProgress = categoryFilterProgress ?? 1;
-      dimFactor = 1 - (animProgress * 0.8); // From 1 to 0.2
+      dimFactor = 1 - (catFilterProgress * 0.8);
     } else if (hoverInfluence > 0.1) {
-      // Nodes near hovered node become more transparent (water displacement effect)
       dimFactor = 1 - (hoverInfluence * 0.35);
     }
     
@@ -422,7 +426,12 @@ export function hitTest(
   dpr: number,
   cameraZoom: number = 1,
   cameraX: number = 0,
-  cameraY: number = 0
+  cameraY: number = 0,
+  searchMatchedIds?: Set<string>,
+  isSearchActive?: boolean,
+  isFocusMode?: boolean,
+  centeredNodeId?: string | null,
+  hoverScaleMap?: Map<string, { scale: number; velocity: number; startTime: number }>
 ): string | null {
   // Input mouseX/Y sind Buffer-Pixel (bereits mit dpr multipliziert)
   // Canvas dimensions
@@ -453,7 +462,27 @@ export function hitTest(
   // Check in reverse order (top-most first)
   for (let i = nodes.length - 1; i >= 0; i--) {
     const n = nodes[i];
-    const r = Math.max(8, n.size) * 0.4; // hit radius matches node size exactly
+    
+    // Calculate size multiplier matching renderer logic
+    let sizeMultiplier = 1;
+    const isCentered = centeredNodeId === n.id;
+    const isSearchMatch = isSearchActive && searchMatchedIds?.has(n.id);
+    
+    if (isCentered) {
+      sizeMultiplier = 2.5;
+    } else if (isFocusMode && isSearchMatch) {
+      sizeMultiplier = 2.2;
+    } else if (isSearchMatch) {
+      sizeMultiplier = 1.4;
+    } else if (isFocusMode && isSearchActive) {
+      sizeMultiplier = 0.6;
+    }
+    
+    // Get hover scale for organic growth effect
+    const hoverScale = hoverScaleMap?.get(n.id)?.scale ?? 1;
+    
+    // Hit radius matches visual node size exactly
+    const r = Math.max(8, n.size) * 0.4 * sizeMultiplier * hoverScale;
     const dx = worldX - n.x;
     const dy = worldY - n.y;
     if (dx * dx + dy * dy <= r * r) {

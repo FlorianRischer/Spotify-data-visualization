@@ -4,12 +4,14 @@
   import type { GenreCategory } from '$lib/graph/genreMapping';
   import { 
     scrollyStore, 
-    updateScrollProgress, 
     setGenreGroupQueue,
     setIntroComplete,
     setCategorizationComplete,
     setDisplayedCategory,
-    activateOverview 
+    activateOverview,
+    navigateToNextStep,
+    navigateToPreviousStep,
+    type ScrollyState
   } from '$lib/stores/scrollyStore';
   import { uiStore } from '$lib/stores/uiStore';
   import { graphData } from '$lib/stores';
@@ -20,11 +22,104 @@
   let lastPhase: string = 'intro';
   let lastFocusedCategory: GenreCategory | null = null;
   let lastCameraAnimationTime = 0;
-  let lastScrollProgress = 0; // Track Scroll-Richtung
-  const MIN_ANIMATION_INTERVAL = 1500; // Mindestabstand zwischen Animationen
-  const CAMERA_ANIMATION_DURATION = 1500; // Erhöht auf 1500ms für smoothere Animation
-  const TITLE_ANIMATION_DURATION = 500; // Dauer der Titel-Animation
+  const MIN_ANIMATION_INTERVAL = 1200; // Mindestabstand zwischen Animationen (etwas kürzer für Keyboard)
+  const CAMERA_ANIMATION_DURATION = 1200; // Animation-Dauer für Kamera
+  const TITLE_ANIMATION_DURATION = 400; // Dauer der Titel-Animation
   const TITLE_START_DELAY = CAMERA_ANIMATION_DURATION - TITLE_ANIMATION_DURATION; // Titel startet so, dass beide enden zur gleichen Zeit
+  
+  // Keyboard Navigation State
+  let isNavigating = false; // Verhindert doppelte Navigationen während Animation
+
+  // Genres für Richtungswechsel (basierend auf Kreisposition)
+  const DIRECTION_CHANGE_GENRES = {
+    // Ab diesen Genres ändert sich die Navigationsrichtung
+    rightDownToLeftDown: 'Specialty', // Wechsel von rechts-unten nach links-unten
+    leftDownToLeftUp: 'Experimental', // Wechsel von links-unten nach links-oben
+    leftUpToRightUp: 'Soul'           // Wechsel von links-oben nach rechts-oben
+  };
+
+  // Bestimmt die Navigationsrichtung basierend auf aktuellem Genre
+  type NavigationDirection = 'right-down' | 'left-down' | 'left-up' | 'right-up';
+  
+  function getNavigationDirectionForIndex(index: number, queue: GenreCategory[]): NavigationDirection {
+    if (queue.length === 0 || index < 0) return 'right-down';
+    
+    // Finde die Indizes der Richtungswechsel-Genres
+    const specialtyIndex = queue.indexOf(DIRECTION_CHANGE_GENRES.rightDownToLeftDown as GenreCategory);
+    const experimentalIndex = queue.indexOf(DIRECTION_CHANGE_GENRES.leftDownToLeftUp as GenreCategory);
+    const soulIndex = queue.indexOf(DIRECTION_CHANGE_GENRES.leftUpToRightUp as GenreCategory);
+    
+    // Bestimme Richtung basierend auf Position
+    if (soulIndex !== -1 && index >= soulIndex) {
+      return 'right-up';
+    }
+    if (experimentalIndex !== -1 && index >= experimentalIndex) {
+      return 'left-up';
+    }
+    if (specialtyIndex !== -1 && index >= specialtyIndex) {
+      return 'left-down';
+    }
+    return 'right-down';
+  }
+  
+  function getNavigationDirection(category: GenreCategory | null, queue: GenreCategory[]): NavigationDirection {
+    if (!category || queue.length === 0) return 'right-down';
+    const currentIndex = queue.indexOf(category);
+    return getNavigationDirectionForIndex(currentIndex, queue);
+  }
+  
+  // Prüft ob eine Taste "vorwärts" navigieren soll
+  function isForwardKey(key: string, direction: NavigationDirection): boolean {
+    switch (direction) {
+      case 'right-down':
+        return key === 'ArrowRight' || key === 'ArrowDown';
+      case 'left-down':
+        return key === 'ArrowLeft' || key === 'ArrowDown';
+      case 'left-up':
+        return key === 'ArrowLeft' || key === 'ArrowUp';
+      case 'right-up':
+        return key === 'ArrowRight' || key === 'ArrowUp';
+    }
+  }
+  
+  // Prüft ob eine Taste "rückwärts" navigieren soll
+  function isBackwardKey(key: string, direction: NavigationDirection): boolean {
+    switch (direction) {
+      case 'right-down':
+        return key === 'ArrowLeft' || key === 'ArrowUp';
+      case 'left-down':
+        return key === 'ArrowRight' || key === 'ArrowUp';
+      case 'left-up':
+        return key === 'ArrowRight' || key === 'ArrowDown';
+      case 'right-up':
+        return key === 'ArrowLeft' || key === 'ArrowDown';
+    }
+  }
+  
+  // Berechnet die Richtung für den aktuellen Navigationskontext
+  // Beim Rückwärts-Navigieren verwenden wir die Richtung des vorherigen Genres
+  function getContextualDirection(currentState: ScrollyState, isGoingBackward: boolean): NavigationDirection {
+    const { focusedCategory, focusedCategoryIndex, genreGroupQueue, phase } = currentState;
+    
+    // In intro/categorization Phase: Standard-Richtung
+    if (phase === 'intro' || phase === 'categorization') {
+      return 'right-down';
+    }
+    
+    // In overview: Richtung des letzten Genres
+    if (phase === 'overview') {
+      return getNavigationDirectionForIndex(genreGroupQueue.length - 1, genreGroupQueue);
+    }
+    
+    // In zoom Phase
+    if (isGoingBackward && focusedCategoryIndex > 0) {
+      // Beim Rückwärts: Richtung des vorherigen Genres (zu dem wir navigieren)
+      return getNavigationDirectionForIndex(focusedCategoryIndex - 1, genreGroupQueue);
+    }
+    
+    // Standard: Richtung des aktuellen Genres
+    return getNavigationDirection(focusedCategory, genreGroupQueue);
+  }
 
   // Reaktive Variablen aus Store
   $: phase = $scrollyStore.phase;
@@ -32,45 +127,64 @@
   $: scrollProgress = $scrollyStore.scrollProgress;
   $: isAnimatingCamera = $scrollyStore.isAnimatingCamera;
 
-  // Reagiere auf Kategorie-Wechsel während Zoom-Phase
-  $: if (phase === 'zoom' && focusedCategory && focusedCategory !== lastFocusedCategory) {
+  // Kategorie-Wechsel werden jetzt durch handlePhaseTransitions in handleKeyDown gesteuert
+
+  // Keyboard Navigation Handler
+  function handleKeyDown(event: KeyboardEvent) {
+    // Ignoriere wenn im Explore-Modus (manuell) oder während Navigation
+    const uiState = get(uiStore);
+    if (uiState.isScrollLocked || isNavigating || isAnimatingCamera) {
+      return;
+    }
+    
+    // Ignoriere wenn Fokus auf Input-Element liegt
+    if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
+      return;
+    }
+    
     const now = performance.now();
-    // Nur animieren wenn genug Zeit seit letzter Animation vergangen ist
-    if (now - lastCameraAnimationTime >= MIN_ANIMATION_INTERVAL) {
-      const position = $scrollyStore.categoryPositions[focusedCategory];
-      const categoryIndex = $scrollyStore.focusedCategoryIndex;
-      const totalCategories = $scrollyStore.genreGroupQueue.length;
-      const isLastCategory = categoryIndex === totalCategories - 1;
+    if (now - lastCameraAnimationTime < MIN_ANIMATION_INTERVAL) {
+      return; // Noch in Cooldown
+    }
+    
+    // Hole aktuelle Richtung basierend auf fokussiertem Genre
+    const currentState = get(scrollyStore);
+    
+    // Bestimme Richtung für Vorwärts-Navigation (aktuelle Position)
+    const forwardDirection = getContextualDirection(currentState, false);
+    // Bestimme Richtung für Rückwärts-Navigation (vorherige Position)
+    const backwardDirection = getContextualDirection(currentState, true);
+    
+    // Prüfe ob vorwärts oder rückwärts navigiert werden soll
+    const isForward = isForwardKey(event.key, forwardDirection);
+    const isBackward = isBackwardKey(event.key, backwardDirection);
+    
+    if (isForward) {
+      event.preventDefault();
+      isNavigating = true;
       
-      if (position) {
-        console.log(`Zoom zu Kategorie: ${focusedCategory}`, position);
-        scrollyStore.update(state => ({
-          ...state,
-          isAnimatingCamera: true
-        }));
-        
-        // Starte Kamera-Animation - displayedCategory bleibt beim bisherigen Titel
-        cameraController.animateToCategoryPosition(position.x, position.y, CAMERA_ANIMATION_DURATION, 2.5);
+      if (navigateToNextStep()) {
         lastCameraAnimationTime = now;
-        lastFocusedCategory = focusedCategory;
-        
-        // Titel-Animation startet früher, sodass beide Animationen zur gleichen Zeit enden
-        setTimeout(() => {
-          setDisplayedCategory(focusedCategory);
-        }, TITLE_START_DELAY);
-        
-        // Kamera-Animation abschließen
-        setTimeout(() => {
-          scrollyStore.update(state => ({
-            ...state,
-            isAnimatingCamera: false
-          }));
-          
-          // Bei letzter Kategorie (Reggae): Warte auf manuelles Scrolling
-          // Der Nutzer kann jetzt selbst entscheiden, zur Overview zu gehen
-          // (keine automatische Animation mehr)
-        }, CAMERA_ANIMATION_DURATION);
+        handlePhaseTransitions(true);
       }
+      
+      setTimeout(() => {
+        isNavigating = false;
+      }, MIN_ANIMATION_INTERVAL);
+    }
+    
+    if (isBackward) {
+      event.preventDefault();
+      isNavigating = true;
+      
+      if (navigateToPreviousStep()) {
+        lastCameraAnimationTime = now;
+        handlePhaseTransitions(false);
+      }
+      
+      setTimeout(() => {
+        isNavigating = false;
+      }, MIN_ANIMATION_INTERVAL);
     }
   }
 
@@ -114,35 +228,13 @@
     
     const rafId = requestAnimationFrame(animationLoop);
     
-    // Scroll-Handler
-    const handleScroll = () => {
-      if (!scrollContainer) return;
-      
-      // Blockiere Scroll während Animation läuft
-      if (isAnimatingCamera) {
-        return;
-      }
-      
-      const scrollTop = window.scrollY;
-      const scrollHeight = document.documentElement.scrollHeight - window.innerHeight;
-      const progress = scrollHeight > 0 ? scrollTop / scrollHeight : 0;
-      
-      // Erkenne Scroll-Richtung
-      const isScrollingDown = progress > lastScrollProgress;
-      lastScrollProgress = progress;
-      
-      updateScrollProgress(progress);
-      handlePhaseTransitions(progress, isScrollingDown);
-    };
-
-    window.addEventListener('scroll', handleScroll, { passive: true });
+    // Keyboard Event Listener
+    window.addEventListener('keydown', handleKeyDown);
     
-    // Initial scroll check
-    handleScroll();
     initialized = true;
 
     return () => {
-      window.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('keydown', handleKeyDown);
       cancelAnimationFrame(rafId);
       cameraController.reset();
     };
@@ -167,26 +259,51 @@
     setGenreGroupQueue(sortedCategories, categoryCounts);
   }
 
-  function handlePhaseTransitions(progress: number, isScrollingDown: boolean = true) {
+  function handlePhaseTransitions(isScrollingDown: boolean = true) {
     const currentState = get(scrollyStore);
     const newPhase = currentState.phase;
+    const newFocusedCategory = currentState.focusedCategory;
 
     // Phase-Wechsel erkennen
     if (newPhase !== lastPhase) {
       onPhaseChange(lastPhase, newPhase, isScrollingDown);
       lastPhase = newPhase;
     }
-
-    // Backward Navigation: Overview → Zoom (beim Zurückscroll)
-    if (newPhase === 'zoom' && lastPhase === 'overview' && !isScrollingDown) {
-      console.log('📍 Zurück von Overview zu Zoom');
-      lastFocusedCategory = null; // Reset, damit nächste Kategorie animiert wird
+    
+    // Kategorie-Wechsel in Zoom-Phase
+    if (newPhase === 'zoom' && newFocusedCategory && newFocusedCategory !== lastFocusedCategory) {
+      const position = currentState.categoryPositions[newFocusedCategory];
+      
+      if (position) {
+        console.log(`🎯 Navigation zu Kategorie: ${newFocusedCategory}`, position);
+        scrollyStore.update(state => ({
+          ...state,
+          isAnimatingCamera: true
+        }));
+        
+        // Starte Kamera-Animation
+        cameraController.animateToCategoryPosition(position.x, position.y, CAMERA_ANIMATION_DURATION, 2.5);
+        
+        // Titel-Animation startet später, sodass beide Animationen zur gleichen Zeit enden
+        setTimeout(() => {
+          setDisplayedCategory(newFocusedCategory);
+        }, TITLE_START_DELAY);
+        
+        // Kamera-Animation abschließen
+        setTimeout(() => {
+          scrollyStore.update(state => ({
+            ...state,
+            isAnimatingCamera: false
+          }));
+        }, CAMERA_ANIMATION_DURATION);
+      }
+      
+      lastFocusedCategory = newFocusedCategory;
     }
 
-    // Summary-Phase: Zurück zur Übersicht
-    if (newPhase === 'summary' && lastPhase === 'zoom') {
-      cameraController.animateToOverview(1500);
-      lastFocusedCategory = null;
+    // Backward Navigation: Overview → Zoom
+    if (newPhase === 'zoom' && lastPhase === 'overview' && !isScrollingDown) {
+      console.log('📍 Zurück von Overview zu Zoom');
     }
   }
 
@@ -197,16 +314,49 @@
     if (oldPhase === 'intro' && newPhase === 'categorization') {
       setIntroComplete();
       uiStore.update(s => ({ ...s, showGenreGrouping: true }));
+      setDisplayedCategory('Overview' as any);
+      
+      // Kamera zoomt raus zur Übersicht
+      scrollyStore.update(state => ({
+        ...state,
+        isAnimatingCamera: true
+      }));
+      cameraController.animateToOverview(CAMERA_ANIMATION_DURATION);
+      setTimeout(() => {
+        scrollyStore.update(state => ({
+          ...state,
+          isAnimatingCamera: false
+        }));
+      }, CAMERA_ANIMATION_DURATION);
     }
 
-    // Categorization abgeschlossen
+    // Categorization abgeschlossen → Zoom zum ersten Genre
     if (oldPhase === 'categorization' && newPhase === 'zoom') {
       setCategorizationComplete();
     }
+    
+    // Zoom → Categorization (zurück)
+    if (oldPhase === 'zoom' && newPhase === 'categorization' && !isScrollingDown) {
+      setDisplayedCategory('Overview' as any);
+      lastFocusedCategory = null;
+      
+      // Kamera zurück zur Übersicht
+      scrollyStore.update(state => ({
+        ...state,
+        isAnimatingCamera: true
+      }));
+      cameraController.animateToOverview(CAMERA_ANIMATION_DURATION);
+      setTimeout(() => {
+        scrollyStore.update(state => ({
+          ...state,
+          isAnimatingCamera: false
+        }));
+      }, CAMERA_ANIMATION_DURATION);
+    }
 
-    // Zoom → Overview (beim Scrollen zu Reggae / nach letzter Kategorie)
+    // Zoom → Overview (nach letzter Kategorie)
     if (oldPhase === 'zoom' && newPhase === 'overview' && isScrollingDown) {
-      console.log('📍 Wechsel zu Overview-Modus nach Reggae');
+      console.log('📍 Wechsel zu Overview-Modus');
       
       // Starte Kamera-Animation zur Overview
       scrollyStore.update(state => ({
@@ -217,9 +367,11 @@
       // Animiere Kamera zur Overview
       cameraController.animateToOverview(CAMERA_ANIMATION_DURATION);
       
-      // Wechsle Titel nach Animation
+      // Wechsle Titel nach Animation und aktiviere Explore-Modus
       setTimeout(() => {
         activateOverview();
+        // Aktiviere automatisch den Explore-Modus
+        uiStore.update(s => ({ ...s, isOverviewModeManual: true }));
       }, CAMERA_ANIMATION_DURATION);
       
       // Beende Animation
@@ -231,35 +383,50 @@
       }, CAMERA_ANIMATION_DURATION);
     }
 
-    // Overview → Zoom (Zurückscroll, neue Gruppierung)
+    // Overview → Zoom (zurück zum letzten Genre)
     if (oldPhase === 'overview' && newPhase === 'zoom' && !isScrollingDown) {
-      console.log('📍 Zurück zu Zoom aus Overview - Gruppierungen werden neu sortiert');
-      // Kategorie-Queue neu initialisieren für neue Sortierung
-      initializeCategoryQueue();
-      lastFocusedCategory = null;
-    }
-
-    // Summary: Reset Genre-Gruppierung optional
-    if (newPhase === 'summary') {
-      cameraController.animateToOverview(CAMERA_ANIMATION_DURATION);
-      lastFocusedCategory = null;
+      console.log('📍 Zurück zu Zoom aus Overview');
+      // lastFocusedCategory wird durch navigateToPreviousStep bereits gesetzt
     }
     
-    // Intro: Reset
-    if (newPhase === 'intro') {
+    // Categorization → Intro (zurück)
+    if (oldPhase === 'categorization' && newPhase === 'intro' && !isScrollingDown) {
+      setDisplayedCategory('Overview' as any);
+      uiStore.update(s => ({ ...s, showGenreGrouping: false }));
+      
+      // Kamera zur Intro-Position
+      scrollyStore.update(state => ({
+        ...state,
+        isAnimatingCamera: true
+      }));
       cameraController.animateToOverview(CAMERA_ANIMATION_DURATION);
+      setTimeout(() => {
+        scrollyStore.update(state => ({
+          ...state,
+          isAnimatingCamera: false
+        }));
+      }, CAMERA_ANIMATION_DURATION);
+    }
+    
+    // Intro (von Kategorisierung kommend)
+    if (newPhase === 'intro' && !isScrollingDown) {
       lastFocusedCategory = null;
+    }
+  }
+  
+  // Reaktiv: Body overflow basierend auf Scroll-Lock Status
+  $: if (typeof document !== 'undefined') {
+    if ($uiStore.isScrollLocked) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
     }
   }
 </script>
 
-<div bind:this={scrollContainer} class="scrolly-container">
-  <!-- Scroll-Spacer für Scroll-Höhe (keine visuellen Elemente) -->
-  <div class="scroll-spacer">
-  </div>
-
-  <!-- Sticky Graph Container -->
-  <div class="sticky-graph">
+<div bind:this={scrollContainer} class="scrolly-container" class:scroll-locked={$uiStore.isScrollLocked}>
+  <!-- Graph Container (kein Scrolling mehr nötig) -->
+  <div class="graph-container">
     <slot />
   </div>
 </div>
@@ -268,17 +435,11 @@
   .scrolly-container {
     position: relative;
     width: 100%;
-    background: 
-      color(rgba(247, 234, 201, 0.03) 0%),
+    height: 100vh;
+    overflow: hidden;
   }
 
-  .scroll-spacer {
-    position: relative;
-    min-height: 500vh;
-    pointer-events: none;
-  }
-
-  .sticky-graph {
+  .graph-container {
     position: fixed;
     top: 0;
     left: 0;
@@ -290,8 +451,8 @@
 
   /* Responsive */
   @media (max-width: 768px) {
-    .sticky-graph {
-      height: auto;
+    .graph-container {
+      height: 100vh;
     }
   }
 </style>

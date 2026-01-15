@@ -23,6 +23,7 @@ export interface ScrollyState {
   isScrollingDown: boolean; // true = nach unten, false = nach oben
   lastScrollProgress: number; // Zum Tracken der Scroll-Richtung
   wasInOverviewMode: boolean; // Zeigt an, ob wir gerade aus Overview zurückkommen
+  overviewUIReady: boolean; // True after nodes have settled in overview mode (2s delay)
 }
 
 const initialState: ScrollyState = {
@@ -39,12 +40,13 @@ const initialState: ScrollyState = {
   isAnimatingCamera: false,
   introAnimationComplete: false,
   categorizationComplete: false,
-  displayedCategory: 'Intro' as GenreCategory,
+  displayedCategory: 'Overview' as GenreCategory,
   isInOverview: false,
   navbarAnimationProgress: 0,
   isScrollingDown: true,
   lastScrollProgress: 0,
-  wasInOverviewMode: false
+  wasInOverviewMode: false,
+  overviewUIReady: false
 };
 
 export const scrollyStore = writable<ScrollyState>(initialState);
@@ -82,14 +84,38 @@ function calculateFocusedCategoryIndex(progress: number, totalCategories: number
 /**
  * Aktualisiert den Scroll-Progress und triggert Phase-Updates
  * Erkennt die Scroll-Richtung und aktualisiert entsprechend
+ * OPTIMIERT: Vermeidet unnötige Updates wenn sich nichts ändert
  */
 export function updateScrollProgress(progress: number) {
   scrollyStore.update(state => {
     const clampedProgress = Math.max(0, Math.min(1, progress));
+    
+    // Skip update wenn Progress sich nicht signifikant geändert hat
+    const progressDiff = Math.abs(clampedProgress - state.scrollProgress);
+    if (progressDiff < 0.0001) {
+      return state; // Keine Änderung
+    }
+    
     const isScrollingDown = clampedProgress > state.lastScrollProgress;
     const newPhase = calculatePhase(clampedProgress);
     const focusedIndex = calculateFocusedCategoryIndex(clampedProgress, state.genreGroupQueue.length);
     const focusedCategory = focusedIndex >= 0 ? state.genreGroupQueue[focusedIndex] : null;
+
+    // Skip update wenn nur scrollProgress sich ändert aber Phase/Kategorie gleich bleiben
+    // Das reduziert Store-Updates drastisch
+    if (
+      newPhase === state.phase &&
+      focusedIndex === state.focusedCategoryIndex &&
+      focusedCategory === state.focusedCategory
+    ) {
+      // Nur scrollProgress updaten, keine anderen Berechnungen
+      return {
+        ...state,
+        scrollProgress: clampedProgress,
+        lastScrollProgress: clampedProgress,
+        isScrollingDown
+      };
+    }
 
     // Erkenne Wechsel von Overview zu Zoom (Rückwärts-Scrolling)
     const wasInOverviewMode = state.isInOverview && !isScrollingDown && newPhase === 'zoom';
@@ -269,10 +295,160 @@ export function activateOverview() {
     cameraY: 0,
     focusedCategory: null,
     focusedCategoryIndex: -1,
-    displayedCategory: 'Overview' as any, // Spezial-String für Overview
+    displayedCategory: 'Explore' as any, // Spezial-String für Explore-Modus
     isAnimatingCamera: false, // Kamera ist bereits von animateToOverview animiert
     isInOverview: true
   }));
+}
+
+/**
+ * Navigiert zum nächsten Step (Pfeiltaste runter)
+ * Intro → Kategorisierung → Genre 1 → Genre 2 → ... → Overview
+ */
+export function navigateToNextStep(): boolean {
+  const state = get(scrollyStore);
+  const totalCategories = state.genreGroupQueue.length;
+  
+  // Intro → Kategorisierung
+  if (state.phase === 'intro') {
+    scrollyStore.update(s => ({
+      ...s,
+      phase: 'categorization',
+      isScrollingDown: true
+    }));
+    return true;
+  }
+  
+  // Kategorisierung → Erstes Genre
+  if (state.phase === 'categorization') {
+    const firstCategory = state.genreGroupQueue[0];
+    if (firstCategory) {
+      scrollyStore.update(s => ({
+        ...s,
+        phase: 'zoom',
+        focusedCategoryIndex: 0,
+        focusedCategory: firstCategory,
+        isScrollingDown: true
+      }));
+    }
+    return true;
+  }
+  
+  // Zoom: Nächste Kategorie oder zu Overview
+  if (state.phase === 'zoom') {
+    const nextIndex = state.focusedCategoryIndex + 1;
+    
+    if (nextIndex < totalCategories) {
+      // Nächste Kategorie
+      const nextCategory = state.genreGroupQueue[nextIndex];
+      scrollyStore.update(s => ({
+        ...s,
+        focusedCategoryIndex: nextIndex,
+        focusedCategory: nextCategory,
+        isScrollingDown: true
+      }));
+      return true;
+    } else {
+      // Alle Kategorien durch → Overview
+      scrollyStore.update(s => ({
+        ...s,
+        phase: 'overview',
+        isScrollingDown: true,
+        isInOverview: true
+      }));
+      return true;
+    }
+  }
+  
+  return false;
+}
+
+/**
+ * Navigiert zum vorherigen Step (Pfeiltaste hoch)
+ * Overview → letztes Genre → ... → Genre 1 → Kategorisierung → Intro
+ */
+export function navigateToPreviousStep(): boolean {
+  const state = get(scrollyStore);
+  const totalCategories = state.genreGroupQueue.length;
+  
+  // Overview → Letztes Genre
+  if (state.phase === 'overview') {
+    const lastCategory = state.genreGroupQueue[totalCategories - 1];
+    if (lastCategory) {
+      scrollyStore.update(s => ({
+        ...s,
+        phase: 'zoom',
+        focusedCategoryIndex: totalCategories - 1,
+        focusedCategory: lastCategory,
+        isScrollingDown: false,
+        isInOverview: false,
+        wasInOverviewMode: true
+      }));
+    }
+    return true;
+  }
+  
+  // Zoom: Vorherige Kategorie oder zurück zu Kategorisierung
+  if (state.phase === 'zoom') {
+    const prevIndex = state.focusedCategoryIndex - 1;
+    
+    if (prevIndex >= 0) {
+      // Vorherige Kategorie
+      const prevCategory = state.genreGroupQueue[prevIndex];
+      scrollyStore.update(s => ({
+        ...s,
+        focusedCategoryIndex: prevIndex,
+        focusedCategory: prevCategory,
+        isScrollingDown: false
+      }));
+      return true;
+    } else {
+      // Zurück zur Kategorisierung
+      scrollyStore.update(s => ({
+        ...s,
+        phase: 'categorization',
+        focusedCategoryIndex: -1,
+        focusedCategory: null,
+        isScrollingDown: false
+      }));
+      return true;
+    }
+  }
+  
+  // Kategorisierung → Intro
+  if (state.phase === 'categorization') {
+    scrollyStore.update(s => ({
+      ...s,
+      phase: 'intro',
+      isScrollingDown: false
+    }));
+    return true;
+  }
+  
+  return false;
+}
+
+/**
+ * Gibt den aktuellen Step-Index zurück (für Progress-Anzeige)
+ * -1 = intro, 0 = categorization, 1-n = genres, n+1 = overview
+ */
+export function getCurrentStepIndex(): number {
+  const state = get(scrollyStore);
+  
+  if (state.phase === 'intro') return -1;
+  if (state.phase === 'categorization') return 0;
+  if (state.phase === 'zoom') return state.focusedCategoryIndex + 1;
+  if (state.phase === 'overview') return state.genreGroupQueue.length + 1;
+  return -1;
+}
+
+/**
+ * Gibt die Gesamtanzahl der Steps zurück
+ * intro + categorization + genres + overview
+ */
+export function getTotalSteps(): number {
+  const state = get(scrollyStore);
+  return state.genreGroupQueue.length + 2; // +2 für categorization und overview
 }
 
 // Derived Stores

@@ -17,8 +17,8 @@ export interface CategoryColorScheme {
  * Gewählt für gute visuelle Unterscheidung und Ästhetik
  */
 export const CATEGORY_COLORS: Record<GenreCategory, CategoryColorScheme> = {
-  "Hip Hop & Rap": {
-    category: "Hip Hop & Rap",
+  "Hip Hop": {
+    category: "Hip Hop",
     primary: "#FF7744", // Warmes Pastell-Orange
     light: "#FF9966",
     dark: "#CC5533"
@@ -29,8 +29,8 @@ export const CATEGORY_COLORS: Record<GenreCategory, CategoryColorScheme> = {
     light: "#77DDFF",
     dark: "#22BBFF"
   },
-  "Rock & Punk": {
-    category: "Rock & Punk",
+  "Rock": {
+    category: "Rock",
     primary: "#FF4466", // Pastell-Rot/Magenta
     light: "#FF7799",
     dark: "#DD1144"
@@ -41,14 +41,14 @@ export const CATEGORY_COLORS: Record<GenreCategory, CategoryColorScheme> = {
     light: "#FF88CC",
     dark: "#DD2277"
   },
-  "Jazz & Blues": {
-    category: "Jazz & Blues",
+  "Jazz": {
+    category: "Jazz",
     primary: "#BB7744", // Pastell-Braun
     light: "#CC9966",
     dark: "#995533"
   },
-  "Soul & R&B": {
-    category: "Soul & R&B",
+  "Soul": {
+    category: "Soul",
     primary: "#AA77CC", // Pastell-Lila
     light: "#CC99EE",
     dark: "#8855BB"
@@ -59,8 +59,8 @@ export const CATEGORY_COLORS: Record<GenreCategory, CategoryColorScheme> = {
     light: "#FFDD77",
     dark: "#FFBB11"
   },
-  "Folk & Indie": {
-    category: "Folk & Indie",
+  "Folk": {
+    category: "Folk",
     primary: "#55BB88", // Pastell-Grün
     light: "#77CC99",
     dark: "#22AA66"
@@ -77,8 +77,8 @@ export const CATEGORY_COLORS: Record<GenreCategory, CategoryColorScheme> = {
     light: "#CC9966",
     dark: "#AA6633"
   },
-  "Latin & World": {
-    category: "Latin & World",
+  "Latin": {
+    category: "Latin",
     primary: "#FF9944", // Pastell-Orange
     light: "#FFBB77",
     dark: "#FF7722"
@@ -95,8 +95,8 @@ export const CATEGORY_COLORS: Record<GenreCategory, CategoryColorScheme> = {
     light: "#AA99DD",
     dark: "#6644BB"
   },
-  "Funk & Groove": {
-    category: "Funk & Groove",
+  "Funk": {
+    category: "Funk",
     primary: "#FF77EE", // Pastell-Magenta
     light: "#FF99FF",
     dark: "#DD44CC"

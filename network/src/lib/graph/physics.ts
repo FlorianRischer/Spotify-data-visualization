@@ -35,6 +35,20 @@ export interface SearchBarForce {
   isActive: boolean; // Whether search is active
 }
 
+// Cursor attraction force for explore mode
+export interface CursorForce {
+  position: { x: number; y: number }; // Cursor position in world coordinates
+  attractionRadius: number; // Radius of influence
+  attractionStrength: number; // Strength of attraction
+  slowdownRadius: number; // Radius where nodes slow down
+  slowdownFactor: number; // How much to slow down (0-1, lower = slower)
+  isActive: boolean; // Whether cursor force is active
+  // Tethered mode - nodes can only move limited distance from anchor
+  tetheredMode?: boolean; // If true, nodes stay close to their anchor positions
+  maxTetherDistance?: number; // Maximum distance nodes can move from anchor
+  tetherStrength?: number; // How strongly nodes are pulled back to anchor (0-1)
+}
+
 // Genre-Ankerpunkte auf Kreis verteilt
 export interface GenreAnchor {
   genreId: string;
@@ -301,6 +315,42 @@ export function createOverviewCategoryLabels(
   return labels;
 }
 
+// Spatial grid for O(n) neighbor queries instead of O(n²)
+const GRID_CELL_SIZE = 100; // Grid cell size in pixels
+
+function buildSpatialGrid(
+  nodes: GenreNode[],
+  positions: Record<string, { x: number; y: number }>
+): Map<string, string[]> {
+  const grid = new Map<string, string[]>();
+  
+  for (const n of nodes) {
+    const pos = positions[n.id];
+    if (!pos) continue;
+    
+    const cellX = Math.floor(pos.x / GRID_CELL_SIZE);
+    const cellY = Math.floor(pos.y / GRID_CELL_SIZE);
+    const key = `${cellX},${cellY}`;
+    
+    if (!grid.has(key)) {
+      grid.set(key, []);
+    }
+    grid.get(key)!.push(n.id);
+  }
+  
+  return grid;
+}
+
+function getNeighborCells(cellX: number, cellY: number): string[] {
+  const cells: string[] = [];
+  for (let dx = -1; dx <= 1; dx++) {
+    for (let dy = -1; dy <= 1; dy++) {
+      cells.push(`${cellX + dx},${cellY + dy}`);
+    }
+  }
+  return cells;
+}
+
 export function stepPhysics(
   nodes: GenreNode[],
   edges: GenreEdge[],
@@ -312,51 +362,72 @@ export function stepPhysics(
   bounds?: { width: number; height: number },
   groups?: ArtistGroup[],
   genreAnchors?: GenreAnchor[],
-  searchBarForce?: SearchBarForce
+  searchBarForce?: SearchBarForce,
+  cursorForce?: CursorForce
 ) {
   const { repulsion, spring, restLength, damping, jitter, maxSpeed, groupAttraction = 0, genreAnchorStrength = 0, wanderEnabled = false, wanderStrength = 0.8, wanderTurnRate = 0.5 } = params;
   
-  // Node-node repulsion
-  for (let i = 0; i < nodes.length; i++) {
-    const a = nodes[i];
-    const pa = positions[a.id];
+  // Build spatial grid for efficient neighbor queries
+  const grid = buildSpatialGrid(nodes, positions);
+  const nodeMap = new Map(nodes.map(n => [n.id, n]));
+  
+  // Node-node repulsion using spatial grid (O(n) instead of O(n²))
+  const processedPairs = new Set<string>();
+  
+  for (const n of nodes) {
+    const pa = positions[n.id];
     if (!pa) continue;
     
-    for (let j = i + 1; j < nodes.length; j++) {
-      const b = nodes[j];
-      const pb = positions[b.id];
-      if (!pb) continue;
+    const cellX = Math.floor(pa.x / GRID_CELL_SIZE);
+    const cellY = Math.floor(pa.y / GRID_CELL_SIZE);
+    const neighborCells = getNeighborCells(cellX, cellY);
+    
+    for (const cellKey of neighborCells) {
+      const cellNodes = grid.get(cellKey);
+      if (!cellNodes) continue;
       
-      const dx = pa.x - pb.x;
-      const dy = pa.y - pb.y;
-      let d2 = dx * dx + dy * dy;
-      if (d2 === 0) {
-        // separate coincident points slightly
-        const eps = 0.01;
-        d2 = eps;
-      }
-      const d = Math.sqrt(d2);
-      const minSep = (radii[a.id] || 10) + (radii[b.id] || 10) + 2;
-      
-      // Soft repulsion always; additional collision push if overlapping
-      const forceMag = repulsion / (d2 + 1);
-      const fx = (dx / (d + 1e-6)) * forceMag;
-      const fy = (dy / (d + 1e-6)) * forceMag;
-      
-      state.vx[a.id] += fx * dt;
-      state.vy[a.id] += fy * dt;
-      state.vx[b.id] -= fx * dt;
-      state.vy[b.id] -= fy * dt;
-      
-      // Collision resolution to avoid overlap - smoother force
-      if (d < minSep) {
-        const overlap = (minSep - d) * 0.6; // Reduced from 0.8 for smoother separation
-        const nx = dx / (d + 1e-6);
-        const ny = dy / (d + 1e-6);
-        pa.x += nx * overlap * 0.5; // Apply gradually to avoid jerking
-        pa.y += ny * overlap * 0.5;
-        pb.x -= nx * overlap * 0.5;
-        pb.y -= ny * overlap * 0.5;
+      for (const otherId of cellNodes) {
+        if (otherId === n.id) continue;
+        
+        // Avoid processing same pair twice
+        const pairKey = n.id < otherId ? `${n.id}-${otherId}` : `${otherId}-${n.id}`;
+        if (processedPairs.has(pairKey)) continue;
+        processedPairs.add(pairKey);
+        
+        const pb = positions[otherId];
+        if (!pb) continue;
+        
+        const dx = pa.x - pb.x;
+        const dy = pa.y - pb.y;
+        let d2 = dx * dx + dy * dy;
+        
+        // Skip if too far apart (optimization)
+        if (d2 > 40000) continue; // 200px max interaction distance
+        
+        if (d2 === 0) d2 = 0.01;
+        const d = Math.sqrt(d2);
+        const minSep = (radii[n.id] || 10) + (radii[otherId] || 10) + 2;
+        
+        // Soft repulsion
+        const forceMag = repulsion / (d2 + 1);
+        const fx = (dx / (d + 1e-6)) * forceMag;
+        const fy = (dy / (d + 1e-6)) * forceMag;
+        
+        state.vx[n.id] += fx * dt;
+        state.vy[n.id] += fy * dt;
+        state.vx[otherId] -= fx * dt;
+        state.vy[otherId] -= fy * dt;
+        
+        // Collision resolution
+        if (d < minSep) {
+          const overlap = (minSep - d) * 0.5;
+          const nx = dx / (d + 1e-6);
+          const ny = dy / (d + 1e-6);
+          pa.x += nx * overlap * 0.5;
+          pa.y += ny * overlap * 0.5;
+          pb.x -= nx * overlap * 0.5;
+          pb.y -= ny * overlap * 0.5;
+        }
       }
     }
   }
@@ -577,6 +648,91 @@ export function stepPhysics(
     }
   }
   
+  // Cursor attraction force - gently pull nodes toward cursor while maintaining wander
+  if (cursorForce && cursorForce.isActive) {
+    const { position, attractionRadius, attractionStrength, tetheredMode, maxTetherDistance = 25, tetherStrength = 0.15 } = cursorForce;
+    
+    // Build anchor position lookup if in tethered mode
+    const anchorPositions = new Map<string, { x: number; y: number }>();
+    if (tetheredMode && genreAnchors && genreAnchors.length > 0) {
+      for (const anchor of genreAnchors) {
+        anchorPositions.set(anchor.genreId, { x: anchor.x, y: anchor.y });
+      }
+    }
+    
+    for (const n of nodes) {
+      const pos = positions[n.id];
+      if (!pos) continue;
+      
+      const dx = position.x - pos.x;
+      const dy = position.y - pos.y;
+      const d = Math.sqrt(dx * dx + dy * dy) + 1e-6;
+      
+      // Only attract nodes within radius
+      if (d < attractionRadius) {
+        // Smooth falloff - stronger at edge, gentler close to cursor
+        const normalizedDist = d / attractionRadius;
+        // Use smooth curve: stronger pull at medium distance, weaker very close and far
+        const falloff = normalizedDist * (1 - normalizedDist) * 4; // Bell curve peaking at 0.5
+        
+        if (tetheredMode) {
+          // Tethered mode: direct pull but limited by anchor distance
+          const anchor = anchorPositions.get(n.id);
+          if (anchor) {
+            // Calculate potential new position with attraction
+            const pullForce = attractionStrength * falloff * 1.5;
+            const pullX = (dx / d) * pullForce * 0.016; // dt approximation
+            const pullY = (dy / d) * pullForce * 0.016;
+            
+            // Check if this would exceed tether distance
+            const newX = pos.x + pullX;
+            const newY = pos.y + pullY;
+            const distFromAnchor = Math.sqrt((newX - anchor.x) ** 2 + (newY - anchor.y) ** 2);
+            
+            if (distFromAnchor < maxTetherDistance) {
+              // Within tether range - apply full pull
+              state.vx[n.id] += (dx / d) * pullForce * 0.016 * 60;
+              state.vy[n.id] += (dy / d) * pullForce * 0.016 * 60;
+            } else {
+              // At tether limit - reduce pull based on how far over limit
+              const overLimit = (distFromAnchor - maxTetherDistance) / maxTetherDistance;
+              const reducedPull = Math.max(0, 1 - overLimit * 2);
+              state.vx[n.id] += (dx / d) * pullForce * 0.016 * 60 * reducedPull;
+              state.vy[n.id] += (dy / d) * pullForce * 0.016 * 60 * reducedPull;
+            }
+          }
+        } else {
+          // Normal mode: influence wander direction
+          const targetAngle = Math.atan2(dy, dx);
+          if (state.wanderAngle[n.id] !== undefined) {
+            const angleDiff = targetAngle - state.wanderAngle[n.id];
+            const normalizedDiff = Math.atan2(Math.sin(angleDiff), Math.cos(angleDiff));
+            state.wanderAngle[n.id] += normalizedDiff * attractionStrength * falloff * 0.016 * 2;
+          }
+          
+          // Add very subtle direct attraction force
+          const pullForce = attractionStrength * falloff * 0.3;
+          state.vx[n.id] += (dx / d) * pullForce * 0.016;
+          state.vy[n.id] += (dy / d) * pullForce * 0.016;
+        }
+      } else if (tetheredMode) {
+        // Outside attraction radius in tethered mode - pull back to anchor
+        const anchor = anchorPositions.get(n.id);
+        if (anchor) {
+          const toAnchorX = anchor.x - pos.x;
+          const toAnchorY = anchor.y - pos.y;
+          const distFromAnchor = Math.sqrt(toAnchorX * toAnchorX + toAnchorY * toAnchorY);
+          
+          if (distFromAnchor > 2) { // Only pull if noticeably away from anchor
+            // Gentle spring back to anchor
+            state.vx[n.id] += toAnchorX * tetherStrength;
+            state.vy[n.id] += toAnchorY * tetherStrength;
+          }
+        }
+      }
+    }
+  }
+  
   // Integrate velocities, apply damping, jitter, clamp, and boundary checks
   for (const n of nodes) {
     if (!positions[n.id]) continue;
@@ -587,6 +743,25 @@ export function stepPhysics(
     if (!wanderEnabled) {
       vx += (Math.random() - 0.5) * jitter;
       vy += (Math.random() - 0.5) * jitter;
+    }
+    
+    // Cursor slowdown effect - nodes near cursor move slower for easier clicking
+    if (cursorForce && cursorForce.isActive) {
+      const pos = positions[n.id];
+      if (pos) {
+        const dx = cursorForce.position.x - pos.x;
+        const dy = cursorForce.position.y - pos.y;
+        const d = Math.sqrt(dx * dx + dy * dy);
+        
+        if (d < cursorForce.slowdownRadius) {
+          // Smooth slowdown - slower closer to cursor
+          const normalizedDist = d / cursorForce.slowdownRadius;
+          // Ease-out curve for smooth transition
+          const slowdown = cursorForce.slowdownFactor + (1 - cursorForce.slowdownFactor) * (normalizedDist * normalizedDist);
+          vx *= slowdown;
+          vy *= slowdown;
+        }
+      }
     }
     
     // clamp speed

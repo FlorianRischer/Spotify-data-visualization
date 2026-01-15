@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { fade } from 'svelte/transition';
-  import { searchStore, updateSearchQuery, clearSearch, setSearchBarPosition, setFocusMode } from '$lib/stores/searchStore';
+  import { searchStore, updateSearchQuery, clearSearch, setSearchBarPosition, setFocusMode, getWeightedRandomArtist, getWeightedRandomGenre } from '$lib/stores/searchStore';
   import { scrollyStore } from '$lib/stores/scrollyStore';
   import { uiStore } from '$lib/stores/uiStore';
   import { graphData } from '$lib/stores/graphStore';
@@ -11,23 +11,57 @@
   let inputValue = '';
   let isVisible = false;
   
+  // Suggestion state
+  let suggestedArtist: string = '';
+  let suggestedGenre: string = '';
+  
   // Subscribe to focus mode state
   $: isFocusMode = $searchStore.isFocusMode;
   $: hasMatches = $searchStore.matchedNodeIds.size > 0;
+  
+  // Show suggestions only when not in focus mode and no input
+  $: showSuggestions = isVisible && !isFocusMode && inputValue.length === 0;
 
   // Reactive subscription to scrolly store and uiStore for overview mode
-  // Overview can be triggered by scroll OR manual button
-  $: isOverviewMode = $scrollyStore.phase === 'overview' || $scrollyStore.isInOverview || $uiStore.isOverviewModeManual;
+  // SearchBar only visible in MANUAL explore mode (button click)
+  $: isExploreMode = $uiStore.isOverviewModeManual;
   $: {
-    if (isOverviewMode && !isVisible) {
+    if (isExploreMode && !isVisible) {
       isVisible = true;
       // Update position for physics - center of screen
       setSearchBarPosition(0, 0);
-    } else if (!isOverviewMode && isVisible) {
+      // Generate initial suggestions
+      generateSuggestions();
+    } else if (!isExploreMode && isVisible) {
       isVisible = false;
       inputValue = '';
       clearSearch();
     }
+  }
+  
+  function generateSuggestions() {
+    const graph = get(graphData);
+    const nodes = graph?.nodes || [];
+    
+    // Get weighted random artist
+    const artist = getWeightedRandomArtist(nodes);
+    suggestedArtist = artist?.name || '';
+    
+    // Get weighted random genre
+    const genre = getWeightedRandomGenre(nodes);
+    suggestedGenre = genre?.label || '';
+  }
+  
+  function handleSuggestionClick(suggestion: string) {
+    inputValue = suggestion;
+    const graph = get(graphData);
+    const nodes = graph?.nodes || [];
+    updateSearchQuery(suggestion, nodes.map(n => ({ id: n.id, label: n.label })));
+    setFocusMode(true);
+  }
+  
+  function refreshSuggestions() {
+    generateSuggestions();
   }
 
   function handleInput(event: Event) {
@@ -49,6 +83,7 @@
     inputValue = '';
     clearSearch();
     setFocusMode(false);
+    generateSuggestions(); // Refresh suggestions when clearing
     if (searchInput) {
       searchInput.focus();
     }
@@ -70,29 +105,66 @@
 </script>
 
 {#if isVisible}
-  <div class="search-wrapper" class:focus-mode={isFocusMode && hasMatches} transition:fade={{ duration: 400 }}>
-    <input
-      bind:this={searchInput}
-      type="text"
-      class="search-input"
-      placeholder="search..."
-      value={inputValue}
-      on:input={handleInput}
-      on:keydown={handleKeyDown}
-    />
-    {#if inputValue.length > 0}
-      <button class="clear-btn" on:click={handleClear} aria-label="Clear">×</button>
+  <div class="search-container" class:focus-mode={isFocusMode && hasMatches} transition:fade={{ duration: 400 }}>
+    <div class="search-wrapper">
+      <input
+        bind:this={searchInput}
+        type="text"
+        class="search-input"
+        placeholder="search genres or artists..."
+        value={inputValue}
+        on:input={handleInput}
+        on:keydown={handleKeyDown}
+      />
+      {#if inputValue.length > 0}
+        <button class="clear-btn" on:click={handleClear} aria-label="Clear">×</button>
+      {/if}
+    </div>
+    
+    {#if showSuggestions}
+      <div class="suggestions" transition:fade={{ duration: 300 }}>
+        {#if suggestedArtist}
+          <button 
+            class="suggestion-btn" 
+            on:click={() => handleSuggestionClick(suggestedArtist)}
+          >
+            <span class="suggestion-label">Artist</span>
+            <span class="suggestion-value">{suggestedArtist}</span>
+          </button>
+        {/if}
+        {#if suggestedGenre}
+          <button 
+            class="suggestion-btn" 
+            on:click={() => handleSuggestionClick(suggestedGenre)}
+          >
+            <span class="suggestion-label">Genre</span>
+            <span class="suggestion-value">{suggestedGenre}</span>
+          </button>
+        {/if}
+      </div>
     {/if}
   </div>
 {/if}
 
 <style>
-  .search-wrapper {
+  .search-container {
     position: fixed;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
     z-index: 20;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    transition: top 0.8s cubic-bezier(0.4, 0, 0.2, 1), transform 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  .search-container.focus-mode {
+    top: 75%;
+  }
+
+  .search-wrapper {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -103,11 +175,6 @@
     -webkit-backdrop-filter: blur(12px);
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
     border: 1px solid rgba(255, 255, 255, 0.3);
-    transition: top 0.8s cubic-bezier(0.4, 0, 0.2, 1), transform 0.8s cubic-bezier(0.4, 0, 0.2, 1);
-  }
-  
-  .search-wrapper.focus-mode {
-    top: 75%;
   }
 
   .search-input {
@@ -145,6 +212,57 @@
   .clear-btn:hover {
     color: rgba(0, 0, 0, 0.7);
   }
+  
+  .suggestions {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+  }
+  
+  .suggestion-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 8px 16px;
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-width: 100px;
+    max-width: 160px;
+  }
+  
+  .suggestion-btn:hover {
+    background: rgba(255, 255, 255, 0.35);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  }
+  
+  .suggestion-label {
+    font-family: 'Inter', sans-serif;
+    font-size: 10px;
+    font-weight: 500;
+    color: rgba(0, 0, 0, 0.4);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  
+  .suggestion-value {
+    font-family: 'Baloo Bhai 2', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    color: rgba(0, 0, 0, 0.7);
+    text-align: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 140px;
+  }
 
   @media (max-width: 600px) {
     .search-wrapper {
@@ -154,6 +272,15 @@
     .search-input {
       font-size: 16px;
       width: 180px;
+    }
+    
+    .suggestions {
+      flex-direction: column;
+      gap: 8px;
+    }
+    
+    .suggestion-btn {
+      min-width: 140px;
     }
   }
 </style>

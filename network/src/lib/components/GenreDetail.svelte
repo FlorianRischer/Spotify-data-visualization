@@ -1,36 +1,32 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
   import { fly } from 'svelte/transition';
   import { cubicOut } from 'svelte/easing';
   import { scrollyStore } from '$lib/stores/scrollyStore';
   import { graphData } from '$lib/stores';
 
-  let isVisible = false;
-  let displayedText = '';
-  let typewriterActive = false;
-  let typingAnimationId: number | null = null;
-  let prefersReducedMotion = false;
-  let isHovering = false;
-  let displayedLines: Array<{ text: string; isLabel: boolean }> = [];
-  
-  // Gleiche Logik wie GenreTitle
   let previousCategory: string | null = null;
   let scrollDirection: 'down' | 'up' = 'down';
-  let isFirstAppearance = true; // Track ob es das erste Erscheinen ist
 
-  // Animation distance - gleich wie GenreTitle
+  // Animation distance
   const flyDistance = 150;
   
-  // Reactive animation params based on scroll direction - für X-Achse (horizontal) - gespiegelt
+  // Reactive animation params based on scroll direction (X-Achse)
   $: inX = scrollDirection === 'down' ? -flyDistance : flyDistance;
   $: outX = scrollDirection === 'down' ? flyDistance : -flyDistance;
 
-  // Verwende displayedCategory statt focusedCategory - wird nur nach Kamera-Zoom gesetzt (wie GenreTitle)
+  // Verwende displayedCategory
   $: displayedCategory = $scrollyStore.displayedCategory;
   
-  // Nur sichtbar in zoom und detail Phasen, nicht in overview/summary UND nur wenn Inhalt vorhanden
+  // Prüfe ob es eine echte Kategorie ist (nicht Overview/Explore/Intro)
+  $: isRealCategory = displayedCategory && 
+    displayedCategory !== ('Overview' as any) && 
+    displayedCategory !== ('Explore' as any) && 
+    displayedCategory !== ('Intro' as any) &&
+    $graphData?.nodes?.some(n => n.category === displayedCategory);
+  
+  // Nur sichtbar in zoom Phase und wenn echte Kategorie
   $: phase = $scrollyStore.phase;
-  $: isVisible = displayedCategory && (phase === 'zoom' || phase === 'detail') && displayedLines.length > 0;
+  $: isVisible = !!(isRealCategory && phase === 'zoom');
   
   // Track scroll direction based on category changes - gleich wie GenreTitle
   $: {
@@ -43,351 +39,295 @@
       } else if (currIndex < prevIndex || (currIndex === -1 && prevIndex >= 0)) {
         scrollDirection = 'up';
       }
-      isFirstAppearance = false; // Nach dem ersten Wechsel ist es kein erstes Erscheinen mehr
     }
     previousCategory = displayedCategory;
   }
 
-  interface DetailContent {
-    playcount: string;
-    timeListened: string;
+  interface DetailStats {
+    percentage: string;
+    totalHours: number;
+    topGenre: string;
+    topGenrePercent: string;
     topArtist: string;
-    artists: string;
+    topArtistHours: string;
+    genreCount: number;
   }
 
-  let detailContent: DetailContent = {
-    playcount: '',
-    timeListened: '',
-    topArtist: '',
-    artists: ''
-  };
+  let stats: DetailStats | null = null;
 
-  // Berechne Detail-Infos basierend auf displayedCategory (wie GenreTitle)
-  $: if (displayedCategory && $graphData?.nodes) {
-    updateDetailContent(displayedCategory, $graphData.nodes);
-    displayFullText();
+  // Berechne Stats basierend auf displayedCategory
+  $: if (isRealCategory && $graphData?.nodes) {
+    stats = calculateStats(displayedCategory!, $graphData.nodes);
   } else {
-    displayedLines = [];
-    displayedText = '';
-    typewriterActive = false;
+    stats = null;
   }
 
-  function updateDetailContent(category: string, nodes: any[]) {
+  function calculateStats(category: string, nodes: any[]): DetailStats {
     const categoryNodes = nodes.filter(n => n.category === category);
+    const allNodes = nodes;
     
-    if (categoryNodes.length === 0) {
-      detailContent = {
-        playcount: 'No data available',
-        timeListened: '—',
-        topArtist: '—',
-        artists: '—'
-      };
-      return;
+    // Total minutes für diese Kategorie
+    const categoryMinutes = categoryNodes.reduce((sum, n) => sum + (n.totalMinutes || 0), 0);
+    const totalMinutes = allNodes.reduce((sum, n) => sum + (n.totalMinutes || 0), 0);
+    
+    // Prozent vom Gesamten
+    const percentage = totalMinutes > 0 
+      ? ((categoryMinutes / totalMinutes) * 100).toFixed(1)
+      : '0';
+    
+    // Stunden
+    const totalHours = Math.round(categoryMinutes / 60);
+    
+    // Top Genre (Subgenre mit meisten Minuten)
+    const sortedByMinutes = [...categoryNodes].sort((a, b) => 
+      (b.totalMinutes || 0) - (a.totalMinutes || 0)
+    );
+    const topNode = sortedByMinutes[0];
+    const topGenre = topNode?.label || '—';
+    const topGenrePercent = categoryMinutes > 0 && topNode?.totalMinutes
+      ? ((topNode.totalMinutes / categoryMinutes) * 100).toFixed(0)
+      : '0';
+    
+    // Top Artist (über alle Genres dieser Kategorie)
+    let topArtist = '—';
+    let topArtistMinutes = 0;
+    
+    for (const node of categoryNodes) {
+      if (node.topArtistMinutes && node.topArtistMinutes > topArtistMinutes) {
+        topArtistMinutes = node.topArtistMinutes;
+        topArtist = node.topArtist || '—';
+      }
     }
-
-    // Berechne Playcount Statistiken
-    const totalPlaycount = categoryNodes.reduce((sum, n) => sum + (n.size || 0), 0);
-    const overallTotal = nodes.reduce((sum, n) => sum + (n.size || 0), 0);
-    const percentage = ((totalPlaycount / overallTotal) * 100).toFixed(1);
     
-    // Berechne echte Minuten aus den Nodes
-    // Versuche verschiedene Feldnamen für Zeit-Informationen
-    const totalMinutes = categoryNodes.reduce((sum, n) => {
-      // Versuche verschiedene mögliche Felder
-      const minutes = n.totalMinutes || n.duration_minutes || n.ms_played_minutes || 0;
-      return sum + minutes;
-    }, 0);
-
-    // Falls keine echten Minuten vorhanden, nutze size als Fallback (normalisiert)
-    const effectiveMinutes = totalMinutes > 0 ? totalMinutes : totalPlaycount * 10;
+    const topArtistHours = topArtistMinutes > 0 
+      ? `${Math.round(topArtistMinutes / 60)}h`
+      : '—';
     
-    // Top Sub-Kategorien (gruppiert nach label)
-    const subCategories = new Map<string, number>();
-    categoryNodes.forEach(n => {
-      const key = n.label || 'Unknown';
-      subCategories.set(key, (subCategories.get(key) || 0) + (n.size || 0));
-    });
-    
-    const topSubs = Array.from(subCategories.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 3)
-      .map(([label, count]) => {
-        const pct = ((count / totalPlaycount) * 100).toFixed(0);
-        return `${pct}% ${label}`;
-      })
-      .join(', ');
-
-    // TimeListened berechnung basierend auf echten Minuten
-    const timeListened = formatTimeListened(effectiveMinutes);
-
-    // Top Artists nach Time Listened (nicht nach Playcount)
-    // Finde den Genre mit den meisten Minuten
-    const topNodeByTime = categoryNodes.reduce((max, n) => {
-      const nodeMinutes = n.totalMinutes || n.duration_minutes || n.ms_played_minutes || 0;
-      const maxMinutes = max.totalMinutes || max.duration_minutes || max.ms_played_minutes || 0;
-      return nodeMinutes > maxMinutes ? n : max;
-    });
-    const topArtist = topNodeByTime?.topArtist || topNodeByTime?.label || '—';
-
-    // Genres Liste (alle Sub-Genre-Labels)
-    const artistsList = Array.from(subCategories.keys())
-      .join(', ') || '—';
-
-    detailContent = {
-      playcount: `${percentage}% of all listening\n(${topSubs})`,
-      timeListened,
+    return {
+      percentage,
+      totalHours,
+      topGenre,
+      topGenrePercent,
       topArtist,
-      artists: artistsList
+      topArtistHours,
+      genreCount: categoryNodes.length
     };
-
-    isVisible = true;
-  }
-
-  function formatTimeListened(minutes: number): string {
-    if (minutes <= 0) return '—';
-    
-    const hours = Math.round(minutes / 60);
-    const days = Math.round(minutes / 1440);
-    const weeks = Math.round(minutes / 10080);
-    
-    // Wähle beste Einheit basierend auf Größe
-    if (weeks >= 2) {
-      return `${hours} Stunden, Krass das sind ${weeks} Wochen`;
-    } else if (days >= 2) {
-      return `${hours} Stunden, Krass das sind ${days} Tage`;
-    } else {
-      return `${hours} Stunden, Krass das sind ${days} Tag`;
-    }
-  }
-
-  function displayFullText() {
-    if (typingAnimationId !== null) {
-      if (typeof typingAnimationId === 'number' && typingAnimationId > 100000) {
-        cancelAnimationFrame(typingAnimationId as unknown as number);
-      } else {
-        clearTimeout(typingAnimationId);
-      }
-    }
-
-    displayedLines = buildFullText();
-    typewriterActive = false;
-    typingAnimationId = null;
-  }
-
-  function buildFullText(): Array<{ text: string; isLabel: boolean }> {
-    return [
-      { text: 'Playcount:', isLabel: true },
-      { text: detailContent.playcount, isLabel: false },
-      { text: '', isLabel: true }, // empty line
-      { text: 'Timelistened:', isLabel: true },
-      { text: detailContent.timeListened, isLabel: false },
-      { text: '', isLabel: true }, // empty line
-      { text: 'TopArtist:', isLabel: true },
-      { text: detailContent.topArtist, isLabel: false },
-      { text: '', isLabel: true }, // empty line
-      { text: 'Genres:', isLabel: true },
-      { text: detailContent.artists, isLabel: false }
-    ];
-  }
-
-  onMount(() => {
-    // Check für reduced motion preference
-    prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-    // Listen für changes in reduced motion
-    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const handleChange = (e: MediaQueryListEvent) => {
-      prefersReducedMotion = e.matches;
-    };
-
-    mediaQuery.addEventListener('change', handleChange);
-
-    return () => {
-      mediaQuery.removeEventListener('change', handleChange);
-    };
-  });
-
-  onDestroy(() => {
-    if (typingAnimationId !== null) {
-      if (typeof typingAnimationId === 'number' && typingAnimationId > 100000) {
-        cancelAnimationFrame(typingAnimationId as unknown as number);
-      } else {
-        clearTimeout(typingAnimationId);
-      }
-    }
-  });
-
-  function handleMouseEnter() {
-    isHovering = true;
-  }
-
-  function handleMouseLeave() {
-    isHovering = false;
-  }
-
-  function handleWheel(e: WheelEvent) {
-    // Scrolle manuell den detail-content
-    const target = e.currentTarget as HTMLElement;
-    const scrollContainer = target.querySelector('.detail-content') as HTMLElement;
-    if (scrollContainer) {
-      scrollContainer.scrollTop += e.deltaY;
-    }
   }
 </script>
 
-<div
-  class="genre-detail"
-  class:visible={isVisible}
-  class:hovering={isHovering}
-  role="region"
-  aria-labelledby="genre-detail-title"
-  aria-live="polite"
-  on:mouseenter={handleMouseEnter}
-  on:mouseleave={handleMouseLeave}
-  on:wheel|stopPropagation|preventDefault={handleWheel}
->
-  {#if displayedLines.length > 0}
+{#if isVisible && stats}
+  <div class="genre-detail">
     {#key displayedCategory}
       <div
-        class="detail-content"
+        class="detail-card"
         in:fly={{ x: inX, duration: 500, easing: cubicOut }}
         out:fly={{ x: outX, duration: 500, easing: cubicOut }}
       >
-        <div class="detail-text">
-          {#each displayedLines as line (line)}
-            {#if line.isLabel}
-              <div class="label">{line.text}</div>
-            {:else}
-              <div class="data-value">{line.text}</div>
-            {/if}
-          {/each}
+        <!-- Percentage Header -->
+        <div class="stat-hero">
+          <span class="hero-value">{stats.percentage}%</span>
+          <span class="hero-label">of your listening</span>
+        </div>
+        
+        <!-- Stats Grid -->
+        <div class="stats-grid">
+          <div class="stat-item">
+            <span class="stat-value">{stats.totalHours}h</span>
+            <span class="stat-label">Total Time</span>
+          </div>
+          
+          <div class="stat-item">
+            <span class="stat-value">{stats.genreCount}</span>
+            <span class="stat-label">Subgenres</span>
+          </div>
+        </div>
+        
+        <!-- Top Genre -->
+        <div class="stat-section">
+          <span class="section-label">Top Subgenre</span>
+          <span class="section-value">{stats.topGenre}</span>
+          <span class="section-sub">{stats.topGenrePercent}% of category</span>
+        </div>
+        
+        <!-- Top Artist -->
+        <div class="stat-section">
+          <span class="section-label">Most Played Artist</span>
+          <span class="section-value">{stats.topArtist}</span>
+          <span class="section-sub">{stats.topArtistHours} listened</span>
         </div>
       </div>
     {/key}
-  {/if}
-</div>
+  </div>
+{/if}
 
 <style>
   .genre-detail {
     position: fixed;
-    right: 120px;
-    top: 20%;
-    transform: translateY(-50%);
-    max-width: 300px;
-    z-index: 8;
-    opacity: 0;
-    transition: opacity 0.5s ease-in-out;
+    right: 100px;
+    top: 50%;
+    z-index: 10;
     pointer-events: none;
-    width: 100%;
-    height: auto;
   }
 
-  .genre-detail.visible {
-    opacity: 1;
-    pointer-events: auto;
-  }
-
-  .genre-detail.hovering {
-    z-index: 100;
-  }
-
-  .detail-content {
-    background: rgba(255, 255, 255, 0.15);
-    backdrop-filter: blur(4px);
-    border-radius: 8px;
-    padding: 20px 16px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    max-height: 600px;
-    overflow-y: auto;
-    scroll-behavior: smooth;
-    scrollbar-width: none;
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-start;
+  .detail-card {
     position: absolute;
     top: 0;
-    left: 0;
     right: 0;
-    will-change: transform, opacity;
-    mask-image: linear-gradient(to bottom, transparent 0%, black 5%, black 95%, transparent 100%);
-  }
-
-  .detail-content::-webkit-scrollbar {
-    display: none;
-  }
-
-  .detail-text {
-    font-size: 24px;
-    line-height: 1.6;
-    color: #1a1a1a;
-    font-weight: 400;
-    margin: 0;
-    font-family: 'Anton', sans-serif;
-    white-space: pre-wrap;
-    word-break: break-word;
-    text-transform: uppercase;
-    letter-spacing: -0.5px;
-    --label-font-size: 24px;
-    --label-font-weight: 400;
-    --data-font-size: 18px;
-    --data-font-weight: 300;
+    transform: translateY(-50%);
+    background: rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-radius: 24px;
+    padding: 40px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    min-width: 340px;
+    max-width: 400px;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 32px;
+  }
+
+  .stat-hero {
+    display: flex;
+    flex-direction: column;
     align-items: flex-start;
+    gap: 6px;
+    padding-bottom: 28px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
   }
 
-  .label {
-    font-size: var(--label-font-size);
-    font-weight: var(--label-font-weight);
-    margin-bottom: 4px;
+  .hero-value {
+    font-family: 'Anton', sans-serif;
+    font-size: 88px;
+    font-weight: 400;
+    color: #1a1a1a;
+    line-height: 1;
+    letter-spacing: -3px;
   }
 
-  .data-value {
-    font-size: var(--data-font-size);
-    font-weight: var(--data-font-weight);
+  .hero-label {
+    font-family: 'Inter', sans-serif;
+    font-size: 16px;
+    font-weight: 400;
+    color: rgba(0, 0, 0, 0.5);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
   }
 
-  .cursor {
-    display: inline-block;
-    width: 2px;
-    height: 1em;
-    background: #1a1a1a;
-    margin-left: 2px;
-    animation: blink 0.8s infinite;
+  .stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 28px;
   }
 
-  @keyframes blink {
-    0%,
-    49% {
-      opacity: 1;
-    }
-    50%,
-    100% {
-      opacity: 0;
-    }
+  .stat-item {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
   }
 
-  @media (max-width: 1024px) {
+  .stat-value {
+    font-family: 'Anton', sans-serif;
+    font-size: 48px;
+    font-weight: 400;
+    color: #1a1a1a;
+    line-height: 1;
+  }
+
+  .stat-label {
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    font-weight: 400;
+    color: rgba(0, 0, 0, 0.45);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+
+  .stat-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .section-label {
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    color: rgba(0, 0, 0, 0.4);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .section-value {
+    font-family: 'Baloo Bhai 2', sans-serif;
+    font-size: 26px;
+    font-weight: 500;
+    color: #1a1a1a;
+    line-height: 1.2;
+    word-break: break-word;
+  }
+
+  .section-sub {
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    font-weight: 400;
+    color: rgba(0, 0, 0, 0.4);
+  }
+
+  @media (max-width: 1200px) {
     .genre-detail {
-      right: 120px;
-      max-width: 250px;
+      right: 80px;
     }
-
-    .detail-content {
-      padding: 16px 12px;
-      max-height: 500px;
+    
+    .detail-card {
+      padding: 32px;
+      min-width: 300px;
+      max-width: 340px;
+      gap: 28px;
     }
-
-    .detail-text {
-      font-size: 16px;      --label-font-size: 18px;
-      --data-font-size: 14px;    }
+    
+    .hero-value {
+      font-size: 72px;
+    }
+    
+    .stat-value {
+      font-size: 40px;
+    }
+    
+    .section-value {
+      font-size: 22px;
+    }
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    .cursor {
-      animation: none;
-      opacity: 0;
+  @media (max-width: 768px) {
+    .genre-detail {
+      right: 24px;
+      top: auto;
+      bottom: 100px;
+      transform: none;
+    }
+    
+    .detail-card {
+      padding: 24px;
+      min-width: 240px;
+      max-width: 280px;
+      gap: 20px;
+    }
+    
+    .hero-value {
+      font-size: 56px;
+    }
+    
+    .stat-value {
+      font-size: 32px;
+    }
+    
+    .section-value {
+      font-size: 20px;
+    }
+    
+    .stats-grid {
+      gap: 20px;
     }
   }
 </style>

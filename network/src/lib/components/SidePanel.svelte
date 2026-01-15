@@ -4,15 +4,15 @@
 
   const categoryDescriptions: Record<string, { title: string; description: string }> = {
     'Electronic & Dance': {
-      title: 'Electronic & Dance',
+      title: 'Electronic',
       description: 'Elektronische Musik mit Fokus auf rhythmische Tanzmusik, Synths und Beats'
     },
     'Hip-Hop & Rap': {
-      title: 'Hip-Hop & Rap',
+      title: 'Hip-Hop',
       description: 'Lyrische Musik mit Fokus auf Rhythmus, Wortspiele und kulturelle Ausdrücke'
     },
     'Rock & Alternative': {
-      title: 'Rock & Alternative',
+      title: 'Rock',
       description: 'Gitarrenbasierte Musik mit vielfältigen Subgenres und experimentellen Klängen'
     },
     'Pop': {
@@ -24,7 +24,7 @@
       description: 'Gefühlvolle Musik mit Fokus auf Gesang, Harmonie und Emotionalität'
     },
     'Latin & Reggae': {
-      title: 'Latin & Reggae',
+      title: 'Latin',
       description: 'Musik aus lateinamerikanischen und karibischen Traditionen'
     },
     'Metal': {
@@ -32,7 +32,7 @@
       description: 'Schwere, aggressive Musik mit komplexen Gitarren und intensiven Vocals'
     },
     'Specialty & Other': {
-      title: 'Specialty & Other',
+      title: 'Specialty',
       description: 'Verschiedene Nischen-Genres und experimentelle Musikstile'
     }
   };

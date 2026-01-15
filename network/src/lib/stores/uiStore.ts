@@ -76,6 +76,19 @@ export function startNodeAnimation(nodeId: string, duration = 300) {
 export function clearExpiredAnimations() {
   const now = performance.now();
   animatingNodes.update((map) => {
+    // Count expired entries first to avoid unnecessary map recreation
+    let expiredCount = 0;
+    for (const [, anim] of map) {
+      if (now - anim.startTime >= anim.duration) {
+        expiredCount++;
+      }
+    }
+    
+    // Only create new map if there are expired entries
+    if (expiredCount === 0) {
+      return map; // Return same reference - no store update triggered
+    }
+    
     const newMap = new Map();
     for (const [id, anim] of map) {
       if (now - anim.startTime < anim.duration) {
@@ -100,11 +113,13 @@ interface UIState {
   showConnections: boolean; // Controls edge visibility
   showGenreGrouping: boolean; // Controls category-based genre clustering (activates genre anchors)
   isOverviewModeManual: boolean; // Manual toggle for overview mode (via button)
+  isScrollLocked: boolean; // Locks scrolling when in manual overview mode
 }
 
 export const uiStore = writable<UIState>({
   showArtistGroups: false,
   showConnections: false,
   showGenreGrouping: true,
-  isOverviewModeManual: false
+  isOverviewModeManual: false,
+  isScrollLocked: false
 });
