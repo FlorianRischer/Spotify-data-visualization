@@ -26,7 +26,7 @@
   import { searchStore } from "$lib/stores/searchStore";
   import { timelineStore, genreDiscoveryData, timelineCameraX, YEAR_WIDTH, genreYearlyStatsData } from "$lib/stores/timelineStore";
   import { cameraController } from "$lib/graph/cameraController";
-  import { renderGraph, hitTest, type RenderNode, type RenderEdge } from "./renderer";
+  import { renderGraph, hitTest, type RenderNode, type RenderEdge } from "$lib/graph/renderer";
   import { stepPhysics, createPhysicsState, createGenreAnchors, createCategoryBasedGenreAnchors, createOverviewAnchors, createOverviewCategoryLabels, createTimelineAnchors, type GenreAnchor, type CategoryAnchor, type SearchBarForce, type CursorForce } from "$lib/graph/physics";
   import { positions as positionsStore } from "$lib/stores";
   import { savePositionSnapshot, getPositionSnapshot, hasSnapshot } from "$lib/stores/positionsStore";
@@ -558,8 +558,10 @@
       
       // Cursor attraction force - different behavior for Overview vs Grouped mode
       // Disabled when in genre detail view (focusedCategory is set during scrollytelling)
+      // Also disabled when user is in focus mode (after pressing Enter on search)
       let cursorForce: CursorForce | undefined = undefined;
       const isInGenreDetailView = focusedCategory !== null || centeredNodeId !== null;
+      const isInSearchFocusMode = searchState.isFocusMode;
       
       // Delay cursor attraction in overview mode until nodes have settled (2 seconds after transition start)
       const OVERVIEW_UI_DELAY = 2000; // 2 seconds delay
@@ -574,7 +576,7 @@
         scrollyStore.update(s => ({ ...s, overviewUIReady: false }));
       }
       
-      if (isCursorOnCanvas && cursorWorldPosition && !isDragging && !isInGenreDetailView && !isInTimelineMode) {
+      if (isCursorOnCanvas && cursorWorldPosition && !isDragging && !isInGenreDetailView && !isInTimelineMode && !isInSearchFocusMode) {
         if (isOverviewMode && overviewCursorReady) {
           // Overview mode: free-floating attraction (only after delay)
           cursorForce = {

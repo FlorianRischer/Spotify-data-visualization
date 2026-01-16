@@ -1,7 +1,8 @@
 // Search Store — manages search state for Overview mode
 import { writable, derived } from "svelte/store";
+import { getAllCategories, getGenresByCategory, getGenreCategory, type GenreCategory } from "$lib/graph/genreMapping";
 
-export type SearchType = 'genre' | 'artist';
+export type SearchType = 'genre' | 'artist' | 'category';
 
 export interface ArtistSearchData {
   artistId: string;
@@ -14,6 +15,7 @@ export interface SearchState {
   isSearchActive: boolean;
   matchedNodeIds: Set<string>;
   matchedArtists: ArtistSearchData[]; // Artists that match the query
+  matchedCategory: GenreCategory | null; // Category that matches the query
   searchType: SearchType; // What type of match was found
   centerPosition: { x: number; y: number }; // Position of search bar for physics
   isFocusMode: boolean; // True when search has been idle for 10 seconds
@@ -24,6 +26,7 @@ const initialState: SearchState = {
   isSearchActive: false,
   matchedNodeIds: new Set(),
   matchedArtists: [],
+  matchedCategory: null,
   searchType: 'genre',
   centerPosition: { x: 0, y: 0 },
   isFocusMode: false
@@ -42,7 +45,7 @@ export function setArtistsData(artists: ArtistSearchData[]) {
 }
 
 /**
- * Updates the search query and finds matching nodes (genres and artists)
+ * Updates the search query and finds matching nodes (genres, artists, and categories)
  */
 export function updateSearchQuery(query: string, nodes: Array<{ id: string; label: string }>) {
   const trimmedQuery = query.trim().toLowerCase();
@@ -54,13 +57,35 @@ export function updateSearchQuery(query: string, nodes: Array<{ id: string; labe
       isSearchActive: false,
       matchedNodeIds: new Set(),
       matchedArtists: [],
+      matchedCategory: null,
       searchType: 'genre',
       isFocusMode: false
     }));
     return;
   }
 
-  // Find matching genres
+  // Check for EXACT category matches only (case-insensitive)
+  const allCategories = getAllCategories();
+  let matchedCategory: GenreCategory | null = null;
+  const categoryGenreIds = new Set<string>();
+  
+  for (const category of allCategories) {
+    // Only match if the query is EXACTLY the category name (case-insensitive)
+    if (category.toLowerCase() === trimmedQuery) {
+      matchedCategory = category;
+      // Get all genres in this category and find their node IDs
+      const genresInCategory = getGenresByCategory(category);
+      for (const node of nodes) {
+        const nodeCategory = getGenreCategory(node.label);
+        if (nodeCategory === category) {
+          categoryGenreIds.add(node.id);
+        }
+      }
+      break; // Use first match
+    }
+  }
+
+  // Find matching genres (direct name match)
   const matchedGenreIds = new Set<string>();
   for (const node of nodes) {
     if (node.label.toLowerCase().includes(trimmedQuery)) {
@@ -85,16 +110,23 @@ export function updateSearchQuery(query: string, nodes: Array<{ id: string; labe
     }
   }
 
-  // Combine genre matches and artist-genre matches
-  const allMatchedIds = new Set([...matchedGenreIds, ...artistGenreIds]);
-  
-  // Determine search type based on what matched
+  // Determine search type and combine matches based on priority
   let searchType: SearchType = 'genre';
-  if (matchedArtists.length > 0 && matchedGenreIds.size === 0) {
+  let allMatchedIds: Set<string>;
+  
+  // Priority: Category > Artist > Genre (if category matches, show all category genres)
+  if (matchedCategory && categoryGenreIds.size > 0) {
+    searchType = 'category';
+    allMatchedIds = categoryGenreIds;
+  } else if (matchedArtists.length > 0 && matchedGenreIds.size === 0) {
     searchType = 'artist';
+    allMatchedIds = artistGenreIds;
   } else if (matchedArtists.length > 0 && matchedGenreIds.size > 0) {
     // Both matched - prioritize artist if artist match is more specific
     searchType = matchedArtists.length <= matchedGenreIds.size ? 'artist' : 'genre';
+    allMatchedIds = new Set([...matchedGenreIds, ...artistGenreIds]);
+  } else {
+    allMatchedIds = new Set([...matchedGenreIds, ...artistGenreIds]);
   }
 
   searchStore.update(state => ({
@@ -103,6 +135,7 @@ export function updateSearchQuery(query: string, nodes: Array<{ id: string; labe
     isSearchActive: true,
     matchedNodeIds: allMatchedIds,
     matchedArtists,
+    matchedCategory,
     searchType,
     isFocusMode: false // Reset focus mode when query changes
   }));
@@ -211,4 +244,53 @@ export function getWeightedRandomGenre(nodes: Array<{ id: string; label: string;
   }
   
   return weightedNodes[weightedNodes.length - 1];
+}
+
+/**
+ * Gets a weighted random category based on total minutes listened across all genres in that category
+ * Categories with more total listening time have higher probability of being selected
+ */
+export function getWeightedRandomCategory(nodes: Array<{ id: string; label: string; totalMinutes?: number }>): GenreCategory | null {
+  if (nodes.length === 0) return null;
+  
+  const allCategories = getAllCategories();
+  
+  // Calculate total minutes per category
+  const categoryWeights: { category: GenreCategory; weight: number }[] = [];
+  
+  for (const category of allCategories) {
+    let weight = 0;
+    for (const node of nodes) {
+      const nodeCategory = getGenreCategory(node.label);
+      if (nodeCategory === category) {
+        weight += node.totalMinutes || 0;
+      }
+    }
+    if (weight > 0) {
+      categoryWeights.push({ category, weight });
+    }
+  }
+  
+  if (categoryWeights.length === 0) {
+    // Fallback: return random category that has at least one genre
+    const categoriesWithGenres = allCategories.filter(cat => 
+      nodes.some(n => getGenreCategory(n.label) === cat)
+    );
+    return categoriesWithGenres.length > 0 
+      ? categoriesWithGenres[Math.floor(Math.random() * categoriesWithGenres.length)]
+      : null;
+  }
+  
+  // Weighted random selection
+  const totalWeight = categoryWeights.reduce((sum, cw) => sum + cw.weight, 0);
+  let random = Math.random() * totalWeight;
+  
+  for (const { category, weight } of categoryWeights) {
+    random -= weight;
+    if (random <= 0) {
+      return category;
+    }
+  }
+  
+  return categoryWeights[categoryWeights.length - 1].category;
 }

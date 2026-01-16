@@ -1,12 +1,19 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { fade } from "svelte/transition";
-  import { GraphCanvas, Tooltip, GenreTitle, BottomHeader, SearchBar, NavigationHint } from "$lib/components";
-  import ScrollyContainer from "$lib/components/ScrollyContainer.svelte";
-  import GenreDetail from "$lib/components/GenreDetail.svelte";
-  import Timeline from "$lib/components/Timeline.svelte";
-  import TimelineTitle from "$lib/components/TimelineTitle.svelte";
-  import { LoadingScreen } from "$lib/components/visualization";
+  import { 
+    GraphCanvas, 
+    Tooltip, 
+    GenreTitle, 
+    BottomHeader, 
+    SearchBar, 
+    NavigationHint,
+    ScrollyContainer,
+    GenreDetail,
+    Timeline,
+    TimelineTitle,
+    LoadingScreen
+  } from "$lib/components";
   import { graphData, initVisible, setPositions } from "$lib/stores";
   import { uiStore, isStartAnimationRunning } from "$lib/stores/uiStore";
   import { scrollyStore } from "$lib/stores/scrollyStore";
@@ -24,12 +31,13 @@
   let streamingHistoryRef: any[] = []; // Speichere für Timeline-Berechnung
   let artistsWithGenresRef: any[] = []; // Speichere für Timeline-Berechnung
   
-  // Check if we're in overview mode and if UI should be visible
-  $: isInOverviewPhase = $scrollyStore.phase === 'overview' || $scrollyStore.isInOverview || $uiStore.isOverviewModeManual;
+  // Check if we're in explore mode (SearchBar visible) or overview mode
+  $: isInExploreMode = $uiStore.isOverviewModeManual;
+  $: isInOverviewPhase = $scrollyStore.phase === 'overview' || $scrollyStore.isInOverview;
   $: isInTimelinePhase = $scrollyStore.phase === 'timeline';
   $: overviewUIReady = $scrollyStore.overviewUIReady;
-  // Show bottom header when: not during start animation AND (not in overview OR (in overview AND UI ready))
-  $: showBottomHeader = !$isStartAnimationRunning && (!isInOverviewPhase || overviewUIReady);
+  // Show bottom header when: not during start animation AND (not in overview phase OR (in overview AND UI ready) OR in explore mode)
+  $: showBottomHeader = !$isStartAnimationRunning && (!isInOverviewPhase || overviewUIReady || isInExploreMode);
 
   onMount(async () => {
     try {

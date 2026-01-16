@@ -1,18 +1,23 @@
-// Export all components
-export { default as GraphCanvas } from '../graph/GraphCanvas.svelte';
-export { default as Tooltip } from './Tooltip.svelte';
-export { default as Legend } from './Legend.svelte';
-export { default as SidePanel } from './SidePanel.svelte';
-export { default as GenreTitle } from './GenreTitle.svelte';
-export { default as BottomHeader } from './BottomHeader.svelte';
-export { default as SearchBar } from './SearchBar.svelte';
-export { default as ScrollyContainer } from './ScrollyContainer.svelte';
-export { default as GenreDetail } from './GenreDetail.svelte';
-export { default as ProgressIndicator } from './ProgressIndicator.svelte';
-export { default as NavigationHint } from './NavigationHint.svelte';
-export { default as Timeline } from './Timeline.svelte';
-export { default as TimelineTitle } from './TimelineTitle.svelte';
+// Components barrel export
+// Re-export from all subfolders for clean imports
 
-// Re-export from subfolders
+// Common UI Components
+export * from './common';
+
+// Layout Components  
+export * from './layout';
+
+// Graph Components
+export * from './graph';
+
+// Timeline Components
+export * from './timeline';
+
+// Scrolly Components
+export * from './scrolly';
+
+// Landing Page Components
 export * from './landing';
+
+// Visualization Components
 export * from './visualization';

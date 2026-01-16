@@ -1,11 +1,12 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { fade } from 'svelte/transition';
-  import { searchStore, updateSearchQuery, clearSearch, setSearchBarPosition, setFocusMode, getWeightedRandomArtist, getWeightedRandomGenre } from '$lib/stores/searchStore';
+  import { searchStore, updateSearchQuery, clearSearch, setSearchBarPosition, setFocusMode, getWeightedRandomArtist, getWeightedRandomGenre, getWeightedRandomCategory } from '$lib/stores/searchStore';
   import { scrollyStore } from '$lib/stores/scrollyStore';
   import { uiStore } from '$lib/stores/uiStore';
   import { graphData } from '$lib/stores/graphStore';
   import { get } from 'svelte/store';
+  import type { GenreCategory } from '$lib/graph/genreMapping';
 
   let searchInput: HTMLInputElement;
   let inputValue = '';
@@ -14,10 +15,13 @@
   // Suggestion state
   let suggestedArtist: string = '';
   let suggestedGenre: string = '';
+  let suggestedCategory: GenreCategory | null = null;
   
   // Subscribe to focus mode state
   $: isFocusMode = $searchStore.isFocusMode;
   $: hasMatches = $searchStore.matchedNodeIds.size > 0;
+  $: searchType = $searchStore.searchType;
+  $: matchedCategory = $searchStore.matchedCategory;
   
   // Show suggestions only when not in focus mode and no input
   $: showSuggestions = isVisible && !isFocusMode && inputValue.length === 0;
@@ -50,6 +54,9 @@
     // Get weighted random genre
     const genre = getWeightedRandomGenre(nodes);
     suggestedGenre = genre?.label || '';
+    
+    // Get weighted random category
+    suggestedCategory = getWeightedRandomCategory(nodes);
   }
   
   function handleSuggestionClick(suggestion: string) {
@@ -111,7 +118,7 @@
         bind:this={searchInput}
         type="text"
         class="search-input"
-        placeholder="search genres or artists..."
+        placeholder="search genres, artists or categories..."
         value={inputValue}
         on:input={handleInput}
         on:keydown={handleKeyDown}
@@ -123,6 +130,15 @@
     
     {#if showSuggestions}
       <div class="suggestions" transition:fade={{ duration: 300 }}>
+        {#if suggestedCategory}
+          <button 
+            class="suggestion-btn" 
+            on:click={() => handleSuggestionClick(suggestedCategory || '')}
+          >
+            <span class="suggestion-label">Category</span>
+            <span class="suggestion-value">{suggestedCategory}</span>
+          </button>
+        {/if}
         {#if suggestedArtist}
           <button 
             class="suggestion-btn" 
@@ -186,7 +202,7 @@
     color: rgba(0, 0, 0, 0.7);
     outline: none;
     padding: 2px 8px;
-    width: 200px;
+    width: 280px;
     text-align: center;
   }
 

@@ -8,16 +8,19 @@
   let scrollDirection: 'down' | 'up' = 'down';
 
   // Verwende displayedCategory statt focusedCategory - wird nur nach Kamera-Zoom gesetzt
-  // Im manuellen Overview-Modus zeige "Explore" an - aber nur wenn overviewUIReady
-  $: isManualOverview = $uiStore.isOverviewModeManual;
-  $: isInOverviewPhase = $scrollyStore.phase === 'overview' || $scrollyStore.isInOverview || isManualOverview;
+  // Im manuellen Explore-Modus zeige "Explore" sofort an (ohne auf overviewUIReady zu warten)
+  $: isManualExplore = $uiStore.isOverviewModeManual;
+  $: isInOverviewPhase = $scrollyStore.phase === 'overview' || $scrollyStore.isInOverview;
   $: overviewUIReady = $scrollyStore.overviewUIReady;
   
-  // In overview mode, wait for overviewUIReady before showing "Explore"
+  // In manual explore mode, show "Explore" immediately
+  // In automatic overview phase, wait for overviewUIReady
   // In other modes, show the category immediately
-  $: displayedCategory = isInOverviewPhase 
-    ? (overviewUIReady ? 'Explore' : null) 
-    : $scrollyStore.displayedCategory;
+  $: displayedCategory = isManualExplore 
+    ? 'Explore'
+    : isInOverviewPhase 
+      ? (overviewUIReady ? 'Explore' : null) 
+      : $scrollyStore.displayedCategory;
   
   // Track scroll direction based on category changes
   $: {

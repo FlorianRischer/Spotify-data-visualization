@@ -711,15 +711,11 @@ export function stepPhysics(
     }
   }
   
-  // Search bar forces: attract matching nodes above the bar, strict exclusion zone
-  // Matching nodes gather above the search bar, all nodes stay away from the bar itself
+  // Search bar forces: attract matching nodes above the bar, repel non-matching nodes
+  // Matching nodes gather above the search bar
   if (searchBarForce && searchBarForce.isActive) {
     const { position, repulsionRadius, repulsionStrength, attractionStrength, matchedNodeIds } = searchBarForce;
     const hasMatches = matchedNodeIds.size > 0;
-    
-    // Strict exclusion zone - rectangular area around search bar
-    const exclusionWidth = 150; // Half-width of exclusion zone
-    const exclusionHeight = 30; // Half-height of exclusion zone
     
     // Target position for matches: above the search bar
     const matchTargetY = position.y - 80; // 80px above center
@@ -733,24 +729,6 @@ export function stepPhysics(
       const d = Math.sqrt(dx * dx + dy * dy) + 1e-6;
       
       const isMatch = matchedNodeIds.has(n.id);
-      
-      // STRICT EXCLUSION: Push nodes out of search bar rectangle
-      const inExclusionX = Math.abs(dx) < exclusionWidth;
-      const inExclusionY = Math.abs(dy) < exclusionHeight;
-      if (inExclusionX && inExclusionY) {
-        // Node is inside exclusion zone - push it out strongly
-        const pushStrength = 200;
-        // Push in the direction of least resistance
-        if (Math.abs(dx) / exclusionWidth > Math.abs(dy) / exclusionHeight) {
-          // Closer to horizontal edge - push horizontally
-          const pushX = dx > 0 ? pushStrength : -pushStrength;
-          state.vx[n.id] += pushX * dt;
-        } else {
-          // Closer to vertical edge - push vertically (prefer upward)
-          const pushY = dy > 0 ? pushStrength : -pushStrength * 1.5; // Stronger push upward
-          state.vy[n.id] += pushY * dt;
-        }
-      }
       
       if (isMatch && hasMatches) {
         // Attract matching nodes to position ABOVE the search bar

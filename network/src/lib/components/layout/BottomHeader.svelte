@@ -8,19 +8,22 @@
 
   let scrollContainer: HTMLElement;
   let isLinksActive = false;
-  let isOverviewActive = false;
+  let isExploreActive = false;  // Explore = SearchBar mode (was isOverviewActive)
+  let isOverviewActive = false; // Overview = categorization/zoom phase (Kategorien-Navigation)
   let isTimelineActive = false;
   let showHelpPopup = false;
 
-  // Subscribe to uiStore to track links and overview state
+  // Subscribe to uiStore to track links and explore state
   const unsubscribe = uiStore.subscribe(state => {
     isLinksActive = state.showConnections;
-    isOverviewActive = state.isOverviewModeManual;
+    isExploreActive = state.isOverviewModeManual;
   });
 
-  // Subscribe to scrollyStore to track timeline state
+  // Subscribe to scrollyStore to track timeline and overview state
   const scrollyUnsubscribe = scrollyStore.subscribe(state => {
     isTimelineActive = state.phase === 'timeline';
+    // Overview is active when in categorization or zoom phase (normal navigation state)
+    isOverviewActive = (state.phase === 'categorization' || state.phase === 'zoom') && !state.isInOverview;
   });
 
   onMount(() => {
@@ -33,20 +36,22 @@
   });
 
   function handleGoToOverview() {
-    // Force Overview state with node sorting
+    // Go to Overview state (categorization phase with node sorting and category navigation)
+    // This deactivates Explore and Timeline modes
     showHelpPopup = false;
     
     // Disable explore mode and show genre grouping for sorting
     uiStore.update(state => ({
       ...state,
       isOverviewModeManual: false,
-      showGenreGrouping: true // Enable genre grouping for node sorting
+      showGenreGrouping: true,
+      isScrollLocked: false
     }));
     
-    // Reset to categorization phase to trigger node sorting
+    // Set to categorization phase to enable category navigation
     scrollyStore.update(s => ({
       ...s,
-      phase: 'categorization', // This phase sorts nodes by category
+      phase: 'categorization', // This phase allows category navigation with arrow keys
       focusedCategory: null,
       focusedCategoryIndex: -1,
       displayedCategory: 'Overview' as any,
@@ -76,73 +81,59 @@
     }));
   }
 
-  function handleOverview() {
-    // Toggle overview mode manually
-    uiStore.update(state => {
-      const newOverviewState = !state.isOverviewModeManual;
-      
-      // When entering overview mode, reset everything to overview state
-      if (newOverviewState) {
-        // Show help popup when entering explore mode
-        showHelpPopup = true;
-        
-        // Animate camera to overview position
-        cameraController.animateToOverview(1200);
-        
-        // Reset scrolly store to overview state
-        scrollyStore.update(s => ({
-          ...s,
-          phase: 'overview',
-          focusedCategory: null,
-          focusedCategoryIndex: -1,
-          displayedCategory: 'Explore' as any,
-          isInOverview: true,
-          isAnimatingCamera: false
-        }));
-        
-        // Reset focused node
-        focusedNodeId.set(null);
-        
-        // Clear search if active
-        searchStore.update(s => ({
-          ...s,
-          searchQuery: '',
-          matchedNodeIds: new Set(),
-          isSearchActive: false,
-          isFocusMode: false
-        }));
-      } else {
-        // Leaving explore mode - restore scrolly telling state
-        showHelpPopup = false;
-        
-        // Reset scrolly store to allow normal scroll-based navigation
-        // Reset phase based on current scroll position
-        scrollyStore.update(s => ({
-          ...s,
-          phase: 'zoom', // Reset to zoom phase so nodes re-sort
-          isInOverview: false,
-          displayedCategory: 'Overview' as any // Reset to intro title
-        }));
-        
-        // Clear search if active
-        searchStore.update(s => ({
-          ...s,
-          searchQuery: '',
-          matchedNodeIds: new Set(),
-          isSearchActive: false,
-          isFocusMode: false
-        }));
-      }
-      
-      return {
-        ...state,
-        isOverviewModeManual: newOverviewState,
-        // Lock scrolling when entering manual overview mode
-        isScrollLocked: newOverviewState,
-        // Automatically show connections when entering overview
-        showConnections: newOverviewState ? true : state.showConnections
-      };
-    });
+  function handleExplore() {
+    // Activate Explore mode (SearchBar visible, free movement)
+    // This deactivates Overview and Timeline modes
+    
+    // If already in explore mode, do nothing (or could toggle off to overview)
+    if (isExploreActive) {
+      // Toggle off - go back to overview
+      handleGoToOverview();
+      return;
+    }
+    
+    // Show help popup when entering explore mode
+    showHelpPopup = true;
+    
+    // Disable timeline
+    timelineStore.update(s => ({
+      ...s,
+      isActive: false
+    }));
+    
+    // Animate camera to overview position
+    cameraController.animateToOverview(1200);
+    
+    // Reset scrolly store to overview state (explore view)
+    scrollyStore.update(s => ({
+      ...s,
+      phase: 'overview',
+      focusedCategory: null,
+      focusedCategoryIndex: -1,
+      displayedCategory: 'Explore' as any,
+      isInOverview: true,
+      isAnimatingCamera: false
+    }));
+    
+    // Reset focused node
+    focusedNodeId.set(null);
+    
+    // Clear search if active
+    searchStore.update(s => ({
+      ...s,
+      searchQuery: '',
+      matchedNodeIds: new Set(),
+      isSearchActive: false,
+      isFocusMode: false
+    }));
+    
+    // Enable explore mode
+    uiStore.update(state => ({
+      ...state,
+      isOverviewModeManual: true,
+      isScrollLocked: true,
+      showConnections: true
+    }));
   }
   
   function closeHelpPopup() {
@@ -158,16 +149,19 @@
   }
 
   function handleTimeline() {
-    // Toggle: if timeline is already active, open overview instead
+    // Activate Timeline mode
+    // This deactivates Overview and Explore modes
+    
+    // If already in timeline mode, toggle off - go back to overview
     if (isTimelineActive) {
-      handleOverview();
+      handleGoToOverview();
       return;
     }
     
     // Navigate directly to Timeline mode
     showHelpPopup = false;
     
-    // Reset UI state
+    // Disable explore mode
     uiStore.update(state => ({
       ...state,
       isOverviewModeManual: false,
@@ -198,7 +192,7 @@
       isAnimatingCamera: false
     }));
     
-    // Reset timeline to first year
+    // Activate timeline and reset to first year
     timelineStore.update(s => ({
       ...s,
       isActive: true,
@@ -234,17 +228,17 @@
 
 <header class="bottom-header" class:timeline-mode={isTimelineActive}>
   <nav class="bottom-nav">
-    <button class="nav-button" on:click={handleGoToOverview} title="Zurück zum Overview">
+    <button class="nav-button" class:active={isOverviewActive} on:click={handleGoToOverview} title="Zurück zum Overview (Kategorien-Navigation)">
       Overview
     </button>
-    <button class="nav-button" class:active={isOverviewActive} on:click={handleOverview} title="Explore aktivieren/deaktivieren">
+    <button class="nav-button" class:active={isExploreActive} on:click={handleExplore} title="Explore aktivieren/deaktivieren (Suche)">
       Explore
-    </button>
-    <button class="nav-button" class:active={isLinksActive} on:click={handleDisplayLinks} title="Links anzeigen/verbergen">
-      Display Links
     </button>
     <button class="nav-button timeline-button" class:active={isTimelineActive} on:click={handleTimeline} title="Timeline aktivieren/deaktivieren">
       Timeline
+    </button>
+    <button class="nav-button" class:active={isLinksActive} on:click={handleDisplayLinks} title="Links anzeigen/verbergen">
+      Display Links
     </button>
   </nav>
 </header>
