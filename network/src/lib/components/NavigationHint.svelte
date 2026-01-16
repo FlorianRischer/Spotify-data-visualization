@@ -133,34 +133,6 @@
     letter-spacing: 0.3px;
   }
   
-  .arrow-keys {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-  
-  .key {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    background: rgba(255, 255, 255, 0.15);
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    border-radius: 6px;
-    font-family: 'Baloo Bhai 2', sans-serif;
-    font-size: 18px;
-    font-weight: 600;
-    color: #ffffff;
-  }
-  
-  .or {
-    font-family: 'Baloo Bhai 2', sans-serif;
-    font-size: 12px;
-    font-weight: 400;
-    color: rgba(255, 255, 255, 0.5);
-  }
-  
   @media (max-width: 768px) {
     .hint-content {
       padding: 10px 16px;
@@ -169,12 +141,6 @@
     
     .hint-text {
       font-size: 12px;
-    }
-    
-    .key {
-      width: 28px;
-      height: 28px;
-      font-size: 16px;
     }
   }
 </style>

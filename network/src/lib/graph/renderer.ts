@@ -363,10 +363,10 @@ export function renderGraph(
     // Main circle - with hover scale for organic growth effect
     ctx.beginPath();
     const nodeOpacity = opacity * dimFactor;
-    // When hovered: use stronger color tint with full opacity
-    // When not hovered: use default muted color (no special treatment for search matches)
+    // When hovered: use full color (no transparency)
+    // When not hovered: use default muted color
     if (isHovered && !isCentered) {
-      ctx.fillStyle = hexColorWithAlpha(color, Math.min(0.8, hoverScale * 0.6));
+      ctx.fillStyle = color; // Volle Farbe ohne Transparenz
     } else if (isCentered) {
       ctx.fillStyle = color;
     } else {

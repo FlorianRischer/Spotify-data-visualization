@@ -1,6 +1,7 @@
 // Simple physics engine for genre nodes
 import type { GenreNode, GenreEdge, ArtistGroup } from "$lib/graph/types";
 import type { GenreCategory } from "$lib/graph/genreMapping";
+import { getMonthWorldPosition, TIMELINE_CONFIG, YEAR_WIDTH } from "$lib/stores/timelineStore";
 
 export interface PhysicsState {
   vx: Record<string, number>;
@@ -323,6 +324,188 @@ export function createOverviewCategoryLabels(
   
   return labels;
 }
+
+/**
+ * Erstellt Ankerpunkte für den Timeline-Modus
+ * Die Timeline erstreckt sich HORIZONTAL über mehrere "Screens" (Jahre)
+ * Jedes Jahr hat eine Breite von YEAR_WIDTH und enthält Nodes nach Monat
+ * Die Kamera bewegt sich horizontal, um zwischen Jahren zu navigieren
+ * 
+ * @param nodes - Die Graph-Nodes
+ * @param canvasWidth - Breite des Canvas (ein "Screen")
+ * @param canvasHeight - Höhe des Canvas
+ * @param timelineHeight - Platz für Timeline-Bar unten
+ * @param discoveryData - Optional: Map von genreId zu Discovery-Info (month: 1-12, year: number)
+ * @param currentYear - Optional: Das aktuell angezeigte Jahr in der Timeline
+ * @param startYear - Optional: Erstes Jahr in den Daten
+ */
+export function createTimelineAnchors(
+  nodes: GenreNode[],
+  canvasWidth: number = 1920,
+  canvasHeight: number = 1080,
+  timelineHeight: number = 200,
+  discoveryData?: Map<string, { month: number; year: number }>,
+  currentYear?: number,
+  startYear?: number
+): GenreAnchor[] {
+  const anchors: GenreAnchor[] = [];
+  
+  // YEAR_WIDTH wird aus timelineStore importiert für konsistente Positionierung
+  // (1200 Canvas-Einheiten pro Jahr)
+  
+  // Verfügbarer vertikaler Bereich für Nodes (oberhalb der Timeline)
+  const areaTop = -canvasHeight * 0.3;
+  const areaBottom = canvasHeight * 0.25;
+  const areaHeight = areaBottom - areaTop;
+  
+  // Wenn Discovery-Daten vorhanden sind, positioniere nach Entdeckungsdatum
+  if (discoveryData && discoveryData.size > 0) {
+    // Finde Start- und End-Jahr aus den Discovery-Daten
+    let minYear = Infinity;
+    let maxYear = -Infinity;
+    
+    for (const discovery of discoveryData.values()) {
+      minYear = Math.min(minYear, discovery.year);
+      maxYear = Math.max(maxYear, discovery.year);
+    }
+    
+    if (startYear !== undefined) {
+      minYear = startYear;
+    }
+    
+    if (minYear === Infinity) {
+      minYear = currentYear || 2018;
+      maxYear = currentYear || 2025;
+    }
+    
+    // Positioniere jeden Node basierend auf seinem Entdeckungsdatum
+    for (const node of nodes) {
+      const discovery = discoveryData.get(node.id);
+      
+      if (!discovery) {
+        // Nodes ohne Discovery-Daten: Verteile am linken Rand
+        const noDataIndex = nodes.filter(n => !discoveryData.has(n.id)).indexOf(node);
+        const col = noDataIndex % 5;
+        const row = Math.floor(noDataIndex / 5);
+        anchors.push({
+          genreId: node.id,
+          x: -YEAR_WIDTH * 0.3 + col * 40,
+          y: areaTop + 100 + row * 50
+        });
+        continue;
+      }
+      
+      // Berechne X-Position mit der zentralen Timeline-Funktion
+      // Diese Funktion wird auch von der Timeline-UI verwendet, um konsistente Positionen zu garantieren
+      const xPosition = getMonthWorldPosition(
+        discovery.month,
+        discovery.year,
+        minYear,
+        YEAR_WIDTH
+      );
+      
+      // Vertikale Verteilung basierend auf Kategorie
+      const categoryHash = hashString(node.category || "Other");
+      const verticalOffset = ((categoryHash % 100) / 100 - 0.5) * areaHeight * 0.7;
+      
+      // Leichte Streuung für Nodes im gleichen Monat
+      const scatterX = (hashString(node.id) % 30) - 15;
+      const scatterY = ((hashString(node.id + "y") % 60) - 30);
+      
+      anchors.push({
+        genreId: node.id,
+        x: xPosition + scatterX,
+        y: areaTop + areaHeight * 0.5 + verticalOffset + scatterY
+      });
+    }
+    
+  } else {
+    // Fallback: Kategorie-basierte Positionierung
+    const areaLeft = -canvasWidth * 0.40;
+    const areaRight = canvasWidth * 0.45;
+    const areaWidth = areaRight - areaLeft;
+    
+    const categoriesMap = new Map<string, GenreNode[]>();
+    
+    for (const node of nodes) {
+      const category = node.category || "Specialty & Other";
+      if (!categoriesMap.has(category)) {
+        categoriesMap.set(category, []);
+      }
+      categoriesMap.get(category)!.push(node);
+    }
+    
+    const categories = Array.from(categoriesMap.entries())
+      .sort((a, b) => {
+        const totalMinutesA = a[1].reduce((sum, node) => sum + (node.totalMinutes || 0), 0);
+        const totalMinutesB = b[1].reduce((sum, node) => sum + (node.totalMinutes || 0), 0);
+        return totalMinutesB - totalMinutesA;
+      })
+      .map(entry => entry[0]);
+    
+    const categoryCount = categories.length;
+    const cols = Math.ceil(Math.sqrt(categoryCount * 1.5));
+    const rows = Math.ceil(categoryCount / cols);
+    const cellWidth = areaWidth / cols;
+    const cellHeight = areaHeight / rows;
+    
+    for (let catIdx = 0; catIdx < categoryCount; catIdx++) {
+      const col = catIdx % cols;
+      const row = Math.floor(catIdx / cols);
+      const baseX = areaLeft + (col + 0.5) * cellWidth;
+      const baseY = areaTop + (row + 0.5) * cellHeight;
+      
+      const category = categories[catIdx];
+      const genresInCategory = categoriesMap.get(category)!;
+      const genreCount = genresInCategory.length;
+      const clusterRadius = Math.min(40, 180 / Math.max(genreCount, 1));
+      
+      for (let genreIdx = 0; genreIdx < genreCount; genreIdx++) {
+        const genre = genresInCategory[genreIdx];
+        
+        if (genreCount === 1) {
+          anchors.push({ genreId: genre.id, x: baseX, y: baseY });
+        } else {
+          const angle = (genreIdx / genreCount) * Math.PI * 2;
+          anchors.push({
+            genreId: genre.id,
+            x: baseX + Math.cos(angle) * clusterRadius,
+            y: baseY + Math.sin(angle) * clusterRadius
+          });
+        }
+      }
+    }
+  }
+  
+  return anchors;
+}
+
+/**
+ * Simple hash function for strings
+ */
+function hashString(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  return Math.abs(hash);
+}
+
+/**
+ * Hilfsfunktion: Gruppiert Nodes nach Kategorie
+ */
+function groupByCategory(nodes: GenreNode[]): Map<string, GenreNode[]> {
+  const map = new Map<string, GenreNode[]>();
+  for (const node of nodes) {
+    const cat = node.category || "Specialty & Other";
+    if (!map.has(cat)) map.set(cat, []);
+    map.get(cat)!.push(node);
+  }
+  return map;
+}
+
 
 // Spatial grid for O(n) neighbor queries instead of O(n²)
 const GRID_CELL_SIZE = 100; // Grid cell size in pixels

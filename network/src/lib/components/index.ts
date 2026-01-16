@@ -10,6 +10,8 @@ export { default as ScrollyContainer } from './ScrollyContainer.svelte';
 export { default as GenreDetail } from './GenreDetail.svelte';
 export { default as ProgressIndicator } from './ProgressIndicator.svelte';
 export { default as NavigationHint } from './NavigationHint.svelte';
+export { default as Timeline } from './Timeline.svelte';
+export { default as TimelineTitle } from './TimelineTitle.svelte';
 
 // Re-export from subfolders
 export * from './landing';

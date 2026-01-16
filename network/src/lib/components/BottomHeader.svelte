@@ -4,10 +4,12 @@
   import { cameraController } from '$lib/graph/cameraController';
   import { scrollyStore } from '$lib/stores/scrollyStore';
   import { searchStore } from '$lib/stores/searchStore';
+  import { timelineStore } from '$lib/stores/timelineStore';
 
   let scrollContainer: HTMLElement;
   let isLinksActive = false;
   let isOverviewActive = false;
+  let isTimelineActive = false;
   let showHelpPopup = false;
 
   // Subscribe to uiStore to track links and overview state
@@ -16,15 +18,62 @@
     isOverviewActive = state.isOverviewModeManual;
   });
 
+  // Subscribe to scrollyStore to track timeline state
+  const scrollyUnsubscribe = scrollyStore.subscribe(state => {
+    isTimelineActive = state.phase === 'timeline';
+  });
+
   onMount(() => {
     // Find the scrolly container
     scrollContainer = document.querySelector('.scrolly-container') as HTMLElement;
-    return unsubscribe;
+    return () => {
+      unsubscribe();
+      scrollyUnsubscribe();
+    };
   });
 
-  function handleMainMenu() {
-    // Navigate back to main menu
-    window.location.href = '/';
+  function handleGoToOverview() {
+    // Force Overview state with node sorting
+    showHelpPopup = false;
+    
+    // Disable explore mode and show genre grouping for sorting
+    uiStore.update(state => ({
+      ...state,
+      isOverviewModeManual: false,
+      showGenreGrouping: true // Enable genre grouping for node sorting
+    }));
+    
+    // Reset to categorization phase to trigger node sorting
+    scrollyStore.update(s => ({
+      ...s,
+      phase: 'categorization', // This phase sorts nodes by category
+      focusedCategory: null,
+      focusedCategoryIndex: -1,
+      displayedCategory: 'Overview' as any,
+      isInOverview: false,
+      isAnimatingCamera: false
+    }));
+    
+    // Reset timeline if active
+    timelineStore.update(s => ({
+      ...s,
+      isActive: false
+    }));
+    
+    // Animate camera to overview position
+    cameraController.animateToOverview(800);
+    
+    // Clear focused node
+    focusedNodeId.set(null);
+    
+    // Clear search if active
+    searchStore.update(s => ({
+      ...s,
+      searchQuery: '',
+      matchedNodeIds: new Set(),
+      isSearchActive: false,
+      isFocusMode: false
+    }));
   }
 
   function handleOverview() {
@@ -107,37 +156,95 @@
       showConnections: !state.showConnections
     }));
   }
+
+  function handleTimeline() {
+    // Toggle: if timeline is already active, open overview instead
+    if (isTimelineActive) {
+      handleOverview();
+      return;
+    }
+    
+    // Navigate directly to Timeline mode
+    showHelpPopup = false;
+    
+    // Reset UI state
+    uiStore.update(state => ({
+      ...state,
+      isOverviewModeManual: false,
+      isScrollLocked: false,
+      showConnections: true  // Enable display links in timeline view
+    }));
+    
+    // Clear search if active
+    searchStore.update(s => ({
+      ...s,
+      searchQuery: '',
+      matchedNodeIds: new Set(),
+      isSearchActive: false,
+      isFocusMode: false
+    }));
+    
+    // Reset focused node
+    focusedNodeId.set(null);
+    
+    // Set scrolly store directly to timeline phase
+    scrollyStore.update(s => ({
+      ...s,
+      phase: 'timeline',
+      focusedCategory: null,
+      focusedCategoryIndex: -1,
+      displayedCategory: 'Timeline' as any,
+      isInOverview: false,
+      isAnimatingCamera: false
+    }));
+    
+    // Reset timeline to first year
+    timelineStore.update(s => ({
+      ...s,
+      isActive: true,
+      currentYearIndex: 0
+    }));
+  }
 </script>
 
 <!-- Help Popup -->
 {#if showHelpPopup}
-  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions a11y_interactive_supports_focus -->
-  <div class="help-popup-overlay" role="dialog" aria-modal="true" on:click={closeHelpPopup}>
-    <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-    <div class="help-popup" role="document" on:click|stopPropagation>
+  <div 
+    class="help-popup-overlay" 
+    role="button" 
+    tabindex="0"
+    aria-label="Close help popup"
+    on:click={closeHelpPopup}
+    on:keydown={(e) => e.key === 'Enter' || e.key === ' ' ? closeHelpPopup() : null}
+  >
+    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+    <div class="help-popup" role="document" on:click|stopPropagation on:keydown|stopPropagation>
       <button class="close-button" on:click={closeHelpPopup}>×</button>
       <h3>Explore Mode</h3>
       <div class="help-content">
-        <p><strong>🔍 Suche:</strong> Tippe in die Suchleiste um Genres zu finden</p>
-        <p><strong>🖱️ Ziehen:</strong> Klicke und ziehe Nodes um sie zu bewegen</p>
-        <p><strong>👆 Hover:</strong> Fahre über einen Node für Details</p>
-        <p><strong>🔗 Links:</strong> Verbindungen zeigen Genre-Verwandtschaften</p>
-        <p><strong>⬅️ Zurück:</strong> Klicke erneut auf "Explore" um fortzufahren</p>
+        <p><strong>Suche:</strong> Tippe in die Suchleiste um Genres zu finden</p>
+        <p><strong>Ziehen:</strong> Klicke und ziehe Nodes um sie zu bewegen</p>
+        <p><strong>Hover:</strong> Fahre über einen Node für Details</p>
+        <p><strong>Links:</strong> Verbindungen zeigen Genre-Verwandtschaften</p>
+        <p><strong>Zurück:</strong> Klicke erneut auf "Explore" um fortzufahren</p>
       </div>
     </div>
   </div>
 {/if}
 
-<header class="bottom-header">
+<header class="bottom-header" class:timeline-mode={isTimelineActive}>
   <nav class="bottom-nav">
-    <button class="nav-button" on:click={handleMainMenu} title="Zurück zum Hauptmenü">
-      Main Menu
+    <button class="nav-button" on:click={handleGoToOverview} title="Zurück zum Overview">
+      Overview
     </button>
     <button class="nav-button" class:active={isOverviewActive} on:click={handleOverview} title="Explore aktivieren/deaktivieren">
       Explore
     </button>
     <button class="nav-button" class:active={isLinksActive} on:click={handleDisplayLinks} title="Links anzeigen/verbergen">
       Display Links
+    </button>
+    <button class="nav-button timeline-button" class:active={isTimelineActive} on:click={handleTimeline} title="Timeline aktivieren/deaktivieren">
+      Timeline
     </button>
   </nav>
 </header>
@@ -150,12 +257,17 @@
     bottom: 0;
     left: 0;
     right: 0;
-    height: 57px;
+    height: 64px;
     background: none;
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 100;
+  }
+
+  .bottom-header.timeline-mode {
+    top: 0;
+    bottom: auto;
   }
 
   .bottom-nav {

@@ -39,3 +39,20 @@ export {
 } from "./uiStore";
 
 export type { TooltipData } from "./uiStore";
+
+export {
+  timelineStore,
+  activateTimeline,
+  deactivateTimeline,
+  setTimelineData,
+  navigateToNextYear,
+  navigateToPreviousYear,
+  jumpToYear,
+  getCurrentYear,
+  currentYear,
+  currentYearNumber,
+  isTimelineActive,
+  timelineYears
+} from "./timelineStore";
+
+export type { YearData, YearlyGenreData, MonthlyData, TimelineState } from "./timelineStore";

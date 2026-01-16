@@ -4,22 +4,29 @@
   import { GraphCanvas, Tooltip, GenreTitle, BottomHeader, SearchBar, NavigationHint } from "$lib/components";
   import ScrollyContainer from "$lib/components/ScrollyContainer.svelte";
   import GenreDetail from "$lib/components/GenreDetail.svelte";
+  import Timeline from "$lib/components/Timeline.svelte";
+  import TimelineTitle from "$lib/components/TimelineTitle.svelte";
   import { LoadingScreen } from "$lib/components/visualization";
   import { graphData, initVisible, setPositions } from "$lib/stores";
   import { uiStore, isStartAnimationRunning } from "$lib/stores/uiStore";
   import { scrollyStore } from "$lib/stores/scrollyStore";
   import { setArtistsData } from "$lib/stores/searchStore";
+  import { setGenreDiscoveryData, setGenreYearlyStats } from "$lib/stores/timelineStore";
   import { buildGraph, computeForceLayout, transformSpotifyData, loadStreamingHistory } from "$lib/graph";
   import { getArtistsWithGenres, STREAMING_FILES } from "$lib/services";
+  import { computeGenreDiscovery, computeGenreYearlyStats } from "$lib/wrangling/genreDiscovery";
   import "../../app.css";
   import "./page.css";
 
   let isLoading = true;
   let loadingStatus = "Lädt Streaming-Daten...";
   let lastGraphInput: any = null;
+  let streamingHistoryRef: any[] = []; // Speichere für Timeline-Berechnung
+  let artistsWithGenresRef: any[] = []; // Speichere für Timeline-Berechnung
   
   // Check if we're in overview mode and if UI should be visible
   $: isInOverviewPhase = $scrollyStore.phase === 'overview' || $scrollyStore.isInOverview || $uiStore.isOverviewModeManual;
+  $: isInTimelinePhase = $scrollyStore.phase === 'timeline';
   $: overviewUIReady = $scrollyStore.overviewUIReady;
   // Show bottom header when: not during start animation AND (not in overview OR (in overview AND UI ready))
   $: showBottomHeader = !$isStartAnimationRunning && (!isInOverviewPhase || overviewUIReady);
@@ -29,6 +36,7 @@
       // Load all streaming history JSON files
       loadingStatus = "Lädt Streaming-Daten...";
       const streamingHistory = await loadStreamingHistory(STREAMING_FILES);
+      streamingHistoryRef = streamingHistory;
       console.log(`Loaded ${streamingHistory.length} streaming entries`);
 
       // Extract unique artists
@@ -45,6 +53,7 @@
       // Load artists with genres (from cache)
       loadingStatus = "Lade Artist-Genres...";
       const artistsWithGenres = await getArtistsWithGenres(uniqueArtists);
+      artistsWithGenresRef = artistsWithGenres;
       console.log(`Found genres for ${artistsWithGenres.length} artists`);
 
       // Fallback to demo data if no genres found
@@ -100,6 +109,18 @@
         name: a.name,
         genres: a.genres
       })));
+
+      // Berechne Genre-Discovery-Daten für Timeline
+      loadingStatus = "Analysiere Genre-Entdeckungen...";
+      const discoveryData = computeGenreDiscovery(streamingHistory, artistsWithGenres);
+      setGenreDiscoveryData(discoveryData);
+      console.log(`Discovered ${discoveryData.genres.length} genres from ${discoveryData.startYear} to ${discoveryData.endYear}`);
+
+      // Berechne Genre-Yearly-Stats für Timeline-Tooltip
+      loadingStatus = "Berechne Jahresstatistiken...";
+      const yearlyStats = computeGenreYearlyStats(streamingHistory, artistsWithGenres, discoveryData);
+      setGenreYearlyStats(yearlyStats);
+      console.log(`Computed yearly stats for ${yearlyStats.size} genres`);
 
       // Compute force layout
       loadingStatus = "Berechne Layout...";
@@ -182,7 +203,7 @@
   {:else}
     <ScrollyContainer>
       <div class="layout">
-        {#if !$isStartAnimationRunning}
+        {#if !$isStartAnimationRunning && !isInTimelinePhase}
           <div transition:fade={{ duration: 300 }}>
             <GenreTitle />
           </div>
@@ -194,6 +215,11 @@
         </section>
       </div>
     </ScrollyContainer>
+    
+    <!-- Timeline View -->
+    <Timeline />
+    <TimelineTitle />
+    
     <SearchBar />
     <Tooltip />
     <NavigationHint />

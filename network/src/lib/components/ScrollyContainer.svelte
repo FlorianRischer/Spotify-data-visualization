@@ -102,9 +102,14 @@
       return 'right-down';
     }
     
-    // In overview: Richtung des letzten Genres
+    // In timeline Phase: Links/Rechts für Jahr-Navigation
+    if (phase === 'timeline') {
+      return 'right-down'; // Wird von Timeline-Komponente separat behandelt
+    }
+    
+    // In overview: Standard-Richtung (Down/Right = vorwärts zur Timeline)
     if (phase === 'overview') {
-      return getNavigationDirectionForIndex(genreGroupQueue.length - 1, genreGroupQueue);
+      return 'right-down';
     }
     
     // In zoom Phase
@@ -122,6 +127,7 @@
   $: focusedCategory = $scrollyStore.focusedCategory;
   $: scrollProgress = $scrollyStore.scrollProgress;
   $: isAnimatingCamera = $scrollyStore.isAnimatingCamera;
+  $: isTimelinePhase = phase === 'timeline';
 
   // Kategorie-Wechsel werden jetzt durch handlePhaseTransitions in handleKeyDown gesteuert
 
@@ -145,6 +151,27 @@
     
     // Hole aktuelle Richtung basierend auf fokussiertem Genre
     const currentState = get(scrollyStore);
+    
+    // In Timeline-Phase: Links/Rechts werden von Timeline.svelte behandelt
+    // Nur Up/Down für Phase-Wechsel hier verarbeiten
+    if (currentState.phase === 'timeline') {
+      // ArrowUp verlässt Timeline zurück zu Overview
+      if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        isNavigating = true;
+        
+        if (navigateToPreviousStep()) {
+          lastCameraAnimationTime = now;
+          handlePhaseTransitions(false);
+        }
+        
+        setTimeout(() => {
+          isNavigating = false;
+        }, MIN_ANIMATION_INTERVAL);
+      }
+      // ArrowLeft/ArrowRight werden von Timeline.svelte behandelt
+      return;
+    }
     
     // Bestimme Richtung für Vorwärts-Navigation (aktuelle Position)
     const forwardDirection = getContextualDirection(currentState, false);
@@ -389,7 +416,45 @@
     // Overview → Zoom (zurück zum letzten Genre)
     if (oldPhase === 'overview' && newPhase === 'zoom' && !isScrollingDown) {
       console.log('📍 Zurück zu Zoom aus Overview');
+      // Deaktiviere Explore-Modus
+      uiStore.update(s => ({ ...s, isOverviewModeManual: false }));
       // lastFocusedCategory wird durch navigateToPreviousStep bereits gesetzt
+    }
+    
+    // Overview → Timeline (nach Overview kommt Timeline)
+    if (oldPhase === 'overview' && newPhase === 'timeline' && isScrollingDown) {
+      console.log('📍 Wechsel zu Timeline-Modus');
+      // Deaktiviere Explore-Modus
+      uiStore.update(s => ({ ...s, isOverviewModeManual: false }));
+      setDisplayedCategory('Timeline' as any);
+    }
+    
+    // Timeline → Overview (zurück von Timeline)
+    if (oldPhase === 'timeline' && newPhase === 'overview' && !isScrollingDown) {
+      console.log('📍 Zurück zu Overview aus Timeline');
+      
+      // Starte Kamera-Animation zur Overview
+      scrollyStore.update(state => ({
+        ...state,
+        isAnimatingCamera: true
+      }));
+      
+      // Animiere Kamera zur Overview
+      cameraController.animateToOverview(CAMERA_ANIMATION_DURATION);
+      
+      // Wechsle Titel nach Animation und aktiviere Explore-Modus
+      setTimeout(() => {
+        activateOverview();
+        uiStore.update(s => ({ ...s, isOverviewModeManual: true }));
+      }, CAMERA_ANIMATION_DURATION);
+      
+      // Beende Animation
+      setTimeout(() => {
+        scrollyStore.update(state => ({
+          ...state,
+          isAnimatingCamera: false
+        }));
+      }, CAMERA_ANIMATION_DURATION);
     }
     
     // Categorization → Intro (zurück)

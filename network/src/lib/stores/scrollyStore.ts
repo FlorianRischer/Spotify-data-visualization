@@ -1,7 +1,7 @@
 import { writable, derived, get } from 'svelte/store';
 import type { GenreCategory } from '$lib/graph/genreMapping';
 
-export type ScrollyPhase = 'intro' | 'categorization' | 'zoom' | 'overview' | 'summary';
+export type ScrollyPhase = 'intro' | 'categorization' | 'zoom' | 'overview' | 'timeline' | 'summary';
 
 export interface ScrollyState {
   scrollProgress: number; // 0-1 total scroll progress
@@ -296,7 +296,7 @@ export function activateOverview() {
 
 /**
  * Navigiert zum nächsten Step (Pfeiltaste runter)
- * Intro/Kategorisierung → Genre 1 → Genre 2 → ... → Overview
+ * Intro/Kategorisierung → Genre 1 → Genre 2 → ... → Overview → Timeline
  */
 export function navigateToNextStep(): boolean {
   const state = get(scrollyStore);
@@ -344,16 +344,38 @@ export function navigateToNextStep(): boolean {
     }
   }
   
+  // Overview → Timeline
+  if (state.phase === 'overview') {
+    scrollyStore.update(s => ({
+      ...s,
+      phase: 'timeline',
+      isScrollingDown: true,
+      isInOverview: false
+    }));
+    return true;
+  }
+  
   return false;
 }
 
 /**
  * Navigiert zum vorherigen Step (Pfeiltaste hoch)
- * Overview → letztes Genre → ... → Genre 1 → Kategorisierung → Intro
+ * Timeline → Overview → letztes Genre → ... → Genre 1 → Kategorisierung → Intro
  */
 export function navigateToPreviousStep(): boolean {
   const state = get(scrollyStore);
   const totalCategories = state.genreGroupQueue.length;
+  
+  // Timeline → Overview
+  if (state.phase === 'timeline') {
+    scrollyStore.update(s => ({
+      ...s,
+      phase: 'overview',
+      isScrollingDown: false,
+      isInOverview: true
+    }));
+    return true;
+  }
   
   // Overview → Letztes Genre
   if (state.phase === 'overview') {
@@ -410,7 +432,7 @@ export function navigateToPreviousStep(): boolean {
 
 /**
  * Gibt den aktuellen Step-Index zurück (für Progress-Anzeige)
- * -1 = intro, 0 = categorization, 1-n = genres, n+1 = overview
+ * -1 = intro, 0 = categorization, 1-n = genres, n+1 = overview, n+2 = timeline
  */
 export function getCurrentStepIndex(): number {
   const state = get(scrollyStore);
@@ -419,22 +441,36 @@ export function getCurrentStepIndex(): number {
   if (state.phase === 'categorization') return 0;
   if (state.phase === 'zoom') return state.focusedCategoryIndex + 1;
   if (state.phase === 'overview') return state.genreGroupQueue.length + 1;
+  if (state.phase === 'timeline') return state.genreGroupQueue.length + 2;
   return -1;
 }
 
 /**
  * Gibt die Gesamtanzahl der Steps zurück
- * intro + categorization + genres + overview
+ * intro + categorization + genres + overview + timeline
  */
 export function getTotalSteps(): number {
   const state = get(scrollyStore);
-  return state.genreGroupQueue.length + 2; // +2 für categorization und overview
+  return state.genreGroupQueue.length + 3; // +3 für categorization, overview und timeline
+}
+
+/**
+ * Aktiviert die Timeline-Phase
+ */
+export function activateTimeline() {
+  scrollyStore.update(state => ({
+    ...state,
+    phase: 'timeline',
+    isInOverview: false,
+    displayedCategory: 'Timeline' as any
+  }));
 }
 
 // Derived Stores
 export const currentPhase = derived(scrollyStore, $s => $s.phase);
 export const focusedCategory = derived(scrollyStore, $s => $s.focusedCategory);
 export const scrollProgress = derived(scrollyStore, $s => $s.scrollProgress);
+export const isTimelinePhase = derived(scrollyStore, $s => $s.phase === 'timeline');
 
 export const phaseDescription = derived(scrollyStore, $s => {
   const descriptions: Record<ScrollyPhase, string> = {
@@ -442,6 +478,7 @@ export const phaseDescription = derived(scrollyStore, $s => {
     categorization: '📊 Gruppierung nach Kategorie...',
     zoom: $s.focusedCategory ? `🔍 ${$s.focusedCategory}` : '🔍 Detailansicht...',
     overview: '👀 Übersicht aller Kategorien',
+    timeline: '📅 Zeitliche Entwicklung',
     summary: '✨ Ende'
   };
   return descriptions[$s.phase];

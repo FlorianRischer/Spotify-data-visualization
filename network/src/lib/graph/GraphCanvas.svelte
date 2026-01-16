@@ -22,12 +22,15 @@
     CONFIG,
     uiStore
   } from "$lib/stores/uiStore";
-  import { scrollyStore, setIntroComplete } from "$lib/stores/scrollyStore";
+  import { scrollyStore, setIntroComplete, setCameraPosition } from "$lib/stores/scrollyStore";
   import { searchStore } from "$lib/stores/searchStore";
+  import { timelineStore, genreDiscoveryData, timelineCameraX, YEAR_WIDTH, genreYearlyStatsData } from "$lib/stores/timelineStore";
+  import { cameraController } from "$lib/graph/cameraController";
   import { renderGraph, hitTest, type RenderNode, type RenderEdge } from "./renderer";
-  import { stepPhysics, createPhysicsState, createGenreAnchors, createCategoryBasedGenreAnchors, createOverviewAnchors, createOverviewCategoryLabels, type GenreAnchor, type CategoryAnchor, type SearchBarForce, type CursorForce } from "$lib/graph/physics";
+  import { stepPhysics, createPhysicsState, createGenreAnchors, createCategoryBasedGenreAnchors, createOverviewAnchors, createOverviewCategoryLabels, createTimelineAnchors, type GenreAnchor, type CategoryAnchor, type SearchBarForce, type CursorForce } from "$lib/graph/physics";
   import { positions as positionsStore } from "$lib/stores";
   import { savePositionSnapshot, getPositionSnapshot, hasSnapshot } from "$lib/stores/positionsStore";
+  import { computeGenreYearlyStats, type GenreTopYear } from "$lib/wrangling/genreDiscovery";
 
   let canvas: HTMLCanvasElement;
   let ctx: CanvasRenderingContext2D | null = null;
@@ -60,6 +63,9 @@
   // Cursor position for attraction force (in world coordinates)
   let cursorWorldPosition: { x: number; y: number } | null = null;
   let isCursorOnCanvas = false;
+  
+  // Genre yearly stats cache for tooltip
+  let genreYearlyStatsCache: Map<string, GenreTopYear> | null = null;
   
   // Hover scale animation state (for organic water-droplet effect)
   let hoverScaleMap = new Map<string, { scale: number; velocity: number; startTime: number }>();
@@ -94,6 +100,10 @@
   let overviewTransitionProgress = 0; // 0-1 progress of overview transition
   const OVERVIEW_TRANSITION_DURATION = 1200; // Sanfte Transition zu Overview
   let wasInOverviewMode = false; // Track wenn aus Overview zurückkommt
+  
+  // Timeline-Modus: Tracking für Jahr-Wechsel Kamera-Animation
+  let lastTimelineYearIndex = -1;
+  let isInTimelineMode = false;
   
   // Baseline-Parameter für 1200x800 Canvas (Referenzbasis für alle Skalierungen)
   const BASELINE_PHYSICS_PARAMS = {
@@ -396,6 +406,7 @@
       // Bestimme welche Ankerpunkte zu verwenden sind
       // Overview-Modus kann durch Scroll ODER manuellen Button aktiviert werden
       const isOverviewMode = scrollState.phase === 'overview' || scrollState.isInOverview || uiState.isOverviewModeManual;
+      const isTimelineMode = scrollState.phase === 'timeline';
       
       // Starte Overview-Transition wenn in Overview-Modus gewechselt wird
       if (isOverviewMode && overviewTransitionStartTime === null) {
@@ -417,57 +428,119 @@
       }
       
       // Erstelle Ankerpunkte basierend auf Mode mit Transition-Verzögerung
-      // Im Overview-Modus: KEINE Ankerpunkte mehr - Nodes schweben frei
-      if (isOverviewMode) {
+      // Timeline-Modus: Nodes oberhalb der Timeline positionieren
+      // Overview-Modus: KEINE Ankerpunkte mehr - Nodes schweben frei
+      if (isTimelineMode) {
+        // Timeline-Modus: Nodes oberhalb der Timeline-Bar positionieren
+        // Hole Discovery-Daten und erstes Jahr aus dem Timeline-Store
+        const timelineState = get(timelineStore);
+        const discoveryDataStore = get(genreDiscoveryData);
+        const startYear = timelineState.availableYears[0]; // Erstes Jahr
+        
+        // Erstelle Discovery-Map für die Physics-Engine
+        let discoveryMap: Map<string, { month: number; year: number }> | undefined;
+        if (discoveryDataStore?.genres) {
+          discoveryMap = new Map();
+          for (const genre of discoveryDataStore.genres) {
+            discoveryMap.set(genre.genreId, { month: genre.month, year: genre.year });
+          }
+        }
+        
+        // Aktualisiere Anchors wenn wir gerade in den Timeline-Modus gewechselt sind
+        // !isInTimelineMode bedeutet: wir waren vorher NICHT im Timeline-Modus
+        // wasInOverviewMode: wir kommen aus dem Overview-Modus
+        // genreAnchors.length === 0: noch keine Anchors erstellt
+        const justEnteredTimeline = !isInTimelineMode;
+        if (genreAnchors.length === 0 || wasInOverviewMode || justEnteredTimeline) {
+          genreAnchors = createTimelineAnchors(
+            nodes as any, 
+            width, 
+            height, 
+            250 * scaleFactor,
+            discoveryMap,
+            undefined, // currentYear nicht mehr benötigt - alle Jahre werden positioniert
+            startYear
+          );
+          categoryLabels = [];
+          wasInOverviewMode = false;
+          
+          // Starte Transition für sanftes Schweben zu den Anchor-Positionen
+          if (transitionStartTime === null) {
+            transitionStartTime = performance.now();
+          }
+        }
+        
+        // Setze isInTimelineMode HIER damit der nächste Frame weiß dass wir schon drin sind
+        isInTimelineMode = true;
+      } else if (isOverviewMode) {
         // Overview-Modus: Keine Gruppierung, Nodes schweben frei mit Suchleiste
         genreAnchors = [];
         categoryLabels = [];
-      } else if (!isOverviewMode && wasInOverviewMode && nodes.length > 0) {
-        // Gerade aus Overview zurückgekommen: wechsle Ankerpunkte zurück zur Genre-Gruppierung
+        isInTimelineMode = false; // Reset Timeline-Flag
+      } else if (!isOverviewMode && !isTimelineMode && (wasInOverviewMode || isInTimelineMode) && nodes.length > 0) {
+        // Gerade aus Overview ODER Timeline zurückgekommen: wechsle Ankerpunkte zurück zur Genre-Gruppierung
         const scaledGenreAnchorRadius = 350 * scaleFactor;
         genreAnchors = createCategoryBasedGenreAnchors(nodes as any, scaledGenreAnchorRadius);
         categoryLabels = []; // Keine Mini-Headings im normalen Modus
         wasInOverviewMode = false; // Reset flag
+        isInTimelineMode = false; // Reset Timeline-Flag
         // Starte Transition, damit Nodes neu positioniert werden
         transitionStartTime = performance.now();
-      } else if (!isOverviewMode && uiState.showGenreGrouping && genreAnchors.length === 0 && nodes.length > 0) {
+      } else if (!isOverviewMode && !isTimelineMode && uiState.showGenreGrouping && genreAnchors.length === 0 && nodes.length > 0) {
         // Genre-Gruppierung aktiviert: erstelle Ankerpunkte im Kreis
         const scaledGenreAnchorRadius = 350 * scaleFactor;
         genreAnchors = createCategoryBasedGenreAnchors(nodes as any, scaledGenreAnchorRadius);
         categoryLabels = []; // Keine Mini-Headings im normalen Modus
         wasInOverviewMode = false; // Reset flag
-      } else if (!isOverviewMode && !uiState.showGenreGrouping && genreAnchors.length > 0) {
+        isInTimelineMode = false; // Reset Timeline-Flag
+      } else if (!isOverviewMode && !isTimelineMode && !uiState.showGenreGrouping && genreAnchors.length > 0) {
         // Genre-Gruppierung deaktiviert: entferne Ankerpunkte
         genreAnchors = [];
         categoryLabels = [];
+        isInTimelineMode = false; // Reset Timeline-Flag
       }
       
       // Angepasste Physics-Parameter für sanften Übergang
       // Im Overview: keine Anchor-Strength, aber sanfte Bewegung
-      const activeGenreAnchorStrength = isOverviewMode ? 0 : (uiState.showGenreGrouping ? physicsParams.genreAnchorStrength : 0);
+      // Im Timeline: Anchor-Strength SEHR HOCH für schnelle Positionierung
+      const activeGenreAnchorStrength = (isOverviewMode && !isTimelineMode) 
+        ? 0 
+        : (isTimelineMode) 
+          ? physicsParams.genreAnchorStrength * 3.0  // 3x stärker für Timeline
+          : uiState.showGenreGrouping 
+            ? physicsParams.genreAnchorStrength 
+            : 0;
       
-      // Overview-Modus: sanftere Parameter für freies Schweben
+      // Overview/Timeline-Modus: sanftere Parameter für freies Schweben
       const finalGenreAnchorStrength = activeGenreAnchorStrength;
       
       const transitionPhysicsParams = {
         ...physicsParams,
-        // Overview: sanfte Repulsion für gleichmäßige Verteilung
-        repulsion: isOverviewMode 
+        // Overview/Timeline: sanfte Repulsion für gleichmäßige Verteilung
+        repulsion: (isOverviewMode && !isTimelineMode)
           ? physicsParams.repulsion * 0.3  // Sanftere Repulsion im Overview
-          : physicsParams.repulsion * (0.3 + transitionProgress * 0.7),
-        maxSpeed: isOverviewMode 
+          : isTimelineMode
+            ? physicsParams.repulsion * 0.3  // Niedrige Repulsion damit Anchors dominieren
+            : physicsParams.repulsion * (0.3 + transitionProgress * 0.7),
+        maxSpeed: (isOverviewMode && !isTimelineMode)
           ? 0.8  // Langsame, sanfte Bewegung
-          : physicsParams.maxSpeed * 0.5,
-        damping: isOverviewMode 
+          : isTimelineMode
+            ? 8.0  // SEHR schnelle Bewegung für Timeline damit Nodes ihre Positionen erreichen
+            : physicsParams.maxSpeed * 0.5,
+        damping: (isOverviewMode && !isTimelineMode)
           ? 0.03  // Niedriges Damping = Nodes behalten Geschwindigkeit
-          : 0.85,
-        jitter: isOverviewMode
+          : isTimelineMode
+            ? 0.75  // Etwas niedrigeres Damping für schnellere Bewegung
+            : 0.85,
+        jitter: (isOverviewMode && !isTimelineMode)
           ? 0  // Kein Jitter im Overview - Wander übernimmt
-          : physicsParams.jitter,
-        // Keine Ankerpunkte im Overview
+          : isTimelineMode
+            ? 0  // KEIN Jitter im Timeline - nur Anchor-Bewegung
+            : physicsParams.jitter,
+        // Ankerpunkte: im Timeline STARK aktiv, im Overview deaktiviert
         genreAnchorStrength: finalGenreAnchorStrength,
-        // Wander-Bewegung für sanftes zufälliges Schweben im Overview
-        wanderEnabled: isOverviewMode,
+        // Wander-Bewegung: nur im Overview-Modus
+        wanderEnabled: isOverviewMode && !isTimelineMode,
         wanderStrength: 1.0, // Sanfte Wanderbewegung
         wanderTurnRate: 0.2  // Sehr langsame Richtungsänderungen
       };
@@ -501,13 +574,13 @@
         scrollyStore.update(s => ({ ...s, overviewUIReady: false }));
       }
       
-      if (isCursorOnCanvas && cursorWorldPosition && !isDragging && !isInGenreDetailView) {
+      if (isCursorOnCanvas && cursorWorldPosition && !isDragging && !isInGenreDetailView && !isInTimelineMode) {
         if (isOverviewMode && overviewCursorReady) {
           // Overview mode: free-floating attraction (only after delay)
           cursorForce = {
             position: cursorWorldPosition,
             attractionRadius: 300 * scaleFactor,
-            attractionStrength: 1.5,
+            attractionStrength: 2,
             slowdownRadius: 80 * scaleFactor,
             slowdownFactor: 0.1,
             isActive: true,
@@ -519,8 +592,8 @@
             position: cursorWorldPosition,
             attractionRadius: 200 * scaleFactor, // 30% larger radius for grouped mode
             attractionStrength: 6.0, // Stronger attraction
-            slowdownRadius: 100 * scaleFactor,
-            slowdownFactor: 0.4,
+            slowdownRadius: 80 * scaleFactor,
+            slowdownFactor: 0.1,
             isActive: true,
             tetheredMode: true,
             maxTetherDistance: 140 * scaleFactor, // Max distance from anchor
@@ -529,10 +602,12 @@
         }
       }
       
-      stepPhysics(nodes, edges, pos, radii, physicsState, transitionPhysicsParams, 1/60, {
-        width: canvas.width / dpr,
-        height: canvas.height / dpr
-      }, groups, genreAnchors, searchBarForce, cursorForce);
+      stepPhysics(nodes, edges, pos, radii, physicsState, transitionPhysicsParams, 1/60, 
+        // Im Timeline-Modus: KEINE bounds - Nodes müssen sich außerhalb des Viewports positionieren können
+        isTimelineMode ? undefined : {
+          width: canvas.width / dpr,
+          height: canvas.height / dpr
+        }, groups, genreAnchors, searchBarForce, cursorForce);
       
       // During transition: blend positions from animation end to physics equilibrium
       if (transitionProgress < 1 && initialPositions) {
@@ -708,7 +783,10 @@
     const pct = totalMs > 0 ? (node.totalMinutes / totalMs) * 100 : 0;
     const degree = g.adjacency[nodeId]?.length ?? 0;
     
-    tooltipData.set({
+    const currentScrollState = get(scrollyStore);
+    const isTimelineMode = currentScrollState.phase === 'timeline';
+    
+    const tooltipContent: any = {
       nodeId,
       label: node.label,
       playCount: node.playCount,
@@ -718,8 +796,38 @@
       topArtist: node.topArtist,
       topArtistMinutes: node.topArtistMinutes,
       x,
-      y
-    });
+      y,
+      isTimelineMode
+    };
+    
+    // Add timeline-specific data if in timeline mode
+    if (isTimelineMode) {
+      const discoveryData = get(genreDiscoveryData);
+      const yearlyStats = get(genreYearlyStatsData);
+      
+      if (discoveryData) {
+        const genre = discoveryData.genres.find(g => g.genreId === nodeId);
+        if (genre) {
+          tooltipContent.discoveredYear = genre.year;
+          tooltipContent.discoveredMonth = genre.month;
+          tooltipContent.firstSong = genre.firstTrack;
+          tooltipContent.firstArtist = genre.firstArtist;
+        }
+      }
+      
+      // Add top year stats if available
+      if (yearlyStats && yearlyStats.has(nodeId)) {
+        const stats = yearlyStats.get(nodeId);
+        if (stats) {
+          tooltipContent.topYear = stats.topYear;
+          tooltipContent.topYearMinutes = stats.topYearMinutes;
+          tooltipContent.topYearPlayCount = stats.topYearPlayCount;
+          tooltipContent.discoveredYearMinutes = stats.discoveredYearMinutes;
+        }
+      }
+    }
+    
+    tooltipData.set(tooltipContent);
   }
 
   function handleMouseMove(event: MouseEvent) {
@@ -1034,6 +1142,41 @@
         pos[s.id] = { x: s.x, y: s.y };
       });
       positionsStore.set(pos);
+    }
+  }
+
+  // Timeline-Modus: Kamera-Animation bei Jahr-Wechsel
+  // Benutze reaktive Subscriptions damit der Block bei Änderungen getriggert wird
+  $: timelineYearIndex = $timelineStore.currentYearIndex;
+  $: scrollPhase = $scrollyStore.phase;
+  
+  // Separater reaktiver Block NUR für Kamera-Animation
+  // isInTimelineMode wird im Animation-Frame-Block gesetzt, NICHT hier
+  $: {
+    const currentIsTimelineMode = scrollPhase === 'timeline';
+    
+    // Prüfe ob wir in den Timeline-Modus gewechselt sind oder das Jahr sich geändert hat
+    if (currentIsTimelineMode) {
+      const targetCameraX = timelineYearIndex * YEAR_WIDTH;
+      
+      // Nur animieren wenn Jahr-Index sich geändert hat
+      if (lastTimelineYearIndex !== timelineYearIndex) {
+        // Animiere Kamera zur neuen X-Position
+        cameraController.animateToTarget({
+          zoom: 1,
+          x: targetCameraX,
+          y: 0
+        }, 600); // 600ms Animation
+        
+        lastTimelineYearIndex = timelineYearIndex;
+      }
+    } else {
+      // Nicht mehr im Timeline-Modus
+      if (lastTimelineYearIndex !== -1) {
+        // Zurück zur normalen Position animieren
+        cameraController.animateToTarget({ zoom: 1, x: 0, y: 0 }, 600);
+        lastTimelineYearIndex = -1;
+      }
     }
   }
 

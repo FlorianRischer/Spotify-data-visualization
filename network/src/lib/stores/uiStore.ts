@@ -48,6 +48,15 @@ export interface TooltipData {
   y: number;
   topArtist?: string;
   topArtistMinutes?: number;
+  // Timeline mode fields
+  isTimelineMode?: boolean;
+  discoveredYear?: number;
+  discoveredMonth?: number;
+  discoveredYearMinutes?: number;
+  topYear?: number;
+  topYearMinutes?: number;
+  firstSong?: string;
+  firstArtist?: string;
 }
 export const tooltipData = writable<TooltipData | null>(null);
 

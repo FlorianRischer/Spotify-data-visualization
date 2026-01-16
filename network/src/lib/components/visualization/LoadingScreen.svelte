@@ -16,7 +16,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: #0d1117;
+    background: #FAF1EC;
     z-index: 9999;
   }
 
@@ -30,8 +30,8 @@
   .spinner {
     width: 48px;
     height: 48px;
-    border: 3px solid rgba(139, 148, 158, 0.2);
-    border-top-color: #8b949e;
+    border: 3px solid rgba(26, 26, 26, 0.08);
+    border-top-color: #1a1a1a;
     border-radius: 50%;
     animation: spin 1s linear infinite;
   }
@@ -39,7 +39,7 @@
   .loading-text {
     font-family: 'Inter', sans-serif;
     font-size: 14px;
-    color: #8b949e;
+    color: #666;
     text-align: center;
   }
 

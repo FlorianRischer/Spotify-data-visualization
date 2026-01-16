@@ -48,12 +48,21 @@ export const visibleEdges = derived(
     if (!$g) return [];
     return $g.edges
       .filter((e) => $v.edges.has(e.id))
+      .filter((e) => {
+        // Nur Edges rendern, bei denen BEIDE Nodes gültige Positionen haben
+        // Sonst werden Edges zur Mitte (0,0) gezeichnet
+        const sourcePos = $p[e.source];
+        const targetPos = $p[e.target];
+        return sourcePos && targetPos && 
+               (sourcePos.x !== 0 || sourcePos.y !== 0) && 
+               (targetPos.x !== 0 || targetPos.y !== 0);
+      })
       .map((e) => ({
         ...e,
-        x1: $p[e.source]?.x ?? 0,
-        y1: $p[e.source]?.y ?? 0,
-        x2: $p[e.target]?.x ?? 0,
-        y2: $p[e.target]?.y ?? 0
+        x1: $p[e.source].x,
+        y1: $p[e.source].y,
+        x2: $p[e.target].x,
+        y2: $p[e.target].y
       }));
   }
 );
