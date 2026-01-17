@@ -10,9 +10,12 @@
     NavigationHint,
     ScrollyContainer,
     GenreDetail,
+    SearchDetail,
+    ExploreDetail,
     Timeline,
     TimelineTitle,
-    LoadingScreen
+    LoadingScreen,
+    LandingHero
   } from "$lib/components";
   import { graphData, initVisible, setPositions } from "$lib/stores";
   import { uiStore, isStartAnimationRunning } from "$lib/stores/uiStore";
@@ -26,6 +29,7 @@
   import "./page.css";
 
   let isLoading = true;
+  let showLandingHero = true; // Show landing hero after loading
   let loadingStatus = "Lädt Streaming-Daten...";
   let lastGraphInput: any = null;
   let streamingHistoryRef: any[] = []; // Speichere für Timeline-Berechnung
@@ -111,12 +115,37 @@
       });
 
       graphData.set(built);
-      // Set artists data for search
-      setArtistsData(lastGraphInput.artists.map((a: any) => ({
-        artistId: a.artistId,
-        name: a.name,
-        genres: a.genres
-      })));
+      
+      // Calculate total minutes per artist from streaming history
+      const artistPlaytime = new Map<string, number>();
+      for (const entry of streamingHistory) {
+        const artistName = entry.master_metadata_album_artist_name;
+        if (!artistName) continue;
+        const minutes = entry.ms_played / 60000;
+        artistPlaytime.set(artistName, (artistPlaytime.get(artistName) || 0) + minutes);
+      }
+      
+      // Set artists data for search - include ALL artists with genres (not just 2+)
+      const artistGenreMap = new Map<string, string[]>();
+      for (const artist of artistsWithGenres) {
+        if (artist.genres && artist.genres.length > 0) {
+          artistGenreMap.set(artist.originalName, artist.genres);
+        }
+      }
+      
+      // Create artist data with playtime for weighted random selection
+      const artistsForSearch = artistsWithGenres
+        .filter(a => a.genres && a.genres.length > 0)
+        .map((a: any) => ({
+          artistId: a.id || a.originalName,
+          name: a.name || a.originalName,
+          genres: a.genres.map((g: string) => g.toLowerCase().replace(/\s+/g, '-')),
+          totalMinutes: Math.round(artistPlaytime.get(a.originalName) || 0)
+        }))
+        .filter(a => a.totalMinutes > 0); // Only include artists with listening time
+      
+      setArtistsData(artistsForSearch);
+      console.log(`Set ${artistsForSearch.length} artists for search with playtime data`);
 
       // Berechne Genre-Discovery-Daten für Timeline
       loadingStatus = "Analysiere Genre-Entdeckungen...";
@@ -203,38 +232,58 @@
 <svelte:head>
   <title>Musical Brain Activity</title>
   <meta name="description" content="Neural Network Graph visualizing your music genre preferences" />
+  <!-- Preload fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous">
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+Bhai+2:wght@400;500&display=swap" rel="stylesheet">
 </svelte:head>
 
 <main class="app">
   {#if isLoading}
     <LoadingScreen status={loadingStatus} />
   {:else}
-    <ScrollyContainer>
-      <div class="layout">
-        {#if !$isStartAnimationRunning && !isInTimelinePhase}
-          <div transition:fade={{ duration: 300 }}>
-            <GenreTitle />
-          </div>
-        {/if}
+    <!-- Graph is always mounted but hidden behind Landing Hero -->
+    <div class="visualization-layer" class:hidden={showLandingHero}>
+      <ScrollyContainer>
+        <div class="layout">
+          {#if !$isStartAnimationRunning && !isInTimelinePhase}
+            <div transition:fade={{ duration: 300 }}>
+              <GenreTitle />
+            </div>
+          {/if}
 
-        <section class="graph-container">
-          <GraphCanvas />
-          <GenreDetail />
-        </section>
-      </div>
-    </ScrollyContainer>
+          <section class="graph-container">
+            <GraphCanvas startAnimation={!showLandingHero} />
+            <GenreDetail />
+          </section>
+        </div>
+      </ScrollyContainer>
+      
+      <!-- Timeline View -->
+      <Timeline />
+      <TimelineTitle />
+      
+      <!-- Search & Explore -->
+      <SearchBar />
+      <SearchDetail />
+      <ExploreDetail />
+      <Tooltip />
+      <NavigationHint />
+      {#if showBottomHeader}
+        <div transition:fade={{ duration: 400 }}>
+          <BottomHeader />
+        </div>
+      {/if}
+    </div>
     
-    <!-- Timeline View -->
-    <Timeline />
-    <TimelineTitle />
-    
-    <SearchBar />
-    <Tooltip />
-    <NavigationHint />
-    {#if showBottomHeader}
-      <div transition:fade={{ duration: 400 }}>
-        <BottomHeader />
-      </div>
+    <!-- Landing Hero overlay -->
+    {#if showLandingHero}
+      <LandingHero 
+        visible={showLandingHero} 
+        on:exit={() => {
+          showLandingHero = false;
+        }} 
+      />
     {/if}
   {/if}
 </main>

@@ -32,6 +32,9 @@
   import { savePositionSnapshot, getPositionSnapshot, hasSnapshot } from "$lib/stores/positionsStore";
   import { computeGenreYearlyStats, type GenreTopYear } from "$lib/wrangling/genreDiscovery";
 
+  // Props
+  export let startAnimation = true; // Controls when the spiral animation should start
+
   let canvas: HTMLCanvasElement;
   let ctx: CanvasRenderingContext2D | null = null;
   let width = 1200;
@@ -118,6 +121,7 @@
   
   // Animation state
   let startAnimationTime: number | null = null;
+  let animationTriggered = false; // Track if animation has been started
   let initialPositions: Record<string, { x: number; y: number }> | null = null;
   let settlingTime: number | null = null; // Phase after animation where physics stabilize nodes
   const START_ANIMATION_DURATION = 10000; // 10 seconds spiral + deceleration
@@ -130,6 +134,13 @@
   let overviewTransitionProgress = 0; // 0-1 progress of overview transition
   const OVERVIEW_TRANSITION_DURATION = 1200; // Sanfte Transition zu Overview
   let wasInOverviewMode = false; // Track wenn aus Overview zurückkommt
+  
+  // Reactive: Start animation when startAnimation prop becomes true
+  $: if (startAnimation && !animationTriggered && nodes.length > 0) {
+    startAnimationTime = performance.now();
+    isStartAnimationRunning.set(true);
+    animationTriggered = true;
+  }
   
   // Timeline-Modus: Tracking für Jahr-Wechsel Kamera-Animation
   let lastTimelineYearIndex = -1;
@@ -1129,12 +1140,7 @@
     
     // Subscribe to stores
     unsubs.push(visibleNodes.subscribe((n) => {
-      // Trigger start animation only on first load
-      if (nodes.length === 0 && n.length > 0) {
-        startAnimationTime = performance.now();
-        // Setze animation state sofort, nicht erst im loop!
-        isStartAnimationRunning.set(true);
-      }
+      // Just update nodes - animation triggering is handled by reactive statement
       nodes = n as RenderNode[];
     }));
     unsubs.push(visibleEdges.subscribe((e) => { edges = e as RenderEdge[]; }));

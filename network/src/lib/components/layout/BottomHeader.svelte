@@ -11,7 +11,6 @@
   let isExploreActive = false;  // Explore = SearchBar mode (was isOverviewActive)
   let isOverviewActive = false; // Overview = categorization/zoom phase (Kategorien-Navigation)
   let isTimelineActive = false;
-  let showHelpPopup = false;
 
   // Subscribe to uiStore to track links and explore state
   const unsubscribe = uiStore.subscribe(state => {
@@ -38,7 +37,6 @@
   function handleGoToOverview() {
     // Go to Overview state (categorization phase with node sorting and category navigation)
     // This deactivates Explore and Timeline modes
-    showHelpPopup = false;
     
     // Disable explore mode and show genre grouping for sorting
     uiStore.update(state => ({
@@ -92,9 +90,6 @@
       return;
     }
     
-    // Show help popup when entering explore mode
-    showHelpPopup = true;
-    
     // Disable timeline
     timelineStore.update(s => ({
       ...s,
@@ -135,10 +130,6 @@
       showConnections: true
     }));
   }
-  
-  function closeHelpPopup() {
-    showHelpPopup = false;
-  }
 
   function handleDisplayLinks() {
     // Toggle display of links using the uiStore
@@ -159,7 +150,6 @@
     }
     
     // Navigate directly to Timeline mode
-    showHelpPopup = false;
     
     // Disable explore mode
     uiStore.update(state => ({
@@ -200,31 +190,6 @@
     }));
   }
 </script>
-
-<!-- Help Popup -->
-{#if showHelpPopup}
-  <div 
-    class="help-popup-overlay" 
-    role="button" 
-    tabindex="0"
-    aria-label="Close help popup"
-    on:click={closeHelpPopup}
-    on:keydown={(e) => e.key === 'Enter' || e.key === ' ' ? closeHelpPopup() : null}
-  >
-    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-    <div class="help-popup" role="document" on:click|stopPropagation on:keydown|stopPropagation>
-      <button class="close-button" on:click={closeHelpPopup}>×</button>
-      <h3>Explore Mode</h3>
-      <div class="help-content">
-        <p><strong>Suche:</strong> Tippe in die Suchleiste um Genres zu finden</p>
-        <p><strong>Ziehen:</strong> Klicke und ziehe Nodes um sie zu bewegen</p>
-        <p><strong>Hover:</strong> Fahre über einen Node für Details</p>
-        <p><strong>Links:</strong> Verbindungen zeigen Genre-Verwandtschaften</p>
-        <p><strong>Zurück:</strong> Klicke erneut auf "Explore" um fortzufahren</p>
-      </div>
-    </div>
-  </div>
-{/if}
 
 <header class="bottom-header" class:timeline-mode={isTimelineActive}>
   <nav class="bottom-nav">
@@ -341,117 +306,6 @@
 
     .nav-button {
       font-size: 16px;
-    }
-  }
-
-  /* Help Popup Styles */
-  .help-popup-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.3);
-    display: flex;
-    align-items: flex-end;
-    justify-content: center;
-    z-index: 200;
-    padding-bottom: 80px;
-    animation: fadeIn 0.2s ease-out;
-  }
-
-  @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-  }
-
-  @keyframes slideUp {
-    from { 
-      opacity: 0;
-      transform: translateY(20px);
-    }
-    to { 
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-
-  .help-popup {
-    background: rgba(255, 255, 255, 0.95);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border-radius: 16px;
-    padding: 20px 24px;
-    max-width: 380px;
-    width: 90%;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
-    position: relative;
-    animation: slideUp 0.3s ease-out;
-  }
-
-  .help-popup h3 {
-    font-family: 'Baloo Bhai 2', sans-serif;
-    font-size: 20px;
-    font-weight: 600;
-    color: #000;
-    margin: 0 0 12px 0;
-    padding-right: 30px;
-  }
-
-  .help-content {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .help-content p {
-    font-family: 'Inter', -apple-system, sans-serif;
-    font-size: 14px;
-    color: #333;
-    margin: 0;
-    line-height: 1.4;
-  }
-
-  .help-content p strong {
-    color: #000;
-  }
-
-  .close-button {
-    position: absolute;
-    top: 12px;
-    right: 12px;
-    width: 28px;
-    height: 28px;
-    border: none;
-    background: rgba(0, 0, 0, 0.08);
-    border-radius: 50%;
-    font-size: 20px;
-    line-height: 1;
-    color: #666;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s ease;
-  }
-
-  .close-button:hover {
-    background: rgba(0, 0, 0, 0.15);
-    color: #000;
-  }
-
-  @media (max-width: 768px) {
-    .help-popup {
-      max-width: 320px;
-      padding: 16px 20px;
-    }
-
-    .help-popup h3 {
-      font-size: 18px;
-    }
-
-    .help-content p {
-      font-size: 13px;
     }
   }
 </style>

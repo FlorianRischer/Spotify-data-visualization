@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { fade } from 'svelte/transition';
-  import { searchStore, updateSearchQuery, clearSearch, setSearchBarPosition, setFocusMode, getWeightedRandomArtist, getWeightedRandomGenre, getWeightedRandomCategory } from '$lib/stores/searchStore';
+  import { searchStore, updateSearchQuery, clearSearch, setSearchBarPosition, setFocusMode, setSearchInputFocused, getWeightedRandomArtist, getWeightedRandomGenre, getWeightedRandomCategory } from '$lib/stores/searchStore';
   import { scrollyStore } from '$lib/stores/scrollyStore';
   import { uiStore } from '$lib/stores/uiStore';
   import { graphData } from '$lib/stores/graphStore';
@@ -122,6 +122,8 @@
         value={inputValue}
         on:input={handleInput}
         on:keydown={handleKeyDown}
+        on:focus={() => setSearchInputFocused(true)}
+        on:blur={() => setSearchInputFocused(false)}
       />
       {#if inputValue.length > 0}
         <button class="clear-btn" on:click={handleClear} aria-label="Clear">×</button>

@@ -8,11 +8,13 @@ export interface ArtistSearchData {
   artistId: string;
   name: string;
   genres: string[]; // genre IDs this artist is associated with
+  totalMinutes?: number; // total listening time for this artist
 }
 
 export interface SearchState {
   query: string;
   isSearchActive: boolean;
+  isInputFocused: boolean; // True when search input is focused
   matchedNodeIds: Set<string>;
   matchedArtists: ArtistSearchData[]; // Artists that match the query
   matchedCategory: GenreCategory | null; // Category that matches the query
@@ -24,6 +26,7 @@ export interface SearchState {
 const initialState: SearchState = {
   query: "",
   isSearchActive: false,
+  isInputFocused: false,
   matchedNodeIds: new Set(),
   matchedArtists: [],
   matchedCategory: null,
@@ -42,6 +45,13 @@ let artistsData: ArtistSearchData[] = [];
  */
 export function setArtistsData(artists: ArtistSearchData[]) {
   artistsData = artists;
+}
+
+/**
+ * Sets whether the search input is focused
+ */
+export function setSearchInputFocused(focused: boolean) {
+  searchStore.update(s => ({ ...s, isInputFocused: focused }));
 }
 
 /**
@@ -183,114 +193,63 @@ export function isNodeMatched(nodeId: string): boolean {
  * Gets a weighted random artist based on total minutes listened
  * Artists with more listening time have higher probability of being selected
  */
-export function getWeightedRandomArtist(nodes: Array<{ id: string; label: string; totalMinutes?: number }>): ArtistSearchData | null {
+export function getRandomArtist(nodes: Array<{ id: string; label: string; totalMinutes?: number }>): ArtistSearchData | null {
   if (artistsData.length === 0) return null;
   
-  // Build a map of genre -> totalMinutes
-  const genreMinutes = new Map<string, number>();
-  for (const node of nodes) {
-    genreMinutes.set(node.id, node.totalMinutes || 0);
+  // Filter artists that have totalMinutes data and sort by playtime
+  const artistsWithPlaytime = artistsData.filter(a => (a.totalMinutes || 0) > 0);
+  
+  if (artistsWithPlaytime.length === 0) {
+    // Fallback to random if no playtime data
+    return artistsData[Math.floor(Math.random() * artistsData.length)];
   }
   
-  // Calculate weight for each artist based on their associated genres' minutes
-  const artistWeights: { artist: ArtistSearchData; weight: number }[] = [];
-  
-  for (const artist of artistsData) {
-    let weight = 0;
-    for (const genreId of artist.genres) {
-      weight += genreMinutes.get(genreId) || 0;
-    }
-    if (weight > 0) {
-      artistWeights.push({ artist, weight });
-    }
-  }
-  
-  if (artistWeights.length === 0) return null;
-  
-  // Weighted random selection
-  const totalWeight = artistWeights.reduce((sum, aw) => sum + aw.weight, 0);
+  // Weighted random selection based on totalMinutes
+  const totalWeight = artistsWithPlaytime.reduce((sum, a) => sum + (a.totalMinutes || 0), 0);
   let random = Math.random() * totalWeight;
   
-  for (const { artist, weight } of artistWeights) {
-    random -= weight;
+  for (const artist of artistsWithPlaytime) {
+    random -= (artist.totalMinutes || 0);
     if (random <= 0) {
       return artist;
     }
   }
   
-  return artistWeights[artistWeights.length - 1].artist;
+  return artistsWithPlaytime[artistsWithPlaytime.length - 1];
 }
 
 /**
- * Gets a weighted random genre based on total minutes listened
- * Genres with more listening time have higher probability of being selected
+ * Gets a completely random genre from the available nodes
  */
-export function getWeightedRandomGenre(nodes: Array<{ id: string; label: string; totalMinutes?: number }>): { id: string; label: string } | null {
+export function getRandomGenre(nodes: Array<{ id: string; label: string; totalMinutes?: number }>): { id: string; label: string } | null {
   if (nodes.length === 0) return null;
   
-  // Filter nodes with valid minutes
-  const weightedNodes = nodes.filter(n => (n.totalMinutes || 0) > 0);
-  if (weightedNodes.length === 0) return nodes[Math.floor(Math.random() * nodes.length)];
-  
-  // Weighted random selection
-  const totalWeight = weightedNodes.reduce((sum, n) => sum + (n.totalMinutes || 0), 0);
-  let random = Math.random() * totalWeight;
-  
-  for (const node of weightedNodes) {
-    random -= (node.totalMinutes || 0);
-    if (random <= 0) {
-      return { id: node.id, label: node.label };
-    }
-  }
-  
-  return weightedNodes[weightedNodes.length - 1];
+  // Pure random selection
+  const randomIndex = Math.floor(Math.random() * nodes.length);
+  return { id: nodes[randomIndex].id, label: nodes[randomIndex].label };
 }
 
 /**
- * Gets a weighted random category based on total minutes listened across all genres in that category
- * Categories with more total listening time have higher probability of being selected
+ * Gets a completely random category that has at least one genre
  */
-export function getWeightedRandomCategory(nodes: Array<{ id: string; label: string; totalMinutes?: number }>): GenreCategory | null {
+export function getRandomCategory(nodes: Array<{ id: string; label: string; totalMinutes?: number }>): GenreCategory | null {
   if (nodes.length === 0) return null;
   
   const allCategories = getAllCategories();
   
-  // Calculate total minutes per category
-  const categoryWeights: { category: GenreCategory; weight: number }[] = [];
+  // Filter categories that have at least one genre in the nodes
+  const categoriesWithGenres = allCategories.filter(cat => 
+    nodes.some(n => getGenreCategory(n.label) === cat)
+  );
   
-  for (const category of allCategories) {
-    let weight = 0;
-    for (const node of nodes) {
-      const nodeCategory = getGenreCategory(node.label);
-      if (nodeCategory === category) {
-        weight += node.totalMinutes || 0;
-      }
-    }
-    if (weight > 0) {
-      categoryWeights.push({ category, weight });
-    }
-  }
+  if (categoriesWithGenres.length === 0) return null;
   
-  if (categoryWeights.length === 0) {
-    // Fallback: return random category that has at least one genre
-    const categoriesWithGenres = allCategories.filter(cat => 
-      nodes.some(n => getGenreCategory(n.label) === cat)
-    );
-    return categoriesWithGenres.length > 0 
-      ? categoriesWithGenres[Math.floor(Math.random() * categoriesWithGenres.length)]
-      : null;
-  }
-  
-  // Weighted random selection
-  const totalWeight = categoryWeights.reduce((sum, cw) => sum + cw.weight, 0);
-  let random = Math.random() * totalWeight;
-  
-  for (const { category, weight } of categoryWeights) {
-    random -= weight;
-    if (random <= 0) {
-      return category;
-    }
-  }
-  
-  return categoryWeights[categoryWeights.length - 1].category;
+  // Pure random selection
+  const randomIndex = Math.floor(Math.random() * categoriesWithGenres.length);
+  return categoriesWithGenres[randomIndex];
 }
+
+// Keep old functions as aliases for backwards compatibility
+export const getWeightedRandomArtist = getRandomArtist;
+export const getWeightedRandomGenre = getRandomGenre;
+export const getWeightedRandomCategory = getRandomCategory;
