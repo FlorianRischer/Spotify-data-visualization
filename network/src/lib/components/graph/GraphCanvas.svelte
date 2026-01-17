@@ -60,6 +60,32 @@
   let dragOffset = { x: 0, y: 0 };
   let isDragging = false;
   
+  /**
+   * ============================================================================
+   * CURRENT VIEW STATE (Reactive)
+   * ============================================================================
+   * Determines if nodes are clickable and what cursor style to use.
+   * See scrollyStore.ts for full documentation of all views.
+   * 
+   * - Overview View: Nodes are ONLY hoverable, NOT clickable (cursor: default)
+   *   This includes the initial view after start animation!
+   * - Genre Detail View: Nodes ARE clickable (cursor: pointer when hovering)
+   * - Explore View: Nodes ARE clickable (cursor: pointer when hovering)
+   * - Timeline View: Nodes are hoverable for tooltips (cursor: default)
+   * 
+   * IMPORTANT: Overview View is NOT the same as phase === 'overview'!
+   * After start animation, phase is still 'intro' but user sees the Overview View.
+   * ============================================================================
+   */
+  // Reactive view state - computed from stores
+  $: isInExploreView = $uiStore.isOverviewModeManual; // Explore View = manual overview mode with SearchBar
+  $: isInTimelineView = $scrollyStore.phase === 'timeline';
+  $: isInGenreDetailView = $scrollyStore.phase === 'zoom' && $scrollyStore.focusedCategory !== null;
+  // Overview View: When NOT in any other specific view (Explore, Genre Detail, Timeline)
+  // This includes the initial state after start animation when phase is still 'intro'
+  $: isInOverviewView = !isInExploreView && !isInGenreDetailView && !isInTimelineView;
+  $: nodesAreClickable = isInExploreView; // Only clickable in Explore View
+  
   // Cursor position for attraction force (in world coordinates)
   let cursorWorldPosition: { x: number; y: number } | null = null;
   let isCursorOnCanvas = false;
@@ -411,6 +437,9 @@
       // Overview-Modus kann durch Scroll ODER manuellen Button aktiviert werden
       const isOverviewMode = scrollState.phase === 'overview' || scrollState.isInOverview || uiState.isOverviewModeManual;
       const isTimelineMode = scrollState.phase === 'timeline';
+      
+      // Note: View state (isInOverviewView, isInExploreView, etc.) is computed reactively
+      // at the top of the component using $: statements. See scrollyStore.ts for documentation.
       
       // Starte Overview-Transition wenn in Overview-Modus gewechselt wird
       if (isOverviewMode && overviewTransitionStartTime === null) {
@@ -901,8 +930,9 @@
           velocity: 0,
           startTime: performance.now()
         });
-        // Show pointer cursor when hovering a node
-        canvas.style.cursor = 'pointer';
+        // Show pointer cursor ONLY when nodes are clickable (Explore & Genre Detail views)
+        // In Overview View, nodes are only hoverable - use default cursor
+        canvas.style.cursor = nodesAreClickable ? 'pointer' : 'default';
       } else {
         // Clear old hover scale
         if (hoveredId) {
@@ -956,6 +986,12 @@
   }
 
   function handleMouseDown(event: MouseEvent) {
+    // Nodes are only clickable in Explore View
+    // In Overview, Genre Detail, and Timeline views - skip all click/drag handling
+    if (!nodesAreClickable) {
+      return;
+    }
+    
     const rect = canvas.getBoundingClientRect();
     // CSS-Pixel Koordinaten relativ zum Canvas
     const cssX = event.clientX - rect.left;

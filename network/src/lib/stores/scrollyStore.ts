@@ -1,6 +1,49 @@
 import { writable, derived, get } from 'svelte/store';
 import type { GenreCategory } from '$lib/graph/genreMapping';
 
+/**
+ * ============================================================================
+ * APPLICATION VIEW SYSTEM
+ * ============================================================================
+ * 
+ * The application has 4 distinct user-facing views (NOT to be confused with ScrollyPhase):
+ * 
+ * 1. OVERVIEW VIEW
+ *    - First view after start animation completes
+ *    - Shows all genres grouped by category (floating clusters)
+ *    - Nodes are HOVERABLE but NOT CLICKABLE (no pointer cursor)
+ *    - User can hover to see tooltip, but clicking does nothing
+ *    - User navigates via bottom header links or scrolling
+ *    - IMPORTANT: This is the DEFAULT view when not in any other specific view!
+ *    - Triggered when: NOT in Explore, Genre Detail, or Timeline views
+ *    - Note: After start animation, phase may still be 'intro' but user sees Overview View
+ * 
+ * 2. GENRE DETAIL VIEW (Category Zoom)
+ *    - Accessed by clicking category link in bottom header from Overview
+ *    - Shows zoomed view of a single genre category
+ *    - Nodes are HOVERABLE but NOT CLICKABLE (same as Overview)
+ *    - Triggered when: phase === 'zoom' && focusedCategory !== null
+ * 
+ * 3. EXPLORE VIEW
+ *    - Accessed via "Explore" button in bottom header
+ *    - Shows SearchBar and allows free exploration
+ *    - Nodes ARE clickable and hoverable (ONLY view where nodes are clickable!)
+ *    - Search functionality is active
+ *    - Triggered when: uiStore.isOverviewModeManual === true
+ * 
+ * 4. TIMELINE VIEW
+ *    - Accessed via "Timeline" button or scrolling past Overview
+ *    - Shows genre discovery timeline with year-based navigation
+ *    - Nodes positioned above timeline bar
+ *    - Nodes ARE hoverable for timeline-specific tooltips
+ *    - Triggered when: phase === 'timeline'
+ * 
+ * Note: ScrollyPhase ('intro' | 'categorization' | 'zoom' | 'overview' | 'timeline' | 'summary')
+ * is the internal scroll-based state machine, NOT the user-facing view.
+ * The phase can be 'intro' while the user sees the Overview View!
+ * ============================================================================
+ */
+
 export type ScrollyPhase = 'intro' | 'categorization' | 'zoom' | 'overview' | 'timeline' | 'summary';
 
 export interface ScrollyState {
