@@ -73,6 +73,10 @@
   const HOVER_SCALE_SPEED = 0.08; // Animation speed (higher = faster)
   const HOVER_SCALE_BOUNCE = 0.6; // Bounce/elasticity factor
   
+  // Search scale animation state (for smooth search node size transitions)
+  let searchScaleMap = new Map<string, { targetScale: number; startScale: number; startTime: number; duration: number }>();
+  const SEARCH_SCALE_ANIMATION_DURATION = 300; // ms for smooth search transitions
+  
   // Camera state for scrolly-telling
   let cameraZoom = 1;
   let cameraX = 0;
@@ -734,6 +738,7 @@
       focusedCategory,
       categoryFilterProgress,
       hoverScaleMap,
+      searchScaleMap,
       categoryLabels,
       overviewTransitionProgress,
       overviewTransitionStartTime,
@@ -748,13 +753,18 @@
 
   function getNodeUnderMouse(x: number, y: number): string | null {
     const searchState = get(searchStore);
+    const rm = get(reducedMotion);
+    const now = performance.now();
     return hitTest(
       nodes, x, y, canvas.width, canvas.height, dpr, cameraZoom, cameraX, cameraY,
       searchState.matchedNodeIds,
       searchState.isSearchActive,
       searchState.isFocusMode,
       centeredNodeId,
-      hoverScaleMap
+      hoverScaleMap,
+      searchScaleMap,
+      now,
+      rm
     );
   }
 
@@ -1151,6 +1161,60 @@
   // Benutze reaktive Subscriptions damit der Block bei Änderungen getriggert wird
   $: timelineYearIndex = $timelineStore.currentYearIndex;
   $: scrollPhase = $scrollyStore.phase;
+  
+  // Reactive block for search state - animate node scale changes smoothly
+  $: {
+    const currentSearchState = $searchStore;
+    const now = performance.now();
+    
+    // Update search scale animations for all nodes
+    // searchScaleMap tracks animation state for smooth transitions when search state changes
+    // The animation interpolates the scale multiplier smoothly
+    if (nodes.length > 0) {
+      for (const node of nodes) {
+        // Recalculate target size multiplier based on search state (same logic as renderer)
+        let targetSizeMultiplier = 1;
+        const isSearchMatch = currentSearchState.matchedNodeIds.has(node.id);
+        
+        if (currentSearchState.isFocusMode && isSearchMatch) {
+          targetSizeMultiplier = 2.2;
+        } else if (isSearchMatch) {
+          targetSizeMultiplier = 1.4;
+        } else if (currentSearchState.isFocusMode && currentSearchState.isSearchActive) {
+          targetSizeMultiplier = 0.6;
+        }
+        
+        // Get current animation state
+        const currentAnim = searchScaleMap.get(node.id);
+        const currentTargetMultiplier = currentAnim?.targetScale ?? 1;
+        
+        // Only create animation if target multiplier changed
+        if (targetSizeMultiplier !== currentTargetMultiplier) {
+          // Get the current actual scale during animation
+          let startScale = 1;
+          if (currentAnim && (now - currentAnim.startTime) < currentAnim.duration) {
+            // Animation in progress - calculate current progress
+            const elapsed = now - currentAnim.startTime;
+            const progress = elapsed / currentAnim.duration;
+            const eased = progress < 0.5 
+              ? 4 * progress * progress * progress 
+              : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+            startScale = currentAnim.startScale + (currentAnim.targetScale - currentAnim.startScale) * eased;
+          } else {
+            // No animation or animation completed - start from current target
+            startScale = currentTargetMultiplier;
+          }
+          
+          searchScaleMap.set(node.id, {
+            targetScale: targetSizeMultiplier,
+            startScale,
+            startTime: now,
+            duration: SEARCH_SCALE_ANIMATION_DURATION
+          });
+        }
+      }
+    }
+  }
   
   // Separater reaktiver Block NUR für Kamera-Animation
   // isInTimelineMode wird im Animation-Frame-Block gesetzt, NICHT hier

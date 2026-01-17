@@ -32,6 +32,7 @@ export interface RenderOptions {
   focusedCategory?: string | null; // For category-based focus effect
   categoryFilterProgress?: number; // 0-1 animation progress for category filter (smooth transition)
   hoverScaleMap?: Map<string, { scale: number; velocity: number; startTime: number }>; // For organic hover animation
+  searchScaleMap?: Map<string, { targetScale: number; startScale: number; startTime: number; duration: number }>; // For smooth search scale animation
   categoryLabels?: CategoryAnchor[]; // Mini-Headings für Overview-Kategorien
   overviewTransitionProgress?: number; // 0-1 progress of overview transition
   overviewTransitionStartTime?: number | null; // When overview transition started (for delayed label display)
@@ -69,6 +70,34 @@ function getAnimationProgress(
   if (!anim) return 1;
   const elapsed = now - anim.startTime;
   return Math.min(1, elapsed / anim.duration);
+}
+
+// Get smooth search scale animation using easing
+function getSearchScaleAnimation(
+  nodeId: string,
+  searchScaleMap: Map<string, { targetScale: number; startScale: number; startTime: number; duration: number }> | undefined,
+  now: number,
+  reducedMotion: boolean
+): number | null {
+  if (reducedMotion || !searchScaleMap) return null;
+  
+  const anim = searchScaleMap.get(nodeId);
+  if (!anim) return null;
+  
+  const elapsed = now - anim.startTime;
+  if (elapsed >= anim.duration) {
+    // Animation completed - return target scale
+    return anim.targetScale;
+  }
+  
+  const progress = elapsed / anim.duration;
+  
+  // Ease-in-out cubic for smooth animation
+  const eased = progress < 0.5 
+    ? 4 * progress * progress * progress 
+    : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+  
+  return anim.startScale + (anim.targetScale - anim.startScale) * eased;
 }
 
 // Compute convex hull of points using gift wrapping
@@ -289,6 +318,7 @@ export function renderGraph(
   const isFocusModeOpt = options.isFocusMode ?? false;
   const hasCenteredNode = !!centeredNodeId;
   const catFilterProgress = categoryFilterProgress ?? 1;
+  const searchScaleMap = options.searchScaleMap;
   
   // Draw nodes - OPTIMIZED with reduced calculations
   for (let i = 0; i < sortedNodes.length; i++) {
@@ -319,17 +349,20 @@ export function renderGraph(
       }
     }
     
-    // Size multiplier - simplified logic
-    let sizeMultiplier = 1;
+    // Size multiplier - target value based on search state
+    let targetSizeMultiplier = 1;
     if (isCentered) {
-      sizeMultiplier = 2.5;
+      targetSizeMultiplier = 2.5;
     } else if (isFocusModeOpt && isSearchMatch) {
-      sizeMultiplier = 2.2;
+      targetSizeMultiplier = 2.2;
     } else if (isSearchMatch) {
-      sizeMultiplier = 1.4;
+      targetSizeMultiplier = 1.4;
     } else if (isFocusModeOpt && isSearchActiveOpt) {
-      sizeMultiplier = 0.6;
+      targetSizeMultiplier = 0.6;
     }
+    
+    // Get smoothly animated size multiplier (directly interpolates from old to new value)
+    const sizeMultiplier = getSearchScaleAnimation(n.id, searchScaleMap, now, reducedMotion) ?? targetSizeMultiplier;
     
     // Dim factor - simplified logic
     let dimFactor = 1;
@@ -431,7 +464,10 @@ export function hitTest(
   isSearchActive?: boolean,
   isFocusMode?: boolean,
   centeredNodeId?: string | null,
-  hoverScaleMap?: Map<string, { scale: number; velocity: number; startTime: number }>
+  hoverScaleMap?: Map<string, { scale: number; velocity: number; startTime: number }>,
+  searchScaleMap?: Map<string, { targetScale: number; startScale: number; startTime: number; duration: number }>,
+  now?: number,
+  reducedMotion?: boolean
 ): string | null {
   // Input mouseX/Y sind Buffer-Pixel (bereits mit dpr multipliziert)
   // Canvas dimensions
@@ -463,20 +499,25 @@ export function hitTest(
   for (let i = nodes.length - 1; i >= 0; i--) {
     const n = nodes[i];
     
-    // Calculate size multiplier matching renderer logic
-    let sizeMultiplier = 1;
+    // Calculate target size multiplier matching renderer logic
+    let targetSizeMultiplier = 1;
     const isCentered = centeredNodeId === n.id;
     const isSearchMatch = isSearchActive && searchMatchedIds?.has(n.id);
     
     if (isCentered) {
-      sizeMultiplier = 2.5;
+      targetSizeMultiplier = 2.5;
     } else if (isFocusMode && isSearchMatch) {
-      sizeMultiplier = 2.2;
+      targetSizeMultiplier = 2.2;
     } else if (isSearchMatch) {
-      sizeMultiplier = 1.4;
+      targetSizeMultiplier = 1.4;
     } else if (isFocusMode && isSearchActive) {
-      sizeMultiplier = 0.6;
+      targetSizeMultiplier = 0.6;
     }
+    
+    // Get smoothly animated size multiplier (directly interpolates from old to new value)
+    const sizeMultiplier = (now && searchScaleMap
+      ? getSearchScaleAnimation(n.id, searchScaleMap, now, reducedMotion ?? false)
+      : null) ?? targetSizeMultiplier;
     
     // Get hover scale for organic growth effect
     const hoverScale = hoverScaleMap?.get(n.id)?.scale ?? 1;
