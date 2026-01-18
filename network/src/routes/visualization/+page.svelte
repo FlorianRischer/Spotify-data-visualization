@@ -14,6 +14,7 @@
     ExploreDetail,
     Timeline,
     TimelineTitle,
+    TimelineDetail,
     LoadingScreen,
     LandingHero
   } from "$lib/components";
@@ -262,6 +263,7 @@
       <!-- Timeline View -->
       <Timeline />
       <TimelineTitle />
+      <TimelineDetail />
       
       <!-- Search & Explore -->
       <SearchBar />

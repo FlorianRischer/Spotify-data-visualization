@@ -3,7 +3,6 @@ export { buildGraph } from "./graphBuilder";
 export { computeLayout, computeForceLayout, computeTreeLayout, seedFromString } from "./layoutEngine";
 export { renderGraph, hitTest } from "./renderer";
 export { transformSpotifyData, loadStreamingHistory, createDemoGraphInput } from "./dataLoader";
-export { sampleInput } from "./sampleData";
 export { createGenreAnchors, createCategoryBasedGenreAnchors, createOverviewAnchors, createOverviewCategoryLabels, stepPhysics } from "./physics";
 export { 
   getGenreCategory, 

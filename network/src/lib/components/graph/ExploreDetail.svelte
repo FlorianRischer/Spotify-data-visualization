@@ -190,19 +190,6 @@
     line-height: 1.4;
   }
 
-  .hint {
-    padding-top: 8px;
-    border-top: 1px solid rgba(0, 0, 0, 0.06);
-  }
-
-  .hint-text {
-    font-family: 'Inter', sans-serif;
-    font-size: 12px;
-    font-weight: 500;
-    color: rgba(0, 0, 0, 0.35);
-    font-style: italic;
-  }
-
   @media (max-width: 1200px) {
     .explore-detail {
       right: 80px;
