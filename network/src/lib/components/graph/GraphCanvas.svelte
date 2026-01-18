@@ -825,6 +825,19 @@
       return;
     }
     
+    // Don't show tooltip in Overview View - only in Genre Detail, Explore, or Timeline views
+    const currentScrollState = get(scrollyStore);
+    const currentUIState = get(uiStore);
+    const isExploreView = currentUIState.isOverviewModeManual;
+    const isTimelineView = currentScrollState.phase === 'timeline';
+    const isGenreDetailView = currentScrollState.phase === 'zoom' && currentScrollState.focusedCategory !== null;
+    
+    // Only show tooltip when NOT in Overview View
+    if (!isExploreView && !isTimelineView && !isGenreDetailView) {
+      tooltipData.set(null);
+      return;
+    }
+    
     const g = get(graphData);
     if (!g) return;
     
@@ -835,8 +848,7 @@
     const pct = totalMs > 0 ? (node.totalMinutes / totalMs) * 100 : 0;
     const degree = g.adjacency[nodeId]?.length ?? 0;
     
-    const currentScrollState = get(scrollyStore);
-    const isTimelineMode = currentScrollState.phase === 'timeline';
+    const isTimelineMode = isTimelineView;
     
     const tooltipContent: any = {
       nodeId,
