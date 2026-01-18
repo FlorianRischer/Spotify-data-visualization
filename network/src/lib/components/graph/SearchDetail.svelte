@@ -113,29 +113,28 @@
     // Get all genres for this artist
     const artistGenreNodes = allNodes.filter(n => artist.genres.includes(n.id));
     
-    // Get the highest topArtistMinutes value (NOT sum - it's the same time across genres)
-    let maxMinutes = 0;
-    for (const node of artistGenreNodes) {
-      if (node.topArtist === artist.name && (node.topArtistMinutes || 0) > maxMinutes) {
-        maxMinutes = node.topArtistMinutes || 0;
-      }
-    }
+    // Use the totalMinutes directly from the artist object (from artistPlaytime)
+    const totalMinutes = artist.totalMinutes || 0;
     
-    // Find top genre (by artist's contribution)
-    const sortedGenres = artistGenreNodes
-      .filter(n => n.topArtist === artist.name)
-      .sort((a, b) => (b.topArtistMinutes || 0) - (a.topArtistMinutes || 0));
+    // Sort genres by total listening time for that genre
+    const sortedGenres = [...artistGenreNodes]
+      .sort((a, b) => (b.totalMinutes || 0) - (a.totalMinutes || 0));
     
-    const topGenreNode = sortedGenres[0] || artistGenreNodes[0];
+    const topGenreNode = sortedGenres[0];
+    
+    // Calculate time spent in top genre (approximate: totalTime / genreCount)
+    const timePerGenre = artistGenreNodes.length > 0 
+      ? Math.round(totalMinutes / artistGenreNodes.length) 
+      : 0;
     
     return {
       artistName: artist.name,
       genreCount: artist.genres.length,
       topGenre: topGenreNode?.label || '—',
-      topGenreHours: topGenreNode?.topArtistMinutes 
-        ? `${Math.round(topGenreNode.topArtistMinutes / 60)}h`
+      topGenreHours: timePerGenre > 0 
+        ? `${Math.round(timePerGenre / 60)}h`
         : '—',
-      totalHours: Math.round(maxMinutes / 60),
+      totalHours: Math.round(totalMinutes / 60),
       genres: artistGenreNodes.slice(0, 4).map(n => n.label)
     };
   }
@@ -161,12 +160,13 @@
       ? ((topNode.totalMinutes / categoryMinutes) * 100).toFixed(0)
       : '0';
     
-    // Top artist in category
+    // Top artist in category (based on total artist listening time, not per-genre time)
     let topArtist = '—';
-    let topArtistMinutes = 0;
+    let topArtistTotalMinutes = 0;
     for (const node of categoryNodes) {
-      if (node.topArtistMinutes && node.topArtistMinutes > topArtistMinutes) {
-        topArtistMinutes = node.topArtistMinutes;
+      const artistTotal = node.topArtistTotalMinutes || node.topArtistMinutes || 0;
+      if (artistTotal > topArtistTotalMinutes) {
+        topArtistTotalMinutes = artistTotal;
         topArtist = node.topArtist || '—';
       }
     }
@@ -179,8 +179,8 @@
       topGenre,
       topGenrePercent,
       topArtist,
-      topArtistHours: topArtistMinutes > 0 
-        ? `${Math.round(topArtistMinutes / 60)}h`
+      topArtistHours: topArtistTotalMinutes > 0 
+        ? `${Math.round(topArtistTotalMinutes / 60)}h`
         : '—'
     };
   }

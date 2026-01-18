@@ -88,19 +88,20 @@
       ? ((topNode.totalMinutes / categoryMinutes) * 100).toFixed(0)
       : '0';
     
-    // Top Artist (über alle Genres dieser Kategorie)
+    // Top Artist (über alle Genres dieser Kategorie - basierend auf gesamter Artist-Zeit)
     let topArtist = '—';
-    let topArtistMinutes = 0;
+    let topArtistTotalMinutes = 0;
     
     for (const node of categoryNodes) {
-      if (node.topArtistMinutes && node.topArtistMinutes > topArtistMinutes) {
-        topArtistMinutes = node.topArtistMinutes;
+      const artistTotal = node.topArtistTotalMinutes || node.topArtistMinutes || 0;
+      if (artistTotal > topArtistTotalMinutes) {
+        topArtistTotalMinutes = artistTotal;
         topArtist = node.topArtist || '—';
       }
     }
     
-    const topArtistHours = topArtistMinutes > 0 
-      ? `${Math.round(topArtistMinutes / 60)}h`
+    const topArtistHours = topArtistTotalMinutes > 0 
+      ? `${Math.round(topArtistTotalMinutes / 60)}h`
       : '—';
     
     return {
