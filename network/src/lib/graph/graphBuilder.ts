@@ -57,6 +57,7 @@ function buildNodes(genreStats: GenreStat[], opts: Required<typeof DEFAULT_OPTIO
       color,
       topArtist: g.topArtist,
       topArtistMinutes: g.topArtistMinutes,
+      topArtistTotalMinutes: g.topArtistTotalMinutes,
       category
     };
   });
