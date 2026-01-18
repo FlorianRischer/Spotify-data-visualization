@@ -847,6 +847,7 @@
       percentage: pct,
       topArtist: node.topArtist,
       topArtistMinutes: node.topArtistMinutes,
+      topArtistTotalMinutes: node.topArtistTotalMinutes,
       x,
       y,
       isTimelineMode

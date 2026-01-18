@@ -116,6 +116,12 @@
             <span class="stat-label">Artist Time</span>
             <span class="stat-value">{formatMinutes(data.topArtistMinutes || 0)}</span>
           </div>
+          {#if data.topArtistTotalMinutes && data.topArtistTotalMinutes !== data.topArtistMinutes}
+            <div class="stat">
+              <span class="stat-label">Total Artist Time</span>
+              <span class="stat-value">{formatMinutes(data.topArtistTotalMinutes)}</span>
+            </div>
+          {/if}
         {/if}
       {/if}
     </div>

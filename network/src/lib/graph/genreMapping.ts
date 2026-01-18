@@ -12,7 +12,7 @@ export type GenreCategory =
   | "Jazz"
   | "Soul"
   | "Reggae"
-  | "Folk"
+  | "Indie"
   | "Classical"
   | "Country"
   | "Latin"
@@ -311,25 +311,24 @@ export const GENRE_MAPPING: GenreInfo[] = [
   { genre: "soca", category: "Reggae" },
 
   // Folk & Indie
-  { genre: "folk", category: "Folk" },
-  { genre: "folk metal", category: "Folk" },
-  { genre: "indie", category: "Folk" },
-  { genre: "indie jazz", category: "Folk" },
-  { genre: "ambient folk", category: "Folk" },
-  { genre: "anti-folk", category: "Folk" },
-  { genre: "singer-songwriter", category: "Folk" },
-  { genre: "christian folk", category: "Folk" },
-  { genre: "german indie", category: "Folk" },
-  { genre: "lo-fi", category: "Folk" },
-  { genre: "lo-fi beats", category: "Folk" },
-  { genre: "lo-fi hip hop", category: "Folk" },
-  { genre: "lo-fi house", category: "Folk" },
-  { genre: "lo-fi indie", category: "Folk" },
-  { genre: "chillhop", category: "Folk" },
-  { genre: "beats", category: "Folk" },
-  { genre: "chillstep", category: "Folk" },
-  { genre: "downtempo", category: "Folk" },
-
+  { genre: "folk", category: "Indie" },
+  { genre: "folk metal", category: "Indie" },
+  { genre: "indie", category: "Indie" },
+  { genre: "indie jazz", category: "Indie" },
+  { genre: "ambient folk", category: "Indie" },
+  { genre: "anti-folk", category: "Indie" },
+  { genre: "singer-songwriter", category: "Indie" },
+  { genre: "christian folk", category: "Indie" },
+  { genre: "german indie", category: "Indie" },
+  { genre: "lo-fi", category: "Indie" },
+  { genre: "lo-fi beats", category: "Indie" },
+  { genre: "lo-fi hip hop", category: "Indie" },
+  { genre: "lo-fi house", category: "Indie" },
+  { genre: "lo-fi indie", category: "Indie" },
+  { genre: "chillhop", category: "Indie" },
+  { genre: "beats", category: "Indie" },
+  { genre: "chillstep", category: "Indie" },
+  { genre: "downtempo", category: "Indie" },
   // Classical
   { genre: "classical", category: "Classical" },
   { genre: "classical piano", category: "Classical" },

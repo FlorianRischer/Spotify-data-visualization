@@ -34,8 +34,9 @@ export function transformSpotifyData(
 
   // Aggregate plays and time per genre, AND track top artist per genre
   const genreStats = new Map<string, { playCount: number; totalMinutes: number }>();
-  const topArtistPerGenre = new Map<string, { name: string; minutes: number }>();
+  const topArtistPerGenre = new Map<string, { name: string; minutes: number; totalMinutes: number }>();
   const artistTimePerGenre = new Map<string, Map<string, number>>();
+  const artistTotalTime = new Map<string, number>(); // Total time per artist (not split)
   
   for (const entry of streamingHistory) {
     const artistName = entry.master_metadata_album_artist_name;
@@ -45,6 +46,9 @@ export function transformSpotifyData(
     if (!genres || genres.length === 0) continue;
     
     const minutes = entry.ms_played / 60000;
+    
+    // Track total artist time (not split)
+    artistTotalTime.set(artistName, (artistTotalTime.get(artistName) || 0) + minutes);
     
     // Distribute plays/time across all genres of the artist
     for (const genre of genres) {
@@ -77,7 +81,12 @@ export function transformSpotifyData(
       }
     }
     if (topArtist) {
-      topArtistPerGenre.set(genreId, { name: topArtist, minutes: Math.round(maxMinutes) });
+      const totalTime = artistTotalTime.get(topArtist) || maxMinutes;
+      topArtistPerGenre.set(genreId, { 
+        name: topArtist, 
+        minutes: Math.round(maxMinutes),
+        totalMinutes: Math.round(totalTime)
+      });
     }
   }
 
@@ -92,7 +101,8 @@ export function transformSpotifyData(
         playCount: stats.playCount,
         totalMinutes: Math.round(stats.totalMinutes),
         topArtist: topArtistData?.name,
-        topArtistMinutes: topArtistData?.minutes
+        topArtistMinutes: topArtistData?.minutes,
+        topArtistTotalMinutes: topArtistData?.totalMinutes
       };
     })
     .sort((a, b) => b.totalMinutes - a.totalMinutes);
@@ -173,7 +183,7 @@ export function createDemoGraphInput(): GraphBuildInput {
     { id: "dance", label: "Dance", playCount: 800, totalMinutes: 4800 },
     { id: "soul", label: "Soul", playCount: 600, totalMinutes: 3600 },
     { id: "jazz", label: "Jazz", playCount: 400, totalMinutes: 2400 },
-    { id: "folk", label: "Folk", playCount: 350, totalMinutes: 2100 },
+    { id: "indie", label: "Indie", playCount: 350, totalMinutes: 2100 },
     { id: "classical", label: "Classical", playCount: 200, totalMinutes: 1200 },
     { id: "metal", label: "Metal", playCount: 300, totalMinutes: 1800 },
     { id: "punk", label: "Punk", playCount: 250, totalMinutes: 1500 },

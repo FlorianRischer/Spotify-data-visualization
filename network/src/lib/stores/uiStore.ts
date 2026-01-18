@@ -48,6 +48,7 @@ export interface TooltipData {
   y: number;
   topArtist?: string;
   topArtistMinutes?: number;
+  topArtistTotalMinutes?: number;
   // Timeline mode fields
   isTimelineMode?: boolean;
   discoveredYear?: number;
