@@ -530,7 +530,7 @@ export function getAllCategories(): GenreCategory[] {
     "Jazz",
     "Soul",
     "Reggae",
-    "Folk",
+    "Indie",
     "Classical",
     "Country",
     "Latin",
