@@ -146,51 +146,16 @@
     line-height: 1.4;
   }
 
-  /* Large Desktop (1440px+) */
-  @media (min-width: 1440px) {
-    .timeline-detail {
-      left: 320px;
-      bottom: 260px;
-    }
-    
-    .detail-card {
-      padding: 36px 40px;
-      min-width: 360px;
-      max-width: 560px;
-    }
-    
-    .result-name {
-      font-size: 36px;
-    }
-    
-    .instruction-title {
-      font-size: 18px;
-    }
-    
-    .instruction-desc {
-      font-size: 15px;
-    }
-  }
-
-  /* Desktop (1024px - 1439px) */
-  @media (max-width: 1439px) and (min-width: 1025px) {
-    .timeline-detail {
-      left: 260px;
-      bottom: 230px;
-    }
-  }
-
-  /* Tablet Portrait (768px - 1024px) */
-  @media (max-width: 1024px) and (min-width: 769px) {
+  @media (max-width: 1200px) {
     .timeline-detail {
       left: 200px;
-      bottom: 220px;
+      bottom: 230px;
     }
     
     .detail-card {
       padding: 28px 32px;
       min-width: 280px;
-      max-width: 360px;
+      max-width: 400px;
     }
     
     .result-name {
@@ -206,10 +171,9 @@
     }
   }
 
-  /* Mobile Landscape / Small Tablet (481px - 768px) */
-  @media (max-width: 768px) and (min-width: 481px) {
+  @media (max-width: 900px) {
     .timeline-detail {
-      left: 160px;
+      left: 140px;
       bottom: 210px;
     }
     
@@ -233,8 +197,7 @@
     }
   }
 
-  /* Mobile Portrait (up to 480px) */
-  @media (max-width: 480px) {
+  @media (max-width: 600px) {
     .timeline-detail {
       left: 20px;
       bottom: 200px;

@@ -4,3 +4,4 @@ export { default as GenreDetail } from './GenreDetail.svelte';
 export { default as GenreTitle } from './GenreTitle.svelte';
 export { default as SearchDetail } from './SearchDetail.svelte';
 export { default as ExploreDetail } from './ExploreDetail.svelte';
+export { default as OverviewDetail } from './OverviewDetail.svelte';

@@ -1,38 +1,60 @@
 <script lang="ts">
   import { fly, fade } from 'svelte/transition';
   import { cubicOut } from 'svelte/easing';
-  import { uiStore } from '$lib/stores/uiStore';
-  import { searchStore } from '$lib/stores/searchStore';
+  import { isStartAnimationRunning, uiStore } from '$lib/stores/uiStore';
+  import { scrollyStore } from '$lib/stores/scrollyStore';
 
   // Local state to track if dismissed
   let isDismissed = false;
+  let wasAnimationRunning = true;
+  let showDetail = false;
+  let hasAnimationCompleted = false; // Track if animation has ever completed
 
-  // Sichtbar wenn Explore Mode aktiv ist aber keine Suche läuft
+  // Reactive states
+  $: animationRunning = $isStartAnimationRunning;
   $: isExploreMode = $uiStore.isOverviewModeManual;
-  $: isInputFocused = $searchStore.isInputFocused;
-  $: hasSearchResults = $searchStore.matchedNodeIds.size > 0;
+  $: phase = $scrollyStore.phase;
+  $: focusedCategory = $scrollyStore.focusedCategory;
+  $: isInTimelineMode = phase === 'timeline';
   
-  // Dismiss when input is focused
-  $: if (isInputFocused) {
-    isDismissed = true;
+  // Show only in Overview mode (not explore, not timeline, not zoomed into category)
+  $: isInOverviewMode = !isExploreMode && !isInTimelineMode && focusedCategory === null;
+  
+  // Watch for animation end - only trigger once when animation completes
+  $: {
+    if (wasAnimationRunning && !animationRunning && !hasAnimationCompleted) {
+      hasAnimationCompleted = true;
+      // Small delay after animation ends
+      setTimeout(() => {
+        if (!isDismissed && isInOverviewMode) {
+          showDetail = true;
+        }
+      }, 500);
+    }
+    wasAnimationRunning = animationRunning;
   }
   
-  // Reset dismissed state when leaving explore mode
-  $: if (!isExploreMode) {
-    isDismissed = false;
+  // Hide when leaving overview mode
+  $: if (!isInOverviewMode) {
+    showDetail = false;
   }
   
-  // Nur anzeigen wenn Explore aktiv, nicht dismissed, und keine aktive Suche mit Ergebnissen
-  $: isVisible = isExploreMode && !isDismissed && !hasSearchResults;
+  // Reset when entering overview mode again (but only after animation completed and not dismissed)
+  $: if (isInOverviewMode && hasAnimationCompleted && !isDismissed && !showDetail) {
+    showDetail = true;
+  }
+  
+  $: isVisible = showDetail && isInOverviewMode && !isDismissed;
   
   function handleClose() {
     isDismissed = true;
+    showDetail = false;
   }
 </script>
 
 {#if isVisible}
   <div 
-    class="explore-detail"
+    class="overview-detail"
     in:fly={{ x: 50, duration: 400, delay: 200, easing: cubicOut }}
     out:fade={{ duration: 200 }}
   >
@@ -42,37 +64,37 @@
       
       <!-- Header -->
       <div class="detail-header">
-        <span class="result-type">MODE</span>
-        <h2 class="result-name large">Explore</h2>
+        <span class="result-type">VIEW</span>
+        <h2 class="result-name large">Overview</h2>
       </div>
 
       <!-- Instructions -->
       <div class="instructions">
         <div class="instruction-item">
           <div class="instruction-text">
-            <span class="instruction-title">Search</span>
-            <span class="instruction-desc">Type in the search bar to find genres, artists, or categories</span>
+            <span class="instruction-title">Nodes</span>
+            <span class="instruction-desc">Each node represents a genre I've listened to. Size indicates listening time.</span>
           </div>
         </div>
 
         <div class="instruction-item">
           <div class="instruction-text">
-            <span class="instruction-title">Drag</span>
-            <span class="instruction-desc">Click and drag nodes to move them</span>
+            <span class="instruction-title">Categories</span>
+            <span class="instruction-desc">Genres are grouped by color into categories like Pop, Rock, Electronic, etc.</span>
           </div>
         </div>
 
         <div class="instruction-item">
           <div class="instruction-text">
-            <span class="instruction-title">Hover</span>
-            <span class="instruction-desc">Hover over a node for details</span>
+            <span class="instruction-title">Connections</span>
+            <span class="instruction-desc">Lines connect related genres that share similar artists.</span>
           </div>
         </div>
 
         <div class="instruction-item">
           <div class="instruction-text">
-            <span class="instruction-title">Links</span>
-            <span class="instruction-desc">Connections show genre relationships</span>
+            <span class="instruction-title">Navigate</span>
+            <span class="instruction-desc">Use the arrow keys to explore categories.</span>
           </div>
         </div>
       </div>
@@ -81,7 +103,7 @@
 {/if}
 
 <style>
-  .explore-detail {
+  .overview-detail {
     position: fixed;
     right: 80px;
     top: 50%;
@@ -98,14 +120,9 @@
     padding: 36px;
     min-width: 320px;
     max-width: 320px;
-    backdrop-filter: blur(12px);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
-    display: flex;
-    flex-direction: column;
-    gap: 28px;
     pointer-events: auto;
   }
-
+  
   .close-btn {
     position: absolute;
     top: 12px;
@@ -115,44 +132,44 @@
     border: none;
     background: none;
     font-size: 18px;
-    line-height: 1;
+    font-weight: 300;
     color: rgba(0, 0, 0, 0.4);
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     transition: color 0.2s ease;
+    line-height: 1;
+    padding: 0;
   }
-
+  
   .close-btn:hover {
     color: rgba(0, 0, 0, 0.7);
   }
 
   .detail-header {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
+    margin-bottom: 24px;
   }
 
   .result-type {
     font-family: 'Inter', sans-serif;
     font-size: 11px;
     font-weight: 600;
-    color: rgba(0, 0, 0, 0.4);
+    letter-spacing: 0.08em;
     text-transform: uppercase;
-    letter-spacing: 1.5px;
+    color: rgba(0, 0, 0, 0.4);
   }
 
   .result-name {
     font-family: 'Baloo Bhai 2', sans-serif;
-    font-size: 24px;
     font-weight: 600;
     color: #1a1a1a;
+    margin: 4px 0 0 0;
     line-height: 1.1;
   }
 
   .result-name.large {
-    font-size: 32px;
+    font-size: 36px;
   }
 
   .instructions {
@@ -163,8 +180,8 @@
 
   .instruction-item {
     display: flex;
-    flex-direction: column;
-    gap: 2px;
+    align-items: flex-start;
+    gap: 12px;
   }
 
   .instruction-text {
@@ -189,17 +206,16 @@
   }
 
   @media (max-width: 1200px) {
-    .explore-detail {
+    .overview-detail {
       right: 60px;
     }
     
     .detail-card {
-      padding: 28px;
       min-width: 280px;
       max-width: 280px;
-      gap: 22px;
+      padding: 28px;
     }
-    
+
     .result-name.large {
       font-size: 28px;
     }
@@ -210,20 +226,19 @@
   }
 
   @media (max-width: 900px) {
-    .explore-detail {
+    .overview-detail {
       right: 20px;
-      top: auto;
       bottom: 200px;
+      top: auto;
       transform: none;
     }
-    
+
     .detail-card {
-      padding: 22px;
       min-width: 240px;
       max-width: 240px;
-      gap: 18px;
+      padding: 22px;
     }
-    
+
     .result-name.large {
       font-size: 24px;
     }
@@ -231,14 +246,14 @@
     .instruction-title {
       font-size: 12px;
     }
-    
+
     .instruction-desc {
       font-size: 11px;
     }
   }
 
   @media (max-width: 600px) {
-    .explore-detail {
+    .overview-detail {
       right: 12px;
       bottom: 180px;
     }
@@ -247,7 +262,6 @@
       min-width: 200px;
       max-width: 200px;
       padding: 18px;
-      gap: 14px;
     }
 
     .result-name.large {

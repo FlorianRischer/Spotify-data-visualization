@@ -7,11 +7,11 @@
     GenreTitle, 
     BottomHeader, 
     SearchBar, 
-    NavigationHint,
     ScrollyContainer,
     GenreDetail,
     SearchDetail,
     ExploreDetail,
+    OverviewDetail,
     Timeline,
     TimelineTitle,
     TimelineDetail,
@@ -269,8 +269,8 @@
       <SearchBar />
       <SearchDetail />
       <ExploreDetail />
+      <OverviewDetail />
       <Tooltip />
-      <NavigationHint />
       {#if showBottomHeader}
         <div transition:fade={{ duration: 400 }}>
           <BottomHeader />
