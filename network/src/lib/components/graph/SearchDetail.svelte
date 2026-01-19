@@ -24,6 +24,8 @@
     totalHours: number;
     topArtist: string;
     topArtistHours: string;
+    topSong?: string;
+    topSongHours?: string;
     category: string;
     relatedGenres: string[];
   }
@@ -36,6 +38,8 @@
     topGenreHours: string;
     totalHours: number;
     genres: string[];
+    topSong?: string;
+    topSongHours?: string;
   }
 
   // Category Stats Interface
@@ -48,6 +52,8 @@
     topGenrePercent: string;
     topArtist: string;
     topArtistHours: string;
+    topSong?: string;
+    topSongHours?: string;
   }
 
   let genreStats: GenreStats | null = null;
@@ -104,6 +110,10 @@
       topArtistHours: node.topArtistMinutes 
         ? `${Math.round(node.topArtistMinutes / 60)}h`
         : '—',
+      topSong: node.topSong,
+      topSongHours: node.topSongMinutes 
+        ? `${Math.round(node.topSongMinutes / 60)}h`
+        : undefined,
       category,
       relatedGenres
     };
@@ -135,7 +145,11 @@
         ? `${Math.round(timePerGenre / 60)}h`
         : '—',
       totalHours: Math.round(totalMinutes / 60),
-      genres: artistGenreNodes.slice(0, 4).map(n => n.label)
+      genres: artistGenreNodes.slice(0, 4).map(n => n.label),
+      topSong: artist.topSong,
+      topSongHours: artist.topSongMinutes 
+        ? `${Math.round(artist.topSongMinutes / 60)}h`
+        : undefined
     };
   }
 
@@ -171,6 +185,16 @@
       }
     }
     
+    // Top song in category (based on song listening time)
+    let topSong: string | undefined;
+    let topSongMinutes = 0;
+    for (const node of categoryNodes) {
+      if (node.topSong && (node.topSongMinutes || 0) > topSongMinutes) {
+        topSongMinutes = node.topSongMinutes || 0;
+        topSong = node.topSong;
+      }
+    }
+    
     return {
       categoryName: category,
       percentage,
@@ -181,7 +205,11 @@
       topArtist,
       topArtistHours: topArtistTotalMinutes > 0 
         ? `${Math.round(topArtistTotalMinutes / 60)}h`
-        : '—'
+        : '—',
+      topSong,
+      topSongHours: topSongMinutes > 0 
+        ? `${Math.round(topSongMinutes / 60)}h`
+        : undefined
     };
   }
 </script>
@@ -224,6 +252,16 @@
             <span class="section-sub">{genreStats.topArtistHours} listened</span>
           </div>
           
+          {#if genreStats.topSong}
+            <div class="stat-section">
+              <span class="section-label">Most Listened Song</span>
+              <span class="section-value">{genreStats.topSong}</span>
+              {#if genreStats.topSongHours}
+                <span class="section-sub">{genreStats.topSongHours} listened</span>
+              {/if}
+            </div>
+          {/if}
+          
           {#if genreStats.relatedGenres.length > 0}
             <div class="stat-section">
               <span class="section-label">Related Genres</span>
@@ -253,6 +291,16 @@
               <span class="stat-label">Listened</span>
             </div>
           </div>
+          
+          {#if artistStats.topSong}
+            <div class="stat-section">
+              <span class="section-label">Most Listened Song</span>
+              <span class="section-value">{artistStats.topSong}</span>
+              {#if artistStats.topSongHours}
+                <span class="section-sub">{artistStats.topSongHours} listened</span>
+              {/if}
+            </div>
+          {/if}
           
           <div class="stat-section">
             <span class="section-label">Top Genre</span>
@@ -306,6 +354,16 @@
             <span class="section-value">{categoryStats.topArtist}</span>
             <span class="section-sub">{categoryStats.topArtistHours} listened</span>
           </div>
+          
+          {#if categoryStats.topSong}
+            <div class="stat-section">
+              <span class="section-label">Most Listened Song</span>
+              <span class="section-value">{categoryStats.topSong}</span>
+              {#if categoryStats.topSongHours}
+                <span class="section-sub">{categoryStats.topSongHours} listened</span>
+              {/if}
+            </div>
+          {/if}
         {/if}
       </div>
     {/key}
@@ -559,6 +617,61 @@
     .tag {
       font-size: 11px;
       padding: 5px 10px;
+    }
+  }
+
+  @media (max-width: 600px) {
+    .search-detail {
+      right: 16px;
+      bottom: 100px;
+    }
+    
+    .detail-card {
+      padding: 20px;
+      min-width: 220px;
+      max-width: 260px;
+      gap: 16px;
+    }
+    
+    .hero-value {
+      font-size: 40px;
+    }
+    
+    .stat-value {
+      font-size: 24px;
+    }
+    
+    .result-name {
+      font-size: 16px;
+    }
+    
+    .result-name.large {
+      font-size: 20px;
+    }
+    
+    .result-type {
+      font-size: 11px;
+    }
+    
+    .section-value {
+      font-size: 14px;
+    }
+    
+    .section-label, .stat-label {
+      font-size: 10px;
+    }
+    
+    .stats-grid {
+      gap: 14px;
+    }
+    
+    .tags {
+      gap: 6px;
+    }
+    
+    .tag {
+      font-size: 10px;
+      padding: 4px 8px;
     }
   }
 </style>

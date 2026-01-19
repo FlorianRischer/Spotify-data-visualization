@@ -85,6 +85,17 @@ export interface YearDiscoveryData {
   cumulativeTotal: number; // Alle Genres bis zu diesem Jahr
 }
 
+export interface GlobalStats {
+  totalPlaytimeMinutes: number;
+  topArtist: string;
+  topArtistMinutes: number;
+  topSong: string;
+  topSongArtist: string;
+  topSongMinutes: number;
+  avgMinutesPerDay: number;
+  totalDays: number;
+}
+
 export interface TimelineState {
   isActive: boolean;
   years: YearData[];
@@ -96,6 +107,8 @@ export interface TimelineState {
   yearDiscoveries: YearDiscoveryData[];
   // Genre Yearly Statistics (for tooltips)
   genreYearlyStats: Map<string, GenreTopYear> | null;
+  // Global listening statistics
+  globalStats: GlobalStats | null;
 }
 
 const initialState: TimelineState = {
@@ -106,18 +119,20 @@ const initialState: TimelineState = {
   isAnimating: false,
   discoveryData: null,
   yearDiscoveries: [],
-  genreYearlyStats: null
+  genreYearlyStats: null,
+  globalStats: null
 };
 
 export const timelineStore = writable<TimelineState>(initialState);
 
 /**
- * Aktiviert die Timeline-Ansicht
+ * Aktiviert die Timeline-Ansicht und setzt auf das erste Jahr zurück
  */
 export function activateTimeline() {
   timelineStore.update(state => ({
     ...state,
-    isActive: true
+    isActive: true,
+    currentYearIndex: 0
   }));
 }
 
@@ -181,6 +196,16 @@ export function setGenreYearlyStats(stats: Map<string, GenreTopYear>) {
   timelineStore.update(state => ({
     ...state,
     genreYearlyStats: stats
+  }));
+}
+
+/**
+ * Setzt die globalen Listening-Statistiken
+ */
+export function setGlobalStats(stats: GlobalStats) {
+  timelineStore.update(state => ({
+    ...state,
+    globalStats: stats
   }));
 }
 
@@ -330,6 +355,7 @@ export const currentYearDiscovery = derived(timelineStore, $s =>
 );
 export const genreDiscoveryData = derived(timelineStore, $s => $s.discoveryData);
 export const genreYearlyStatsData = derived(timelineStore, $s => $s.genreYearlyStats);
+export const globalStatsData = derived(timelineStore, $s => $s.globalStats);
 export const allDiscoveredGenres = derived(timelineStore, $s => 
   $s.discoveryData?.genres || []
 );

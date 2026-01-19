@@ -58,6 +58,8 @@ function buildNodes(genreStats: GenreStat[], opts: Required<typeof DEFAULT_OPTIO
       topArtist: g.topArtist,
       topArtistMinutes: g.topArtistMinutes,
       topArtistTotalMinutes: g.topArtistTotalMinutes,
+      topSong: g.topSong,
+      topSongMinutes: g.topSongMinutes,
       category
     };
   });

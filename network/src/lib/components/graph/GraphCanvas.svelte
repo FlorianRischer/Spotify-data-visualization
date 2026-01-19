@@ -67,13 +67,13 @@
    * ============================================================================
    * CURRENT VIEW STATE (Reactive)
    * ============================================================================
-   * Determines if nodes are clickable and what cursor style to use.
+   * Determines cursor style based on view.
    * See scrollyStore.ts for full documentation of all views.
    * 
    * - Overview View: Nodes are ONLY hoverable, NOT clickable (cursor: default)
    *   This includes the initial view after start animation!
-   * - Genre Detail View: Nodes ARE clickable (cursor: pointer when hovering)
-   * - Explore View: Nodes ARE clickable (cursor: pointer when hovering)
+   * - Genre Detail View: Nodes are hoverable (cursor: default)
+   * - Explore View: Nodes are hoverable (cursor: default)
    * - Timeline View: Nodes are hoverable for tooltips (cursor: default)
    * 
    * IMPORTANT: Overview View is NOT the same as phase === 'overview'!
@@ -87,7 +87,7 @@
   // Overview View: When NOT in any other specific view (Explore, Genre Detail, Timeline)
   // This includes the initial state after start animation when phase is still 'intro'
   $: isInOverviewView = !isInExploreView && !isInGenreDetailView && !isInTimelineView;
-  $: nodesAreClickable = isInExploreView; // Only clickable in Explore View
+  $: nodesAreClickable = false; // Node click-to-center feature removed
   
   // Cursor position for attraction force (in world coordinates)
   let cursorWorldPosition: { x: number; y: number } | null = null;

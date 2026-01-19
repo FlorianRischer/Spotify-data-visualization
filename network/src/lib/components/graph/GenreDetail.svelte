@@ -127,7 +127,7 @@
         <!-- Percentage Header -->
         <div class="stat-hero">
           <span class="hero-value">{stats.percentage}%</span>
-          <span class="hero-label">of your listening</span>
+          <span class="hero-label">of my listening</span>
         </div>
         
         <!-- Stats Grid -->
@@ -298,7 +298,40 @@
     }
   }
 
-  @media (max-width: 768px) {
+  @media (max-width: 900px) {
+    .genre-detail {
+      right: 40px;
+    }
+    
+    .detail-card {
+      padding: 28px;
+      min-width: 260px;
+      max-width: 300px;
+      gap: 24px;
+    }
+    
+    .hero-value {
+      font-size: 60px;
+    }
+    
+    .stat-value {
+      font-size: 36px;
+    }
+    
+    .section-value {
+      font-size: 20px;
+    }
+    
+    .hero-label {
+      font-size: 14px;
+    }
+    
+    .stats-grid {
+      gap: 24px;
+    }
+  }
+
+  @media (max-width: 600px) {
     .genre-detail {
       right: 24px;
       top: auto;
@@ -322,11 +355,19 @@
     }
     
     .section-value {
-      font-size: 20px;
+      font-size: 18px;
+    }
+    
+    .hero-label {
+      font-size: 13px;
     }
     
     .stats-grid {
       gap: 20px;
+    }
+    
+    .stat-label, .section-label {
+      font-size: 10px;
     }
   }
 </style>

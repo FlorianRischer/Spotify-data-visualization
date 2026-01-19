@@ -518,9 +518,27 @@
   }
 
   /* Responsive */
-  @media (max-width: 768px) {
+  @media (max-width: 1200px) {
     .graph-container {
       height: 100vh;
+    }
+  }
+
+  @media (max-width: 900px) {
+    .graph-container {
+      height: 100vh;
+    }
+  }
+
+  @media (max-width: 600px) {
+    .scrolly-container {
+      height: 100vh;
+      height: 100dvh;
+    }
+    
+    .graph-container {
+      height: 100vh;
+      height: 100dvh;
     }
   }
 </style>

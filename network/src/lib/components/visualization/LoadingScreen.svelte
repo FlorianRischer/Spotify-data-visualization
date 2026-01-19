@@ -48,4 +48,42 @@
       transform: rotate(360deg);
     }
   }
+
+  @media (max-width: 1200px) {
+    .spinner {
+      width: 44px;
+      height: 44px;
+    }
+  }
+
+  @media (max-width: 900px) {
+    .loading-content {
+      gap: 20px;
+    }
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+    }
+
+    .loading-text {
+      font-size: 13px;
+    }
+  }
+
+  @media (max-width: 600px) {
+    .loading-content {
+      gap: 16px;
+    }
+
+    .spinner {
+      width: 36px;
+      height: 36px;
+      border-width: 2px;
+    }
+
+    .loading-text {
+      font-size: 12px;
+    }
+  }
 </style>

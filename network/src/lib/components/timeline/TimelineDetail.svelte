@@ -2,7 +2,7 @@
   import { fly, fade } from 'svelte/transition';
   import { cubicOut } from 'svelte/easing';
   import { scrollyStore } from '$lib/stores/scrollyStore';
-  import { timelineStore } from '$lib/stores/timelineStore';
+  import { timelineStore, globalStatsData } from '$lib/stores/timelineStore';
 
   // Local state to track if dismissed
   let isDismissed = false;
@@ -10,6 +10,16 @@
   $: isTimelinePhase = $scrollyStore.phase === 'timeline';
   $: currentYearIndex = $timelineStore.currentYearIndex;
   $: isFirstYear = currentYearIndex === 0;
+  $: stats = $globalStatsData;
+  
+  // Format hours nicely
+  function formatHours(minutes: number): string {
+    const hours = minutes / 60;
+    if (hours >= 1000) {
+      return `${(hours)}`;
+    }
+    return hours.toFixed(0);
+  }
   
   // Reset dismissed state when leaving timeline
   $: if (!isTimelinePhase) {
@@ -56,10 +66,34 @@
         <div class="instruction-item">
           <div class="instruction-text">
             <span class="instruction-title">Hover</span>
-            <span class="instruction-desc">Hover over genres for more detailed information</span>
+            <span class="instruction-desc">Hover over genres for more detailed information about each Genre</span>
           </div>
         </div>
       </div>
+
+      <!-- Global Stats -->
+      {#if stats}
+        <div class="stats-section">
+          <div class="stat-item">
+            <span class="stat-label">Total Playtime</span>
+            <span class="stat-value">{formatHours(stats.totalPlaytimeMinutes)}h</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Most Listened Artist</span>
+            <span class="stat-value">{stats.topArtist}</span>
+            <span class="stat-subvalue">{formatHours(stats.topArtistMinutes)}h</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Most Listened Song</span>
+            <span class="stat-value">{stats.topSong}</span>
+            <span class="stat-subvalue">{stats.topSongArtist} · {formatHours(stats.topSongMinutes)}h</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Average per Day</span>
+            <span class="stat-value">{(stats.avgMinutesPerDay / 60).toFixed(1)}h</span>
+          </div>
+        </div>
+      {/if}
     </div>
   </div>
 {/if}
@@ -68,7 +102,7 @@
   .timeline-detail {
     position: fixed;
     left: 280px;
-    bottom: 240px;
+    bottom: 110px;
     z-index: 105;
     pointer-events: none;
   }
@@ -80,7 +114,7 @@
     border-radius: 0;
     padding: 32px 36px;
     min-width: 320px;
-    max-width: 520px;
+    max-width: 400px;
     backdrop-filter: none;
     box-shadow: none;
     display: flex;
@@ -146,10 +180,47 @@
     line-height: 1.4;
   }
 
+  .stats-section {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(0, 0, 0, 0.08);
+  }
+
+  .stat-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .stat-label {
+    font-family: 'Inter', sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    color: rgba(0, 0, 0, 0.4);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .stat-value {
+    font-family: 'Inter', sans-serif;
+    font-size: 16px;
+    font-weight: 600;
+    color: #1a1a1a;
+  }
+
+  .stat-subvalue {
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    font-weight: 400;
+    color: rgba(0, 0, 0, 0.5);
+  }
+
   @media (max-width: 1200px) {
     .timeline-detail {
       left: 200px;
-      bottom: 230px;
+      bottom: 100px;
     }
     
     .detail-card {
@@ -169,12 +240,20 @@
     .instruction-desc {
       font-size: 13px;
     }
+
+    .stat-value {
+      font-size: 15px;
+    }
+
+    .stat-subvalue {
+      font-size: 12px;
+    }
   }
 
   @media (max-width: 900px) {
     .timeline-detail {
       left: 140px;
-      bottom: 210px;
+      bottom: 90px;
     }
     
     .detail-card {
@@ -195,12 +274,29 @@
     .instruction-desc {
       font-size: 12px;
     }
+
+    .stats-section {
+      gap: 10px;
+      padding-top: 14px;
+    }
+
+    .stat-label {
+      font-size: 11px;
+    }
+
+    .stat-value {
+      font-size: 14px;
+    }
+
+    .stat-subvalue {
+      font-size: 11px;
+    }
   }
 
   @media (max-width: 600px) {
     .timeline-detail {
       left: 20px;
-      bottom: 200px;
+      bottom: 80px;
     }
     
     .detail-card {
@@ -220,6 +316,23 @@
     
     .instruction-desc {
       font-size: 11px;
+    }
+
+    .stats-section {
+      gap: 8px;
+      padding-top: 12px;
+    }
+
+    .stat-label {
+      font-size: 10px;
+    }
+
+    .stat-value {
+      font-size: 13px;
+    }
+
+    .stat-subvalue {
+      font-size: 10px;
     }
   }
 </style>

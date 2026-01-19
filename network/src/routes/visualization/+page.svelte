@@ -22,7 +22,7 @@
   import { uiStore, isStartAnimationRunning } from "$lib/stores/uiStore";
   import { scrollyStore } from "$lib/stores/scrollyStore";
   import { setArtistsData } from "$lib/stores/searchStore";
-  import { setGenreDiscoveryData, setGenreYearlyStats } from "$lib/stores/timelineStore";
+  import { setGenreDiscoveryData, setGenreYearlyStats, setGlobalStats } from "$lib/stores/timelineStore";
   import { buildGraph, computeForceLayout, transformSpotifyData, loadStreamingHistory } from "$lib/graph";
   import { getArtistsWithGenres, STREAMING_FILES } from "$lib/services";
   import { computeGenreDiscovery, computeGenreYearlyStats } from "$lib/wrangling/genreDiscovery";
@@ -119,11 +119,33 @@
       
       // Calculate total minutes per artist from streaming history
       const artistPlaytime = new Map<string, number>();
+      // Calculate top song per artist (by total listening time)
+      const artistTopSong = new Map<string, { song: string; minutes: number }>();
+      
       for (const entry of streamingHistory) {
         const artistName = entry.master_metadata_album_artist_name;
+        const trackName = entry.master_metadata_track_name;
         if (!artistName) continue;
         const minutes = entry.ms_played / 60000;
         artistPlaytime.set(artistName, (artistPlaytime.get(artistName) || 0) + minutes);
+        
+        // Track top song per artist
+        if (trackName) {
+          const key = `${artistName}|||${trackName}`;
+          const current = artistTopSong.get(key) || { song: trackName, minutes: 0 };
+          current.minutes += minutes;
+          artistTopSong.set(key, current);
+        }
+      }
+      
+      // Find the actual top song for each artist (with minutes)
+      const artistBestSong = new Map<string, { song: string; minutes: number }>();
+      for (const [key, data] of artistTopSong.entries()) {
+        const artistName = key.split('|||')[0];
+        const existing = artistBestSong.get(artistName);
+        if (!existing || data.minutes > existing.minutes) {
+          artistBestSong.set(artistName, { song: data.song, minutes: data.minutes });
+        }
       }
       
       // Set artists data for search - include ALL artists with genres (not just 2+)
@@ -137,12 +159,17 @@
       // Create artist data with playtime for weighted random selection
       const artistsForSearch = artistsWithGenres
         .filter(a => a.genres && a.genres.length > 0)
-        .map((a: any) => ({
-          artistId: a.id || a.originalName,
-          name: a.name || a.originalName,
-          genres: a.genres.map((g: string) => g.toLowerCase().replace(/\s+/g, '-')),
-          totalMinutes: Math.round(artistPlaytime.get(a.originalName) || 0)
-        }))
+        .map((a: any) => {
+          const topSongData = artistBestSong.get(a.originalName);
+          return {
+            artistId: a.id || a.originalName,
+            name: a.name || a.originalName,
+            genres: a.genres.map((g: string) => g.toLowerCase().replace(/\s+/g, '-')),
+            totalMinutes: Math.round(artistPlaytime.get(a.originalName) || 0),
+            topSong: topSongData?.song,
+            topSongMinutes: topSongData ? Math.round(topSongData.minutes) : undefined
+          };
+        })
         .filter(a => a.totalMinutes > 0); // Only include artists with listening time
       
       setArtistsData(artistsForSearch);
@@ -159,6 +186,54 @@
       const yearlyStats = computeGenreYearlyStats(streamingHistory, artistsWithGenres, discoveryData);
       setGenreYearlyStats(yearlyStats);
       console.log(`Computed yearly stats for ${yearlyStats.size} genres`);
+
+      // Berechne globale Statistiken für Timeline
+      loadingStatus = "Berechne globale Statistiken...";
+      const totalPlaytimeMinutes = Array.from(artistPlaytime.values()).reduce((sum, m) => sum + m, 0);
+      
+      // Find top artist
+      let topArtist = '';
+      let topArtistMinutes = 0;
+      for (const [artist, minutes] of artistPlaytime.entries()) {
+        if (minutes > topArtistMinutes) {
+          topArtist = artist;
+          topArtistMinutes = minutes;
+        }
+      }
+      
+      // Find top song overall
+      let topSong = '';
+      let topSongArtist = '';
+      let topSongMinutes = 0;
+      for (const [key, data] of artistTopSong.entries()) {
+        if (data.minutes > topSongMinutes) {
+          const [artist] = key.split('|||');
+          topSong = data.song;
+          topSongArtist = artist;
+          topSongMinutes = data.minutes;
+        }
+      }
+      
+      // Calculate total days from first to last stream
+      const timestamps = streamingHistory
+        .filter(e => e.ts)
+        .map(e => new Date(e.ts).getTime());
+      const firstStream = Math.min(...timestamps);
+      const lastStream = Math.max(...timestamps);
+      const totalDays = Math.max(1, Math.ceil((lastStream - firstStream) / (1000 * 60 * 60 * 24)));
+      const avgMinutesPerDay = totalPlaytimeMinutes / totalDays;
+      
+      setGlobalStats({
+        totalPlaytimeMinutes: Math.round(totalPlaytimeMinutes),
+        topArtist,
+        topArtistMinutes: Math.round(topArtistMinutes),
+        topSong,
+        topSongArtist,
+        topSongMinutes: Math.round(topSongMinutes),
+        avgMinutesPerDay: Math.round(avgMinutesPerDay),
+        totalDays
+      });
+      console.log(`Global stats: ${Math.round(totalPlaytimeMinutes / 60)}h total, ${topArtist} top artist, ${topSong} top song`);
 
       // Compute force layout
       loadingStatus = "Berechne Layout...";

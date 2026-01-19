@@ -224,7 +224,44 @@
   }
   
   /* Responsive adjustments */
-  @media (max-width: 768px) {
+  @media (max-width: 1200px) {
+    .subtitle {
+      margin-top: 28px;
+    }
+    
+    .scroll-hint {
+      bottom: 70px;
+    }
+    
+    .hint-text {
+      font-size: 18px;
+    }
+  }
+
+  @media (max-width: 900px) {
+    .subtitle {
+      margin-top: 26px;
+    }
+    
+    .scroll-hint {
+      bottom: 65px;
+      gap: 6px;
+    }
+    
+    .hint-text {
+      font-size: 17px;
+    }
+    
+    .hint-arrow {
+      font-size: 14px;
+    }
+  }
+
+  @media (max-width: 600px) {
+    .content {
+      padding: 0 20px;
+    }
+    
     .subtitle {
       margin-top: 24px;
     }
@@ -235,6 +272,10 @@
     
     .hint-text {
       font-size: 16px;
+    }
+    
+    .hint-arrow {
+      font-size: 12px;
     }
   }
 </style>

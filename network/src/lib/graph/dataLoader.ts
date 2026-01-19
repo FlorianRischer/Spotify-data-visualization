@@ -37,9 +37,11 @@ export function transformSpotifyData(
   const topArtistPerGenre = new Map<string, { name: string; minutes: number; totalMinutes: number }>();
   const artistTimePerGenre = new Map<string, Map<string, number>>();
   const artistTotalTime = new Map<string, number>(); // Total time per artist (not split)
+  const songTimePerGenre = new Map<string, Map<string, number>>(); // Track song time per genre
   
   for (const entry of streamingHistory) {
     const artistName = entry.master_metadata_album_artist_name;
+    const trackName = entry.master_metadata_track_name;
     if (!artistName) continue;
     
     const genres = artistGenreMap.get(artistName);
@@ -67,6 +69,17 @@ export function transformSpotifyData(
       const artistMap = artistTimePerGenre.get(normalized)!;
       const currentTime = artistMap.get(artistName) || 0;
       artistMap.set(artistName, currentTime + minutes / genres.length);
+      
+      // Track song time per genre
+      if (trackName) {
+        if (!songTimePerGenre.has(normalized)) {
+          songTimePerGenre.set(normalized, new Map());
+        }
+        const songMap = songTimePerGenre.get(normalized)!;
+        const songKey = `${artistName} - ${trackName}`;
+        const currentSongTime = songMap.get(songKey) || 0;
+        songMap.set(songKey, currentSongTime + minutes / genres.length);
+      }
     }
   }
   
@@ -89,12 +102,32 @@ export function transformSpotifyData(
       });
     }
   }
+  
+  // Calculate top song for each genre
+  const topSongPerGenre = new Map<string, { song: string; minutes: number }>();
+  for (const [genreId, songMap] of songTimePerGenre.entries()) {
+    let topSong = "";
+    let maxMinutes = 0;
+    for (const [song, minutes] of songMap.entries()) {
+      if (minutes > maxMinutes) {
+        maxMinutes = minutes;
+        topSong = song;
+      }
+    }
+    if (topSong) {
+      topSongPerGenre.set(genreId, { 
+        song: topSong, 
+        minutes: Math.round(maxMinutes)
+      });
+    }
+  }
 
   // Convert to GenreStat array
   const genreStatsArray: GenreStat[] = Array.from(genreStats.entries())
     .filter(([_, stats]) => stats.totalMinutes > 5) // Filter out noise
     .map(([id, stats]) => {
       const topArtistData = topArtistPerGenre.get(id);
+      const topSongData = topSongPerGenre.get(id);
       return {
         id,
         label: formatGenreLabel(id),
@@ -102,7 +135,9 @@ export function transformSpotifyData(
         totalMinutes: Math.round(stats.totalMinutes),
         topArtist: topArtistData?.name,
         topArtistMinutes: topArtistData?.minutes,
-        topArtistTotalMinutes: topArtistData?.totalMinutes
+        topArtistTotalMinutes: topArtistData?.totalMinutes,
+        topSong: topSongData?.song,
+        topSongMinutes: topSongData?.minutes
       };
     })
     .sort((a, b) => b.totalMinutes - a.totalMinutes);

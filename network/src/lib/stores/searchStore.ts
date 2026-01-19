@@ -9,6 +9,8 @@ export interface ArtistSearchData {
   name: string;
   genres: string[]; // genre IDs this artist is associated with
   totalMinutes?: number; // total listening time for this artist
+  topSong?: string; // most listened song by this artist
+  topSongMinutes?: number; // listening time for the top song
 }
 
 export interface SearchState {
@@ -109,12 +111,16 @@ export function updateSearchQuery(query: string, nodes: Array<{ id: string; labe
   
   for (const artist of artistsData) {
     if (artist.name.toLowerCase().includes(trimmedQuery)) {
-      matchedArtists.push(artist);
-      // Add all genres this artist is associated with
-      for (const genreId of artist.genres) {
-        // Only add if the genre exists in nodes
-        if (nodes.some(n => n.id === genreId)) {
-          artistGenreIds.add(genreId);
+      // Check if at least one of the artist's genres exists in nodes
+      const hasVisibleGenre = artist.genres.some(genreId => nodes.some(n => n.id === genreId));
+      
+      if (hasVisibleGenre) {
+        matchedArtists.push(artist);
+        // Add all genres this artist is associated with (that exist in nodes)
+        for (const genreId of artist.genres) {
+          if (nodes.some(n => n.id === genreId)) {
+            artistGenreIds.add(genreId);
+          }
         }
       }
     }
@@ -219,14 +225,26 @@ export function getRandomArtist(nodes: Array<{ id: string; label: string; totalM
 }
 
 /**
- * Gets a completely random genre from the available nodes
+ * Gets a weighted random genre - genres with higher playtime are more likely to be selected
  */
 export function getRandomGenre(nodes: Array<{ id: string; label: string; totalMinutes?: number }>): { id: string; label: string } | null {
   if (nodes.length === 0) return null;
   
-  // Pure random selection
-  const randomIndex = Math.floor(Math.random() * nodes.length);
-  return { id: nodes[randomIndex].id, label: nodes[randomIndex].label };
+  // Calculate total playtime for weighting
+  const totalPlaytime = nodes.reduce((sum, n) => sum + (n.totalMinutes || 1), 0);
+  
+  // Weighted random selection based on playtime
+  let random = Math.random() * totalPlaytime;
+  for (const node of nodes) {
+    random -= (node.totalMinutes || 1);
+    if (random <= 0) {
+      return { id: node.id, label: node.label };
+    }
+  }
+  
+  // Fallback to last node (should rarely happen due to floating point)
+  const lastNode = nodes[nodes.length - 1];
+  return { id: lastNode.id, label: lastNode.label };
 }
 
 /**

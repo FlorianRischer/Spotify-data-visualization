@@ -68,8 +68,8 @@
     }
   }
 
-  /* Desktop (1024px - 1439px) */
-  @media (max-width: 1439px) and (min-width: 1025px) {
+  /* Desktop (1200px - 1439px) */
+  @media (max-width: 1439px) and (min-width: 1201px) {
     .timeline-title-panel {
       width: 260px;
     }
@@ -79,30 +79,30 @@
     }
   }
 
-  /* Tablet Portrait (768px - 1024px) */
-  @media (max-width: 1024px) and (min-width: 769px) {
+  /* Tablet Landscape (900px - 1200px) */
+  @media (max-width: 1200px) and (min-width: 901px) {
     .timeline-title-panel {
-      width: 200px;
+      width: 220px;
     }
     
     .timeline-title {
-      font-size: 110px;
+      font-size: 120px;
     }
   }
 
-  /* Mobile Landscape / Small Tablet (481px - 768px) */
-  @media (max-width: 768px) and (min-width: 481px) {
+  /* Tablet Portrait (600px - 900px) */
+  @media (max-width: 900px) and (min-width: 601px) {
     .timeline-title-panel {
-      width: 160px;
+      width: 180px;
     }
     
     .timeline-title {
-      font-size: 80px;
+      font-size: 90px;
     }
   }
 
-  /* Mobile (480px and below) - Title at top center, not rotated */
-  @media (max-width: 480px) {
+  /* Mobile (600px and below) - Title at top center, not rotated */
+  @media (max-width: 600px) {
     .timeline-title-panel {
       width: 100%;
       height: auto;
@@ -122,14 +122,14 @@
     }
   }
 
-  /* Small Mobile (320px and below) */
-  @media (max-width: 320px) {
+  /* Small Mobile (400px and below) */
+  @media (max-width: 400px) {
     .timeline-title-panel {
       top: 15px;
     }
     
     .timeline-title {
-      font-size: 36px;
+      font-size: 40px;
     }
   }
 </style>

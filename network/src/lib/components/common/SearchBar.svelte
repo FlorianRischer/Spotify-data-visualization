@@ -282,6 +282,58 @@
     max-width: 140px;
   }
 
+  @media (max-width: 1200px) {
+    .search-wrapper {
+      padding: 8px 18px;
+    }
+    
+    .search-input {
+      width: 260px;
+    }
+    
+    .suggestion-btn {
+      padding: 7px 14px;
+      min-width: 90px;
+      max-width: 150px;
+    }
+    
+    .suggestion-value {
+      font-size: 12px;
+      max-width: 130px;
+    }
+  }
+
+  @media (max-width: 900px) {
+    .search-wrapper {
+      padding: 8px 16px;
+      gap: 6px;
+    }
+    
+    .search-input {
+      font-size: 15px;
+      width: 220px;
+    }
+    
+    .suggestions {
+      gap: 10px;
+    }
+    
+    .suggestion-btn {
+      padding: 6px 12px;
+      min-width: 80px;
+      max-width: 140px;
+    }
+    
+    .suggestion-label {
+      font-size: 9px;
+    }
+    
+    .suggestion-value {
+      font-size: 12px;
+      max-width: 120px;
+    }
+  }
+
   @media (max-width: 600px) {
     .search-wrapper {
       padding: 10px 20px;

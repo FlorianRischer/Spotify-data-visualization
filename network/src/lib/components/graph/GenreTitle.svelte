@@ -100,13 +100,35 @@
     will-change: transform, opacity;
   }
 
-  @media (max-width: 1024px) {
+  @media (max-width: 1200px) {
     .genre-title-panel {
-      width: 200px;
+      width: 220px;
     }
 
     .genre-title {
-      font-size: 120px;
+      font-size: 140px;
+    }
+  }
+
+  @media (max-width: 900px) {
+    .genre-title-panel {
+      width: 180px;
+    }
+
+    .genre-title {
+      font-size: 110px;
+      letter-spacing: -1px;
+    }
+  }
+
+  @media (max-width: 600px) {
+    .genre-title-panel {
+      width: 140px;
+    }
+
+    .genre-title {
+      font-size: 80px;
+      letter-spacing: 0;
     }
   }
 </style>

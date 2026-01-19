@@ -189,16 +189,77 @@
     max-width: 120px;
   }
   
-  /* Compact Desktop (< 1024px) */
-  @media (max-width: 1024px) {
+  /* Compact Desktop (< 1200px) */
+  @media (max-width: 1200px) {
     .tooltip {
       min-width: 130px;
-      padding: 8px 10px;
+      max-width: 200px;
+      width: 200px;
+      padding: 10px 12px;
+    }
+    
+    .tooltip-header {
+      font-size: 12px;
+      margin-bottom: 6px;
     }
     
     .stat {
       gap: 10px;
       font-size: 10px;
+    }
+  }
+
+  @media (max-width: 900px) {
+    .tooltip {
+      min-width: 120px;
+      max-width: 180px;
+      width: 180px;
+      padding: 8px 10px;
+    }
+    
+    .tooltip-header {
+      font-size: 11px;
+      margin-bottom: 5px;
+      padding-bottom: 5px;
+    }
+    
+    .stat {
+      gap: 8px;
+      font-size: 10px;
+    }
+    
+    .stat-value {
+      max-width: 100px;
+    }
+  }
+
+  @media (max-width: 600px) {
+    .tooltip {
+      min-width: 110px;
+      max-width: 160px;
+      width: 160px;
+      padding: 7px 9px;
+      border-radius: 6px;
+    }
+    
+    .tooltip-header {
+      font-size: 10px;
+      margin-bottom: 4px;
+      padding-bottom: 4px;
+    }
+    
+    .stat {
+      gap: 6px;
+      font-size: 9px;
+    }
+    
+    .stat.separator {
+      padding-top: 4px;
+      margin-top: 2px;
+    }
+    
+    .stat-value {
+      max-width: 80px;
     }
   }
 </style>

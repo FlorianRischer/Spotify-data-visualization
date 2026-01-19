@@ -298,7 +298,18 @@
     }
   }
 
-  @media (max-width: 768px) {
+  @media (max-width: 900px) {
+    .bottom-nav {
+      gap: 60px;
+      padding: 0 30px;
+    }
+
+    .nav-button {
+      font-size: 18px;
+    }
+  }
+
+  @media (max-width: 600px) {
     .bottom-nav {
       gap: 40px;
       padding: 0 20px;
@@ -306,6 +317,10 @@
 
     .nav-button {
       font-size: 16px;
+    }
+    
+    .nav-button::after {
+      bottom: 10px;
     }
   }
 </style>

@@ -382,18 +382,18 @@
     }
   }
 
-  @media (max-width: 768px) {
+  @media (max-width: 900px) {
     .timeline-container {
       height: 120px;
       padding-bottom: 20px;
     }
     
     .timeline-viewport {
-      width: calc(100% - 40px);
+      width: calc(100% - 50px);
     }
 
     .year-number {
-      font-size: 36px;
+      font-size: 40px;
     }
 
     .month-label {
@@ -401,12 +401,12 @@
     }
 
     .month-tick {
-      height: 8px;
-      top: -3px;
+      height: 10px;
+      top: -4px;
     }
   }
 
-  @media (max-width: 480px) {
+  @media (max-width: 600px) {
     .timeline-container {
       height: 100px;
       padding-bottom: 15px;
@@ -422,6 +422,11 @@
 
     .month-label {
       font-size: 10px;
+    }
+
+    .month-tick {
+      height: 8px;
+      top: -3px;
     }
   }
 </style>

@@ -12,6 +12,8 @@ export interface GenreStat {
   topArtist?: string; // Name of artist with most time played in this genre
   topArtistMinutes?: number; // Minutes of the top artist (split across genres)
   topArtistTotalMinutes?: number; // Total minutes of the top artist (not split)
+  topSong?: string; // Most listened song in this genre
+  topSongMinutes?: number; // Minutes of the top song
   category?: string; // Genre category/group
 }
 
@@ -39,6 +41,8 @@ export interface GenreNode {
   topArtist?: string; // Name of artist with most time played in this genre
   topArtistMinutes?: number; // Minutes of the top artist (split across genres)
   topArtistTotalMinutes?: number; // Total minutes of the top artist (not split)
+  topSong?: string; // Most listened song in this genre
+  topSongMinutes?: number; // Minutes of the top song
   category?: string; // Genre category/group (e.g., "Hip Hop & Rap", "Electronic & Dance")
 }
 
