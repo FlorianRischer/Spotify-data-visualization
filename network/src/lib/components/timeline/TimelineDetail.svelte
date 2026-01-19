@@ -102,7 +102,8 @@
   .timeline-detail {
     position: fixed;
     left: 280px;
-    bottom: 110px;
+    top: 50%;
+    transform: translateY(-50%);
     z-index: 105;
     pointer-events: none;
   }
@@ -220,7 +221,6 @@
   @media (max-width: 1200px) {
     .timeline-detail {
       left: 200px;
-      bottom: 100px;
     }
     
     .detail-card {
@@ -253,7 +253,6 @@
   @media (max-width: 900px) {
     .timeline-detail {
       left: 140px;
-      bottom: 90px;
     }
     
     .detail-card {
@@ -296,7 +295,6 @@
   @media (max-width: 600px) {
     .timeline-detail {
       left: 20px;
-      bottom: 80px;
     }
     
     .detail-card {
