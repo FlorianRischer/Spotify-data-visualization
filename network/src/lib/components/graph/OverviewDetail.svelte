@@ -86,7 +86,7 @@
 
         <div class="instruction-item">
           <div class="instruction-text">
-            <span class="instruction-title">Connections</span>
+            <span class="instruction-title">Display Links</span>
             <span class="instruction-desc">Lines connect related genres that share similar artists.</span>
           </div>
         </div>
