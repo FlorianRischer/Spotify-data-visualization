@@ -25,7 +25,7 @@ vite.config.ts.timestamp-*
 # Data (raw Spotify exports - sensitive)
 src/lib/data/raw/*.json
 !src/lib/data/raw/.gitkeep
-static/spotify-data/*.json
+# static/spotify-data/*.json  # KOMMENTIERT: Daten werden für andere Geräte benötigt
 
 # Cache (can be regenerated)
 src/lib/data/cache/*.json
