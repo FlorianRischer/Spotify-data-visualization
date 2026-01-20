@@ -1,0 +1,6 @@
+# Cloudflare Pages Configuration
+compatibility_date = "2024-01-15"
+
+[build]
+command = "npm run build"
+cwd = "."

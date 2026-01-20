@@ -1,0 +1,16 @@
+{
+  "name": "spotify-data-visualization-root",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Root package.json for Spotify Data Visualization - proxies to network folder",
+  "scripts": {
+    "dev": "cd network && npm run dev",
+    "build": "cd network && npm install && npm run build",
+    "preview": "cd network && npm run preview",
+    "check": "cd network && npm run check",
+    "lint": "cd network && npm run lint"
+  },
+  "keywords": ["spotify", "visualization", "svelte"],
+  "author": "",
+  "license": "ISC"
+}
