@@ -57,8 +57,8 @@
 
         <div class="instruction-item">
           <div class="instruction-text">
-            <span class="instruction-title">Drag</span>
-            <span class="instruction-desc">Click and drag nodes to move them around or just let them follow your cursor</span>
+            <span class="instruction-title">Discover</span>
+            <span class="instruction-desc">Discover all genres i ever listened to</span>
           </div>
         </div>
 
@@ -72,7 +72,7 @@
         <div class="instruction-item">
           <div class="instruction-text">
             <span class="instruction-title">Links</span>
-            <span class="instruction-desc">Connections show genre relationships</span>
+            <span class="instruction-desc">Connections show genre relationships (can cause lag depends on your Machine)</span>
           </div>
         </div>
       </div>
