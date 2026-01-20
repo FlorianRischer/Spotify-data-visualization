@@ -1,19 +1,9 @@
-# Cloudflare Pages Configuration
-name = "spotify-data-visualization"
-type = "javascript"
-
-[env.production]
-routes = [
-  { pattern = "example.com", zone_name = "example.com" }
-]
-
-[build]
-command = "cd network && npm install && npm run build"
-cwd = "."
-watch_paths = ["network/**/*.{js,ts,svelte,json}"]
-
-[build.upload]
-format = "service-worker"
-
-[site]
-bucket = "network/.svelte-kit/output/client"
+# This file is not needed for Cloudflare Pages deployment
+# Cloudflare Pages automatically deploys static files from the output directory
+# 
+# Configure in Cloudflare Pages Dashboard:
+# - Build command: npm run build
+# - Build output directory: network/.svelte-kit/output/client
+# - Root directory: (leave empty)
+#
+# DO NOT set a custom deploy command - Pages handles deployment automatically
