@@ -6,13 +6,12 @@
   "scripts": {
     "dev": "vite dev",
     "build": "vite build",
-    "deploy": "echo 'Static files ready in build folder'",
     "preview": "vite preview",
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "lint": "svelte-check --tsconfig ./tsconfig.json"
   },
   "devDependencies": {
-    "@sveltejs/adapter-static": "^3.0.0",
+    "@sveltejs/adapter-auto": "^7.0.0",
     "@sveltejs/kit": "^2.49.2",
     "cookie": "^0.7.2",
     "svelte": "^5.0.0",
