@@ -1,11 +1,19 @@
 /**
  * Spotify Data Service
  * Handles loading and caching of artist/genre data
+ * 
+ * Data is loaded from Cloudflare R2 bucket for cross-device access
  */
 
 const CACHE_KEY = "spotify_artist_cache";
 const CACHE_VERSION = "v1";
 const CACHE_VERSION_LEGACY = ["v1", "v2"];
+
+/**
+ * Cloudflare R2 Public Bucket URL
+ * Set this to your R2 bucket's public URL after enabling public access
+ */
+const R2_BUCKET_URL = "https://pub-fbeb452fbb4d42c19a55aa554a6ecbeb.r2.dev";
 
 /**
  * Normalizes artist name for cache key lookup
@@ -15,16 +23,19 @@ export function normKey(name: string): string {
 }
 
 /**
- * Loads precomputed artist-genre data from /static/
+ * Loads precomputed artist-genre data from R2 bucket or local fallback
  */
 export async function loadPrecomputedCache(): Promise<Map<string, any>> {
+  // Try R2 bucket first, then local fallback
   const dataSources = [
+    `${R2_BUCKET_URL}/artist-cache.json`,
     "/artist-cache-2025-12-13.json",
     "/artist-cache.json"
   ];
 
   for (const source of dataSources) {
     try {
+      console.log(`📂 Trying to load cache from: ${source}`);
       const response = await fetch(source);
       if (response.ok) {
         const data = await response.json();
@@ -34,6 +45,7 @@ export async function loadPrecomputedCache(): Promise<Map<string, any>> {
         );
 
         if (validEntries.length > 0) {
+          console.log(`✅ Loaded ${validEntries.length} artists from ${source}`);
           const normalizedEntries: Array<[string, any]> = validEntries.map(([key, val]) => [normKey(key), val]);
           return new Map(normalizedEntries);
         }
@@ -166,19 +178,33 @@ export async function getArtistsWithGenres(uniqueArtists: string[]): Promise<any
 }
 
 /**
- * Streaming history file paths
+ * Streaming history file paths - loaded from R2 bucket
  */
-export const STREAMING_FILES = [
-  "/spotify-data/Streaming_History_Audio_2018-2020_0.json",
-  "/spotify-data/Streaming_History_Audio_2020-2021_1.json",
-  "/spotify-data/Streaming_History_Audio_2021_2.json",
-  "/spotify-data/Streaming_History_Audio_2021_3.json",
-  "/spotify-data/Streaming_History_Audio_2021-2022_4.json",
-  "/spotify-data/Streaming_History_Audio_2022_5.json",
-  "/spotify-data/Streaming_History_Audio_2022-2023_6.json",
-  "/spotify-data/Streaming_History_Audio_2023_7.json",
-  "/spotify-data/Streaming_History_Audio_2023-2024_8.json",
-  "/spotify-data/Streaming_History_Audio_2024_9.json",
-  "/spotify-data/Streaming_History_Audio_2024-2025_10.json",
-  "/spotify-data/Streaming_History_Audio_2025_11.json"
+const STREAMING_FILE_NAMES = [
+  "Streaming_History_Audio_2018-2020_0.json",
+  "Streaming_History_Audio_2020-2021_1.json",
+  "Streaming_History_Audio_2021_2.json",
+  "Streaming_History_Audio_2021_3.json",
+  "Streaming_History_Audio_2021-2022_4.json",
+  "Streaming_History_Audio_2022_5.json",
+  "Streaming_History_Audio_2022-2023_6.json",
+  "Streaming_History_Audio_2023_7.json",
+  "Streaming_History_Audio_2023-2024_8.json",
+  "Streaming_History_Audio_2024_9.json",
+  "Streaming_History_Audio_2024-2025_10.json",
+  "Streaming_History_Audio_2025_11.json"
 ];
+
+/**
+ * Get streaming file URLs - tries R2 bucket first, then local fallback
+ */
+export const STREAMING_FILES = STREAMING_FILE_NAMES.map(name => 
+  `${R2_BUCKET_URL}/spotify-data/${name}`
+);
+
+/**
+ * Fallback to local files if R2 fails
+ */
+export const STREAMING_FILES_LOCAL = STREAMING_FILE_NAMES.map(name => 
+  `/spotify-data/${name}`
+);

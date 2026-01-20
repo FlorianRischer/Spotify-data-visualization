@@ -24,7 +24,7 @@
   import { setArtistsData } from "$lib/stores/searchStore";
   import { setGenreDiscoveryData, setGenreYearlyStats, setGlobalStats } from "$lib/stores/timelineStore";
   import { buildGraph, computeForceLayout, transformSpotifyData, loadStreamingHistory } from "$lib/graph";
-  import { getArtistsWithGenres, STREAMING_FILES } from "$lib/services";
+  import { getArtistsWithGenres, STREAMING_FILES, STREAMING_FILES_LOCAL } from "$lib/services";
   import { computeGenreDiscovery, computeGenreYearlyStats } from "$lib/wrangling/genreDiscovery";
   import "../app.css";
   import "./page.css";
@@ -44,9 +44,9 @@
 
   onMount(async () => {
     try {
-      // Load all streaming history JSON files
+      // Load all streaming history JSON files (R2 bucket with local fallback)
       loadingStatus = "Lädt Streaming-Daten...";
-      const streamingHistory = await loadStreamingHistory(STREAMING_FILES);
+      const streamingHistory = await loadStreamingHistory(STREAMING_FILES, STREAMING_FILES_LOCAL);
 
       // Extract unique artists
       loadingStatus = "Extrahiere Artists...";

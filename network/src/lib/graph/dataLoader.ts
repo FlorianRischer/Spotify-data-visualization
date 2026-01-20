@@ -184,10 +184,14 @@ function formatGenreLabel(id: string): string {
 
 /**
  * Load streaming history JSON files - OPTIMIZED with parallel loading
+ * Supports fallback URLs if primary source fails
  */
 export async function loadStreamingHistory(
-  fileUrls: string[]
+  fileUrls: string[],
+  fallbackUrls?: string[]
 ): Promise<SpotifyStreamEntry[]> {
+  console.log(`📂 Loading streaming history from ${fileUrls.length} files...`);
+  
   // Parallel fetch all files at once (much faster than sequential)
   const results = await Promise.allSettled(
     fileUrls.map(async (url) => {
@@ -199,15 +203,39 @@ export async function loadStreamingHistory(
   
   // Flatten successful results
   const all: SpotifyStreamEntry[] = [];
+  let successCount = 0;
+  
   for (let i = 0; i < results.length; i++) {
     const result = results[i];
     if (result.status === 'fulfilled') {
       all.push(...result.value);
+      successCount++;
     } else {
       console.warn(`Failed to load ${fileUrls[i]}:`, result.reason);
     }
   }
   
+  // If no files loaded and fallback URLs provided, try fallback
+  if (all.length === 0 && fallbackUrls && fallbackUrls.length > 0) {
+    console.log(`⚠️ Primary sources failed, trying fallback URLs...`);
+    const fallbackResults = await Promise.allSettled(
+      fallbackUrls.map(async (url) => {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response.json() as Promise<SpotifyStreamEntry[]>;
+      })
+    );
+    
+    for (let i = 0; i < fallbackResults.length; i++) {
+      const result = fallbackResults[i];
+      if (result.status === 'fulfilled') {
+        all.push(...result.value);
+        successCount++;
+      }
+    }
+  }
+  
+  console.log(`✅ Loaded ${all.length} streaming entries from ${successCount} files`);
   return all;
 }
 
