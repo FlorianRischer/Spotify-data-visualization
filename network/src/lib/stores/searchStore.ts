@@ -76,17 +76,16 @@ export function updateSearchQuery(query: string, nodes: Array<{ id: string; labe
     return;
   }
 
-  // Check for EXACT category matches only (case-insensitive)
+  // Check for category matches (prefix match - category name must start with query)
   const allCategories = getAllCategories();
   let matchedCategory: GenreCategory | null = null;
   const categoryGenreIds = new Set<string>();
   
   for (const category of allCategories) {
-    // Only match if the query is EXACTLY the category name (case-insensitive)
-    if (category.toLowerCase() === trimmedQuery) {
+    // Match if the category name starts with the query (case-insensitive)
+    if (category.toLowerCase().startsWith(trimmedQuery)) {
       matchedCategory = category;
       // Get all genres in this category and find their node IDs
-      const genresInCategory = getGenresByCategory(category);
       for (const node of nodes) {
         const nodeCategory = getGenreCategory(node.label);
         if (nodeCategory === category) {
@@ -97,20 +96,20 @@ export function updateSearchQuery(query: string, nodes: Array<{ id: string; labe
     }
   }
 
-  // Find matching genres (direct name match)
+  // Find matching genres (prefix match - must start with query)
   const matchedGenreIds = new Set<string>();
   for (const node of nodes) {
-    if (node.label.toLowerCase().includes(trimmedQuery)) {
+    if (node.label.toLowerCase().startsWith(trimmedQuery)) {
       matchedGenreIds.add(node.id);
     }
   }
 
-  // Find matching artists and their associated genres
+  // Find matching artists and their associated genres (prefix match - must start with query)
   const matchedArtists: ArtistSearchData[] = [];
   const artistGenreIds = new Set<string>();
   
   for (const artist of artistsData) {
-    if (artist.name.toLowerCase().includes(trimmedQuery)) {
+    if (artist.name.toLowerCase().startsWith(trimmedQuery)) {
       // Check if at least one of the artist's genres exists in nodes
       const hasVisibleGenre = artist.genres.some(genreId => nodes.some(n => n.id === genreId));
       
