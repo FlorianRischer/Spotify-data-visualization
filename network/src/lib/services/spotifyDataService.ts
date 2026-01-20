@@ -13,7 +13,7 @@ const CACHE_VERSION_LEGACY = ["v1", "v2"];
  * Cloudflare R2 Public Bucket URL
  * Set this to your R2 bucket's public URL after enabling public access
  */
-const R2_BUCKET_URL = "https://pub-fbeb452fbb4d42c19a55aa554a6ecbeb.r2.dev";
+const R2_BUCKET_URL = "https://pub-db07bac972eb49449af4dd8101d40e57.r2.dev";
 
 /**
  * Normalizes artist name for cache key lookup
