@@ -51,14 +51,14 @@
         <div class="instruction-item">
           <div class="instruction-text">
             <span class="instruction-title">Search</span>
-            <span class="instruction-desc">Type in the search bar to find genres, artists, or categories</span>
+            <span class="instruction-desc">Type in the search bar to find genres, artists, or categories I listened to</span>
           </div>
         </div>
 
         <div class="instruction-item">
           <div class="instruction-text">
             <span class="instruction-title">Drag</span>
-            <span class="instruction-desc">Click and drag nodes to move them</span>
+            <span class="instruction-desc">Click and drag nodes to move them around or just let them follow your cursor</span>
           </div>
         </div>
 
