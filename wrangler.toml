@@ -1,6 +1,19 @@
 # Cloudflare Pages Configuration
-compatibility_date = "2024-01-15"
+name = "spotify-data-visualization"
+type = "javascript"
+
+[env.production]
+routes = [
+  { pattern = "example.com", zone_name = "example.com" }
+]
 
 [build]
-command = "npm run build"
+command = "cd network && npm install && npm run build"
 cwd = "."
+watch_paths = ["network/**/*.{js,ts,svelte,json}"]
+
+[build.upload]
+format = "service-worker"
+
+[site]
+bucket = "network/.svelte-kit/output/client"
