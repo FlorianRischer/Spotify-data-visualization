@@ -294,8 +294,8 @@
 </script>
 
 <svelte:head>
-  <title>Musical Brain Activity</title>
-  <meta name="description" content="Neural Network Graph visualizing your music genre preferences" />
+  <title>My Musical Journey</title>
+  <meta name="description" content="Visualize your musical journey through an interactive network graph of your favorite artists and genres" />
 </svelte:head>
 
 <main class="app">
