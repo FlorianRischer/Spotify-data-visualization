@@ -204,11 +204,18 @@
       }
       
       // Calculate total days from first to last stream
+      // Use reduce instead of spread to avoid stack overflow with large arrays
       const timestamps = streamingHistory
         .filter(e => e.ts)
         .map(e => new Date(e.ts).getTime());
-      const firstStream = Math.min(...timestamps);
-      const lastStream = Math.max(...timestamps);
+      
+      let firstStream = Infinity;
+      let lastStream = -Infinity;
+      for (const ts of timestamps) {
+        if (ts < firstStream) firstStream = ts;
+        if (ts > lastStream) lastStream = ts;
+      }
+      
       const totalDays = Math.max(1, Math.ceil((lastStream - firstStream) / (1000 * 60 * 60 * 24)));
       const avgMinutesPerDay = totalPlaytimeMinutes / totalDays;
       
