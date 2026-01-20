@@ -183,20 +183,28 @@ function formatGenreLabel(id: string): string {
 }
 
 /**
- * Load streaming history JSON files
+ * Load streaming history JSON files - OPTIMIZED with parallel loading
  */
 export async function loadStreamingHistory(
   fileUrls: string[]
 ): Promise<SpotifyStreamEntry[]> {
-  const all: SpotifyStreamEntry[] = [];
-  
-  for (const url of fileUrls) {
-    try {
+  // Parallel fetch all files at once (much faster than sequential)
+  const results = await Promise.allSettled(
+    fileUrls.map(async (url) => {
       const response = await fetch(url);
-      const data: SpotifyStreamEntry[] = await response.json();
-      all.push(...data);
-    } catch (e) {
-      console.warn(`Failed to load ${url}:`, e);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return response.json() as Promise<SpotifyStreamEntry[]>;
+    })
+  );
+  
+  // Flatten successful results
+  const all: SpotifyStreamEntry[] = [];
+  for (let i = 0; i < results.length; i++) {
+    const result = results[i];
+    if (result.status === 'fulfilled') {
+      all.push(...result.value);
+    } else {
+      console.warn(`Failed to load ${fileUrls[i]}:`, result.reason);
     }
   }
   

@@ -33,8 +33,6 @@
   let showLandingHero = true; // Show landing hero after loading
   let loadingStatus = "Lädt Streaming-Daten...";
   let lastGraphInput: any = null;
-  let streamingHistoryRef: any[] = []; // Speichere für Timeline-Berechnung
-  let artistsWithGenresRef: any[] = []; // Speichere für Timeline-Berechnung
   
   // Check if we're in explore mode (SearchBar visible) or overview mode
   $: isInExploreMode = $uiStore.isOverviewModeManual;
@@ -49,8 +47,6 @@
       // Load all streaming history JSON files
       loadingStatus = "Lädt Streaming-Daten...";
       const streamingHistory = await loadStreamingHistory(STREAMING_FILES);
-      streamingHistoryRef = streamingHistory;
-      console.log(`Loaded ${streamingHistory.length} streaming entries`);
 
       // Extract unique artists
       loadingStatus = "Extrahiere Artists...";
@@ -61,13 +57,10 @@
             .filter((name): name is string => Boolean(name))
         )
       );
-      console.log(`Found ${uniqueArtists.length} unique artists`);
 
       // Load artists with genres (from cache)
       loadingStatus = "Lade Artist-Genres...";
       const artistsWithGenres = await getArtistsWithGenres(uniqueArtists);
-      artistsWithGenresRef = artistsWithGenres;
-      console.log(`Found genres for ${artistsWithGenres.length} artists`);
 
       // Fallback to demo data if no genres found
       if (artistsWithGenres.length === 0) {
@@ -105,7 +98,6 @@
       // Transform data to graph input
       loadingStatus = "Erstelle Graph...";
       lastGraphInput = transformSpotifyData(streamingHistory, artistsWithGenres);
-      console.log(`Created graph with ${lastGraphInput.genreStats.length} genres and ${lastGraphInput.artists.length} artists`);
 
       const built = buildGraph(lastGraphInput, {
         topK: 10,
@@ -173,19 +165,16 @@
         .filter(a => a.totalMinutes > 0); // Only include artists with listening time
       
       setArtistsData(artistsForSearch);
-      console.log(`Set ${artistsForSearch.length} artists for search with playtime data`);
 
       // Berechne Genre-Discovery-Daten für Timeline
       loadingStatus = "Analysiere Genre-Entdeckungen...";
       const discoveryData = computeGenreDiscovery(streamingHistory, artistsWithGenres);
       setGenreDiscoveryData(discoveryData);
-      console.log(`Discovered ${discoveryData.genres.length} genres from ${discoveryData.startYear} to ${discoveryData.endYear}`);
 
       // Berechne Genre-Yearly-Stats für Timeline-Tooltip
       loadingStatus = "Berechne Jahresstatistiken...";
       const yearlyStats = computeGenreYearlyStats(streamingHistory, artistsWithGenres, discoveryData);
       setGenreYearlyStats(yearlyStats);
-      console.log(`Computed yearly stats for ${yearlyStats.size} genres`);
 
       // Berechne globale Statistiken für Timeline
       loadingStatus = "Berechne globale Statistiken...";
@@ -233,7 +222,6 @@
         avgMinutesPerDay: Math.round(avgMinutesPerDay),
         totalDays
       });
-      console.log(`Global stats: ${Math.round(totalPlaytimeMinutes / 60)}h total, ${topArtist} top artist, ${topSong} top song`);
 
       // Compute force layout
       loadingStatus = "Berechne Layout...";
@@ -308,10 +296,6 @@
 <svelte:head>
   <title>Musical Brain Activity</title>
   <meta name="description" content="Neural Network Graph visualizing your music genre preferences" />
-  <!-- Preload fonts -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous">
-  <link href="https://fonts.googleapis.com/css2?family=Baloo+Bhai+2:wght@400;500&display=swap" rel="stylesheet">
 </svelte:head>
 
 <main class="app">

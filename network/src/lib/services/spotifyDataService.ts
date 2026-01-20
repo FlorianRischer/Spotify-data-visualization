@@ -35,7 +35,6 @@ export async function loadPrecomputedCache(): Promise<Map<string, any>> {
 
         if (validEntries.length > 0) {
           const normalizedEntries: Array<[string, any]> = validEntries.map(([key, val]) => [normKey(key), val]);
-          console.log(`📂 Loaded precomputed cache from ${source} with`, normalizedEntries.length, "artists");
           return new Map(normalizedEntries);
         }
       }
@@ -64,7 +63,6 @@ export function loadLocalCache(): Map<string, any> {
         });
 
         const normalizedEntries: Array<[string, any]> = validEntries.map(([key, val]) => [normKey(key), val]);
-        console.log("💾 Loaded", normalizedEntries.length, "artists from localStorage");
         return new Map(normalizedEntries);
       }
     }
@@ -88,7 +86,6 @@ export function saveLocalCache(cache: Map<string, any>) {
         timestamp: Date.now()
       })
     );
-    console.log("💾 Saved", cache.size, "artists to localStorage");
   } catch (e) {
     console.warn("Failed to save cache:", e);
   }
@@ -100,9 +97,7 @@ export function saveLocalCache(cache: Map<string, any>) {
 export async function loadAllCaches(): Promise<Map<string, any>> {
   const precomputed = await loadPrecomputedCache();
   const local = loadLocalCache();
-  const merged = new Map([...precomputed, ...local]);
-  console.log(`📊 Combined cache: ${merged.size} artists total`);
-  return merged;
+  return new Map([...precomputed, ...local]);
 }
 
 /**
@@ -166,8 +161,6 @@ export async function getArtistsWithGenres(uniqueArtists: string[]): Promise<any
     }
   }
 
-  console.log(`📊 Found ${successCount}/${uniqueArtists.length} artists with genres in cache`);
-  console.log(`✅ Using cached data only. No API calls. Found ${artistsWithGenres.length} artists with genres.`);
   saveLocalCache(cache);
   return artistsWithGenres;
 }

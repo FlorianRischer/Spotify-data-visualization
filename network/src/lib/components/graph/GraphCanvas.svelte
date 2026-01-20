@@ -260,16 +260,16 @@
     scaleFactor = Math.min(widthScale, heightScale);
     
     // ============================================
-    // LOGGING
+    // LOGGING (only in dev)
     // ============================================
-    console.log('%c[RESIZE]', 'color:blue;font-weight:bold', {
-      cssW: cssWidth,
-      cssH: cssHeight,
-      dpr: dpr,
-      scaleFactor: scaleFactor.toFixed(3),
-      bufferW: Math.floor(cssWidth * dpr),
-      bufferH: Math.floor(cssHeight * dpr)
-    });
+    if (import.meta.env.DEV) {
+      console.log('%c[RESIZE]', 'color:blue;font-weight:bold', {
+        cssW: cssWidth,
+        cssH: cssHeight,
+        dpr: dpr,
+        scaleFactor: scaleFactor.toFixed(3)
+      });
+    }
     
     // ============================================
     // PHYSICS PARAMETER UPDATE
