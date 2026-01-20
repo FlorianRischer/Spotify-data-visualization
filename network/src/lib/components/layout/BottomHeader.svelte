@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { fade } from 'svelte/transition';
   import { uiStore, focusedNodeId } from '$lib/stores/uiStore';
   import { cameraController } from '$lib/graph/cameraController';
   import { scrollyStore } from '$lib/stores/scrollyStore';
@@ -11,6 +12,11 @@
   let isExploreActive = false;  // Explore = SearchBar mode (was isOverviewActive)
   let isOverviewActive = false; // Overview = categorization/zoom phase (Kategorien-Navigation)
   let isTimelineActive = false;
+  
+  // Animation state for smooth position transition
+  let isTransitioning = false;
+  let showHeader = true;
+  let previousTimelineState = false;
 
   // Subscribe to uiStore to track links and explore state
   const unsubscribe = uiStore.subscribe(state => {
@@ -20,7 +26,30 @@
 
   // Subscribe to scrollyStore to track timeline and overview state
   const scrollyUnsubscribe = scrollyStore.subscribe(state => {
-    isTimelineActive = state.phase === 'timeline';
+    const newTimelineActive = state.phase === 'timeline';
+    
+    // Detect timeline state change for animation
+    if (newTimelineActive !== previousTimelineState && !isTransitioning) {
+      // Trigger fade out/in animation
+      isTransitioning = true;
+      showHeader = false;
+      
+      // After fade out, update position and fade in
+      setTimeout(() => {
+        isTimelineActive = newTimelineActive;
+        previousTimelineState = newTimelineActive;
+        showHeader = true;
+        
+        // Reset transitioning after fade in completes
+        setTimeout(() => {
+          isTransitioning = false;
+        }, 300);
+      }, 300);
+    } else if (!isTransitioning) {
+      isTimelineActive = newTimelineActive;
+      previousTimelineState = newTimelineActive;
+    }
+    
     // Overview is active when in categorization or zoom phase (normal navigation state)
     isOverviewActive = (state.phase === 'categorization' || state.phase === 'zoom') && !state.isInOverview;
   });
@@ -191,22 +220,29 @@
   }
 </script>
 
-<header class="bottom-header" class:timeline-mode={isTimelineActive}>
-  <nav class="bottom-nav">
-    <button class="nav-button" class:active={isOverviewActive} on:click={handleGoToOverview} title="Zurück zum Overview (Kategorien-Navigation)">
-      Overview
-    </button>
-    <button class="nav-button" class:active={isExploreActive} on:click={handleExplore} title="Explore aktivieren/deaktivieren (Suche)">
-      Explore
-    </button>
-    <button class="nav-button timeline-button" class:active={isTimelineActive} on:click={handleTimeline} title="Timeline aktivieren/deaktivieren">
-      Timeline
-    </button>
-    <button class="nav-button" class:active={isLinksActive} on:click={handleDisplayLinks} title="Links anzeigen/verbergen">
-      Display Links
-    </button>
-  </nav>
-</header>
+{#if showHeader}
+  <header 
+    class="bottom-header" 
+    class:timeline-mode={isTimelineActive}
+    in:fade={{ duration: 300, delay: 50 }}
+    out:fade={{ duration: 250 }}
+  >
+    <nav class="bottom-nav">
+      <button class="nav-button" class:active={isOverviewActive} on:click={handleGoToOverview} title="Zurück zum Overview (Kategorien-Navigation)">
+        Overview
+      </button>
+      <button class="nav-button" class:active={isExploreActive} on:click={handleExplore} title="Explore aktivieren/deaktivieren (Suche)">
+        Explore
+      </button>
+      <button class="nav-button timeline-button" class:active={isTimelineActive} on:click={handleTimeline} title="Timeline aktivieren/deaktivieren">
+        Timeline
+      </button>
+      <button class="nav-button" class:active={isLinksActive} on:click={handleDisplayLinks} title="Links anzeigen/verbergen">
+        Display Links
+      </button>
+    </nav>
+  </header>
+{/if}
 
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Baloo+Bhai+2:wght@400..800&display=swap');
