@@ -1,6 +1,6 @@
 import { writable, derived, get } from 'svelte/store';
 import type { GenreCategory } from '$lib/graph/genreMapping';
-import type { GenreDiscoveryData, GenreTimelineData, GenreTopYear } from '$lib/wrangling/genreDiscovery';
+import type { GenreDiscoveryData, GenreTimelineData, GenreTopYear, YearlySummary } from '$lib/wrangling/genreDiscovery';
 
 // ============================================
 // Timeline Layout Konfiguration (zentral für Graph und UI)
@@ -109,6 +109,8 @@ export interface TimelineState {
   genreYearlyStats: Map<string, GenreTopYear> | null;
   // Global listening statistics
   globalStats: GlobalStats | null;
+  // Yearly summary stats (total time, top genre, top artist per year)
+  yearlySummary: Map<number, YearlySummary> | null;
 }
 
 const initialState: TimelineState = {
@@ -120,7 +122,8 @@ const initialState: TimelineState = {
   discoveryData: null,
   yearDiscoveries: [],
   genreYearlyStats: null,
-  globalStats: null
+  globalStats: null,
+  yearlySummary: null
 };
 
 export const timelineStore = writable<TimelineState>(initialState);
@@ -206,6 +209,16 @@ export function setGlobalStats(stats: GlobalStats) {
   timelineStore.update(state => ({
     ...state,
     globalStats: stats
+  }));
+}
+
+/**
+ * Setzt die jährlichen Zusammenfassungen
+ */
+export function setYearlySummary(summary: Map<number, YearlySummary>) {
+  timelineStore.update(state => ({
+    ...state,
+    yearlySummary: summary
   }));
 }
 
@@ -359,6 +372,13 @@ export const globalStatsData = derived(timelineStore, $s => $s.globalStats);
 export const allDiscoveredGenres = derived(timelineStore, $s => 
   $s.discoveryData?.genres || []
 );
+
+// Yearly Summary derived store - current year's summary
+export const currentYearlySummary = derived(timelineStore, $s => {
+  if (!$s.yearlySummary) return null;
+  const currentYear = $s.availableYears[$s.currentYearIndex];
+  return $s.yearlySummary.get(currentYear) || null;
+});
 
 /**
  * Gibt die Genres zurück, die bis zum aktuellen Jahr entdeckt wurden

@@ -22,10 +22,10 @@
   import { uiStore, isStartAnimationRunning } from "$lib/stores/uiStore";
   import { scrollyStore } from "$lib/stores/scrollyStore";
   import { setArtistsData } from "$lib/stores/searchStore";
-  import { setGenreDiscoveryData, setGenreYearlyStats, setGlobalStats } from "$lib/stores/timelineStore";
+  import { setGenreDiscoveryData, setGenreYearlyStats, setGlobalStats, setYearlySummary } from "$lib/stores/timelineStore";
   import { buildGraph, computeForceLayout, transformSpotifyData, loadStreamingHistory } from "$lib/graph";
   import { getArtistsWithGenres, STREAMING_FILES, STREAMING_FILES_LOCAL } from "$lib/services";
-  import { computeGenreDiscovery, computeGenreYearlyStats } from "$lib/wrangling/genreDiscovery";
+  import { computeGenreDiscovery, computeGenreYearlyStats, computeYearlySummary } from "$lib/wrangling/genreDiscovery";
   import "../app.css";
   import "./page.css";
 
@@ -175,6 +175,11 @@
       loadingStatus = "Berechne Jahresstatistiken...";
       const yearlyStats = computeGenreYearlyStats(streamingHistory, artistsWithGenres, discoveryData);
       setGenreYearlyStats(yearlyStats);
+
+      // Berechne jährliche Zusammenfassungen (Hörzeit, Top Genre, Top Artist pro Jahr)
+      loadingStatus = "Berechne Jahres-Zusammenfassungen...";
+      const yearlySummary = computeYearlySummary(streamingHistory, artistsWithGenres);
+      setYearlySummary(yearlySummary);
 
       // Berechne globale Statistiken für Timeline
       loadingStatus = "Berechne globale Statistiken...";

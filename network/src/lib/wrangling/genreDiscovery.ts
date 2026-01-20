@@ -428,3 +428,115 @@ export function computeGenreYearlyStats(
 
   return result;
 }
+
+/**
+ * Interface für jährliche Zusammenfassung
+ */
+export interface YearlySummary {
+  year: number;
+  totalMinutes: number;
+  totalHours: number;
+  topGenre: string;
+  topGenreMinutes: number;
+  topArtist: string;
+  topArtistMinutes: number;
+}
+
+/**
+ * Berechnet für jedes Jahr eine Zusammenfassung:
+ * - Gesamthörzeit
+ * - Top Genre mit Hörzeit
+ * - Top Artist mit Hörzeit
+ */
+export function computeYearlySummary(
+  streamingHistory: SpotifyStreamEntry[],
+  artistsWithGenres: ArtistWithGenres[]
+): Map<number, YearlySummary> {
+  // Build artist-to-genres lookup
+  const artistGenreMap = new Map<string, string[]>();
+  for (const artist of artistsWithGenres) {
+    if (artist.genres && artist.genres.length > 0) {
+      artistGenreMap.set(artist.originalName, artist.genres);
+    }
+  }
+
+  // Tracking maps per year
+  const yearlyTotalMinutes = new Map<number, number>();
+  const yearlyGenreMinutes = new Map<number, Map<string, number>>();
+  const yearlyArtistMinutes = new Map<number, Map<string, number>>();
+
+  // Process each streaming entry
+  for (const entry of streamingHistory) {
+    const artistName = entry.master_metadata_album_artist_name;
+    if (!artistName || !entry.ts) continue;
+
+    const year = new Date(entry.ts).getFullYear();
+    const minutes = entry.ms_played / (1000 * 60);
+
+    // Total minutes per year
+    yearlyTotalMinutes.set(year, (yearlyTotalMinutes.get(year) || 0) + minutes);
+
+    // Artist minutes per year
+    if (!yearlyArtistMinutes.has(year)) {
+      yearlyArtistMinutes.set(year, new Map());
+    }
+    const artistMap = yearlyArtistMinutes.get(year)!;
+    artistMap.set(artistName, (artistMap.get(artistName) || 0) + minutes);
+
+    // Genre minutes per year (distribute across all genres of artist)
+    const genres = artistGenreMap.get(artistName);
+    if (genres && genres.length > 0) {
+      if (!yearlyGenreMinutes.has(year)) {
+        yearlyGenreMinutes.set(year, new Map());
+      }
+      const genreMap = yearlyGenreMinutes.get(year)!;
+      const minutesPerGenre = minutes / genres.length;
+      for (const genre of genres) {
+        genreMap.set(genre, (genreMap.get(genre) || 0) + minutesPerGenre);
+      }
+    }
+  }
+
+  // Build result
+  const result = new Map<number, YearlySummary>();
+
+  for (const [year, totalMinutes] of yearlyTotalMinutes) {
+    // Find top genre
+    let topGenre = '';
+    let topGenreMinutes = 0;
+    const genreMap = yearlyGenreMinutes.get(year);
+    if (genreMap) {
+      for (const [genre, mins] of genreMap) {
+        if (mins > topGenreMinutes) {
+          topGenreMinutes = mins;
+          topGenre = genre;
+        }
+      }
+    }
+
+    // Find top artist
+    let topArtist = '';
+    let topArtistMinutes = 0;
+    const artistMap = yearlyArtistMinutes.get(year);
+    if (artistMap) {
+      for (const [artist, mins] of artistMap) {
+        if (mins > topArtistMinutes) {
+          topArtistMinutes = mins;
+          topArtist = artist;
+        }
+      }
+    }
+
+    result.set(year, {
+      year,
+      totalMinutes: Math.round(totalMinutes),
+      totalHours: Math.round(totalMinutes / 60),
+      topGenre,
+      topGenreMinutes: Math.round(topGenreMinutes),
+      topArtist,
+      topArtistMinutes: Math.round(topArtistMinutes)
+    });
+  }
+
+  return result;
+}

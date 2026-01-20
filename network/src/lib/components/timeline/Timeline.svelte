@@ -11,6 +11,7 @@
     genreDiscoveryData,
     getMonthPositionPercent,
     TIMELINE_CONFIG,
+    currentYearlySummary,
     type GenreDiscoveryData
   } from '$lib/stores/timelineStore';
   import { scrollyStore, isTimelinePhase } from '$lib/stores/scrollyStore';
@@ -67,10 +68,34 @@
   $: yearDiscovery = $currentYearDiscovery;
   $: allDiscoveries = $genreDiscoveryData;
   
+  // Yearly Summary Stats
+  $: yearlySummary = $currentYearlySummary;
+  
+  // Track scroll direction for animations (1 = forward/right, -1 = backward/left)
+  let scrollDirection = 1;
+  let previousYearIndex = 0;
+  
+  // Update scroll direction when year changes
+  $: {
+    if (currentYearIndex !== previousYearIndex) {
+      scrollDirection = currentYearIndex > previousYearIndex ? 1 : -1;
+      previousYearIndex = currentYearIndex;
+    }
+  }
+  
   // Genres die in diesem Jahr entdeckt wurden, gruppiert nach Monat
   $: genresByMonth = yearDiscovery?.genresByMonth || new Map();
   $: totalDiscoveredThisYear = yearDiscovery?.totalDiscovered || 0;
   $: cumulativeTotal = yearDiscovery?.cumulativeTotal || 0;
+  
+  // Hilfsfunktion zum Formatieren der Hörzeit
+  function formatListeningTime(minutes: number): string {
+    const hours = Math.floor(minutes / 60);
+    if (hours >= 1000) {
+      return `${(hours)} h`;
+    }
+    return `${hours} h`;
+  }
 
   // Viewport und Container-Dimensionen (nutze zentrale Konfiguration)
   let viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1200;
@@ -167,6 +192,33 @@
       </span>
     </div>
 
+    <!-- Yearly Stats über der Timeline -->
+    {#if yearlySummary}
+      {#key currentYearIndex}
+        <div 
+          class="yearly-stats" 
+          class:first-year={currentYearIndex === 0}
+          in:fly={{ x: 40 * scrollDirection, duration: 400, delay: 150, easing: cubicOut }}
+          out:fly={{ x: -40 * scrollDirection, duration: 300, easing: cubicOut }}
+        >
+          <div class="stat-item">
+            <span class="stat-value">{formatListeningTime(yearlySummary.totalMinutes)}</span>
+            <span class="stat-label">gehört</span>
+          </div>
+          <div class="stat-divider"></div>
+          <div class="stat-item">
+            <span class="stat-value">{yearlySummary.topGenre}</span>
+            <span class="stat-label">Top Genre · {formatListeningTime(yearlySummary.topGenreMinutes)}</span>
+          </div>
+          <div class="stat-divider"></div>
+          <div class="stat-item">
+            <span class="stat-value">{yearlySummary.topArtist}</span>
+            <span class="stat-label">Top Artist · {formatListeningTime(yearlySummary.topArtistMinutes)}</span>
+          </div>
+        </div>
+      {/key}
+    {/if}
+
     <!-- Timeline-Viewport (sichtbarer Bereich) -->
     <div class="timeline-viewport">
       <!-- Timeline-Track (scrollt horizontal) -->
@@ -247,6 +299,59 @@
     font-weight: 400;
     color: #000;
     line-height: 1;
+  }
+
+  /* Yearly Stats - über der Timeline */
+  .yearly-stats {
+    position: fixed;
+    bottom: 120px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    padding: 12px 24px;
+    background: none;
+    backdrop-filter: blur(8px);
+    border-radius: 12px;
+    
+    z-index: 152;
+    transition: left 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* Im ersten Jahr (2018) weiter rechts positionieren, da Timeline erst im August beginnt */
+  .yearly-stats.first-year {
+    left: 75%;
+  }
+
+  .stat-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .stat-value {
+    font-family: 'Anton', sans-serif;
+    font-size: 18px;
+    font-weight: 400;
+    color: #000;
+    line-height: 1.2;
+    text-transform: capitalize;
+  }
+
+  .stat-label {
+    font-family: 'Inter', sans-serif;
+    font-size: 11px;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .stat-divider {
+    width: 1px;
+    height: 32px;
+    background: rgba(0, 0, 0, 0.1);
   }
 
   /* Timeline Viewport - der sichtbare Bereich */

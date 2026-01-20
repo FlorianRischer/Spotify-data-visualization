@@ -59,8 +59,8 @@ export const CATEGORY_COLORS: Record<GenreCategory, CategoryColorScheme> = {
     light: "#FFDD77",
     dark: "#FFBB11"
   },
-  "Folk": {
-    category: "Folk",
+  "Indie": {
+    category: "Indie",
     primary: "#55BB88", // Pastell-Grün
     light: "#77CC99",
     dark: "#22AA66"
