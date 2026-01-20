@@ -8,11 +8,13 @@ export interface RenderNode extends GenreNode {
   isPinned: boolean;
 }
 
+// RenderEdge can either have precomputed positions (legacy) or just be a GenreEdge
+// For performance, we compute positions directly in the render loop
 export interface RenderEdge extends GenreEdge {
-  x1: number;
-  y1: number;
-  x2: number;
-  y2: number;
+  x1?: number;
+  y1?: number;
+  x2?: number;
+  y2?: number;
 }
 
 export interface RenderOptions {
@@ -40,13 +42,15 @@ export interface RenderOptions {
   searchMatchedIds?: Set<string>; // IDs of nodes that match the search
   isSearchActive?: boolean; // Whether search is active
   isFocusMode?: boolean; // Whether focus mode is active (after Enter press)
+  // PERFORMANCE: Node positions for direct edge position calculation
+  nodePositions?: Record<string, { x: number; y: number }>; // Direct position lookup
 }
 
-// Color palette for genres
+// Fallback color palette for genres (unified saturation ~45%, lightness ~55%)
 const COLORS = [
-  "#1DB954", "#667eea", "#764ba2", "#f093fb", "#f5576c",
-  "#4facfe", "#00f2fe", "#43e97b", "#fa709a", "#fee140",
-  "#30cfd0", "#c471f5", "#6a11cb", "#2575fc", "#ff6b6b"
+  "#C98B6B", "#6BADC9", "#C96B6B", "#C96BB0", "#8B6BC9",
+  "#C9A16B", "#7DC96B", "#6BC9B8", "#C9C16B", "#C97E6B",
+  "#C9886B", "#6B7AC9", "#6B6BC9", "#C96B8B", "#A86BC9"
 ];
 
 function getNodeColor(node: RenderNode, index: number): string {
@@ -226,35 +230,69 @@ export function renderGraph(
 
   // Genre groups visualization removed - only physics-based grouping
 
-  // Draw edges if enabled - OPTIMIZED: batch rendering
+  // Draw edges if enabled - OPTIMIZED: batch rendering with direct position lookup
   if (showConnections) {
+    // Get positions lookup - either from options or build from nodes
+    const positions = options.nodePositions ?? Object.fromEntries(nodes.map(n => [n.id, { x: n.x, y: n.y }]));
+    
     // Build node category lookup once (avoids O(n) find() per edge)
     const nodeCategory = new Map<string, string>();
     for (const n of nodes) {
       nodeCategory.set(n.id, n.category || '');
     }
     
-    // Group edges by style for batched rendering
-    const normalEdges: RenderEdge[] = [];
-    const dimmedEdges: RenderEdge[] = [];
-    const highlightedEdges: RenderEdge[] = [];
+    // Calculate viewport bounds for culling (with some padding)
+    const viewHalfWidth = (cssCanvasWidth / 2 / cameraZoom) + 100;
+    const viewHalfHeight = (cssCanvasHeight / 2 / cameraZoom) + 100;
+    const viewMinX = cameraX - viewHalfWidth;
+    const viewMaxX = cameraX + viewHalfWidth;
+    const viewMinY = cameraY - viewHalfHeight;
+    const viewMaxY = cameraY + viewHalfHeight;
+    
+    // PERFORMANCE: Use typed arrays for batch edge data to avoid object creation
+    // Group edges by style for batched rendering - store just coordinates
+    const normalEdgeCoords: number[] = [];
+    const dimmedEdgeCoords: number[] = [];
+    const highlightedEdgeCoords: number[] = [];
     
     for (const e of edges) {
+      // Get positions directly from lookup
+      const srcPos = positions[e.source];
+      const tgtPos = positions[e.target];
+      
+      // Skip edges without valid positions
+      if (!srcPos || !tgtPos) continue;
+      if ((srcPos.x === 0 && srcPos.y === 0) || (tgtPos.x === 0 && tgtPos.y === 0)) continue;
+      
+      const x1 = srcPos.x;
+      const y1 = srcPos.y;
+      const x2 = tgtPos.x;
+      const y2 = tgtPos.y;
+      
+      // VIEWPORT CULLING: Skip edges completely outside viewport
+      const edgeMinX = Math.min(x1, x2);
+      const edgeMaxX = Math.max(x1, x2);
+      const edgeMinY = Math.min(y1, y2);
+      const edgeMaxY = Math.max(y1, y2);
+      if (edgeMaxX < viewMinX || edgeMinX > viewMaxX || edgeMaxY < viewMinY || edgeMinY > viewMaxY) {
+        continue; // Edge is completely outside viewport
+      }
+      
       const isHighlighted = hoveredId === e.source || hoveredId === e.target;
       
       if (isHighlighted) {
-        highlightedEdges.push(e);
+        highlightedEdgeCoords.push(x1, y1, x2, y2);
       } else if (focusedCategory) {
         const srcCat = nodeCategory.get(e.source);
         const tgtCat = nodeCategory.get(e.target);
         const isInFocusedCategory = srcCat === focusedCategory || tgtCat === focusedCategory;
         if (isInFocusedCategory) {
-          normalEdges.push(e);
+          normalEdgeCoords.push(x1, y1, x2, y2);
         } else {
-          dimmedEdges.push(e);
+          dimmedEdgeCoords.push(x1, y1, x2, y2);
         }
       } else {
-        normalEdges.push(e);
+        normalEdgeCoords.push(x1, y1, x2, y2);
       }
     }
     
@@ -262,37 +300,37 @@ export function renderGraph(
     ctx.lineCap = "round";
     
     // Batch draw dimmed edges (single path, single stroke)
-    if (dimmedEdges.length > 0) {
+    if (dimmedEdgeCoords.length > 0) {
       ctx.strokeStyle = `rgba(100, 120, 200, ${(edgeAlphaBase * 0.3).toFixed(3)})`;
       ctx.lineWidth = 1;
       ctx.beginPath();
-      for (const e of dimmedEdges) {
-        ctx.moveTo(e.x1, e.y1);
-        ctx.lineTo(e.x2, e.y2);
+      for (let i = 0; i < dimmedEdgeCoords.length; i += 4) {
+        ctx.moveTo(dimmedEdgeCoords[i], dimmedEdgeCoords[i + 1]);
+        ctx.lineTo(dimmedEdgeCoords[i + 2], dimmedEdgeCoords[i + 3]);
       }
       ctx.stroke();
     }
     
     // Batch draw normal edges (single path, single stroke)
-    if (normalEdges.length > 0) {
+    if (normalEdgeCoords.length > 0) {
       ctx.strokeStyle = `rgba(100, 120, 200, ${edgeAlphaBase.toFixed(3)})`;
       ctx.lineWidth = 1.5;
       ctx.beginPath();
-      for (const e of normalEdges) {
-        ctx.moveTo(e.x1, e.y1);
-        ctx.lineTo(e.x2, e.y2);
+      for (let i = 0; i < normalEdgeCoords.length; i += 4) {
+        ctx.moveTo(normalEdgeCoords[i], normalEdgeCoords[i + 1]);
+        ctx.lineTo(normalEdgeCoords[i + 2], normalEdgeCoords[i + 3]);
       }
       ctx.stroke();
     }
     
-    // Draw highlighted edges individually (they need different style)
-    if (highlightedEdges.length > 0) {
+    // Draw highlighted edges (single batch path)
+    if (highlightedEdgeCoords.length > 0) {
       ctx.strokeStyle = `rgba(100, 120, 200, 0.7)`;
       ctx.lineWidth = 3;
       ctx.beginPath();
-      for (const e of highlightedEdges) {
-        ctx.moveTo(e.x1, e.y1);
-        ctx.lineTo(e.x2, e.y2);
+      for (let i = 0; i < highlightedEdgeCoords.length; i += 4) {
+        ctx.moveTo(highlightedEdgeCoords[i], highlightedEdgeCoords[i + 1]);
+        ctx.lineTo(highlightedEdgeCoords[i + 2], highlightedEdgeCoords[i + 3]);
       }
       ctx.stroke();
     }
@@ -396,14 +434,12 @@ export function renderGraph(
     // Main circle - with hover scale for organic growth effect
     ctx.beginPath();
     const nodeOpacity = opacity * dimFactor;
-    // When hovered: use full color (no transparency)
-    // When not hovered: use default muted color
-    if (isHovered && !isCentered) {
-      ctx.fillStyle = color; // Volle Farbe ohne Transparenz
-    } else if (isCentered) {
-      ctx.fillStyle = color;
+    // All nodes use their category color - hovered nodes get full opacity
+    if (isHovered || isCentered) {
+      ctx.fillStyle = color; // Full color without transparency
     } else {
-      ctx.fillStyle = `rgba(100, 110, 130, ${nodeOpacity.toFixed(3)})`;
+      // Apply opacity to category color for non-hovered nodes
+      ctx.fillStyle = hexColorWithAlpha(color, nodeOpacity);
     }
     ctx.lineWidth = isCentered ? 1 : 0; // No stroke for hovered nodes
     ctx.strokeStyle = `rgba(0,0,0,${(0.2 * nodeOpacity).toFixed(3)})`;

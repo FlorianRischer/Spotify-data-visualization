@@ -1,6 +1,7 @@
 /**
  * Kategoriebasierte Farbgebung für Genres
  * Jede Obergruppe hat eine eigene Farbpalette
+ * UNIFIED SATURATION: Verschiedene Farbtöne mit gleicher Sättigung (~45%) und Helligkeit (~55%)
  */
 
 import type { GenreCategory } from "./genreMapping";
@@ -14,110 +15,111 @@ export interface CategoryColorScheme {
 
 /**
  * Farben für jede Genre-Kategorie
- * Gewählt für gute visuelle Unterscheidung und Ästhetik
+ * Verschiedene Hues (Farbtöne) mit einheitlicher Sättigung und Helligkeit
+ * HSL: Hue variiert, Saturation ~45%, Lightness ~55%
  */
 export const CATEGORY_COLORS: Record<GenreCategory, CategoryColorScheme> = {
   "Hip Hop": {
     category: "Hip Hop",
-    primary: "#FF7744", // Warmes Pastell-Orange
-    light: "#FF9966",
-    dark: "#CC5533"
+    primary: "#6B7AC9", // Blau-Indigo (Hue: 230°)
+    light: "#8E9AD9",
+    dark: "#4E5CA6"
   },
   "Electronic": {
     category: "Electronic",
-    primary: "#44CCFF", // Pastell-Cyan
-    light: "#77DDFF",
-    dark: "#22BBFF"
+    primary: "#6BADC9", // Cyan (Hue: 195°)
+    light: "#8EC3D9",
+    dark: "#4E8AA6"
   },
   "Rock": {
     category: "Rock",
-    primary: "#FF4466", // Pastell-Rot/Magenta
-    light: "#FF7799",
-    dark: "#DD1144"
+    primary: "#C96B6B", // Rot (Hue: 0°)
+    light: "#D98E8E",
+    dark: "#A64E4E"
   },
   "Pop": {
     category: "Pop",
-    primary: "#FF5599", // Pastell-Pink
-    light: "#FF88CC",
-    dark: "#DD2277"
+    primary: "#C96BB0", // Magenta-Pink (Hue: 315°)
+    light: "#D98EC7",
+    dark: "#A64E8D"
   },
   "Jazz": {
     category: "Jazz",
-    primary: "#BB7744", // Pastell-Braun
-    light: "#CC9966",
-    dark: "#995533"
+    primary: "#8B6BC9", // Violett (Hue: 260°)
+    light: "#A88ED9",
+    dark: "#6E4EA6"
   },
   "Soul": {
     category: "Soul",
-    primary: "#AA77CC", // Pastell-Lila
-    light: "#CC99EE",
-    dark: "#8855BB"
+    primary: "#C9A16B", // Gold/Amber (Hue: 40°)
+    light: "#D9BA8E",
+    dark: "#A6814E"
   },
   "Reggae": {
     category: "Reggae",
-    primary: "#FFCC44", // Pastell-Gold
-    light: "#FFDD77",
-    dark: "#FFBB11"
+    primary: "#7DC96B", // Grün (Hue: 110°)
+    light: "#9DD98E",
+    dark: "#5FA64E"
   },
   "Indie": {
     category: "Indie",
-    primary: "#55BB88", // Pastell-Grün
-    light: "#77CC99",
-    dark: "#22AA66"
+    primary: "#6BC9B8", // Türkis (Hue: 170°)
+    light: "#8ED9CD",
+    dark: "#4EA695"
   },
   "Classical": {
     category: "Classical",
-    primary: "#CCAA66", // Pastell-Bronze
-    light: "#DDBB88",
-    dark: "#BB8833"
+    primary: "#C9C16B", // Gelb-Gold (Hue: 55°)
+    light: "#D9D38E",
+    dark: "#A69E4E"
   },
   "Country": {
     category: "Country",
-    primary: "#BB8855", // Pastell-Tan
-    light: "#CC9966",
-    dark: "#AA6633"
+    primary: "#C97E6B", // Terracotta (Hue: 15°)
+    light: "#D99E8E",
+    dark: "#A65F4E"
   },
   "Latin": {
     category: "Latin",
-    primary: "#FF9944", // Pastell-Orange
-    light: "#FFBB77",
-    dark: "#FF7722"
+    primary: "#C9886B", // Orange (Hue: 25°)
+    light: "#D9A68E",
+    dark: "#A66B4E"
   },
   "Metal": {
     category: "Metal",
-    primary: "#667788", // Pastell-Grau-Blau
-    light: "#8899AA",
-    dark: "#445566"
+    primary: "#C98B6B", // Orange-Braun (Hue: 20°)
+    light: "#D9A88E",
+    dark: "#A66E4E"
   },
   "Experimental": {
     category: "Experimental",
-    primary: "#8866CC", // Pastell-Indigo
-    light: "#AA99DD",
-    dark: "#6644BB"
+    primary: "#6B6BC9", // Blau-Violett (Hue: 240°)
+    light: "#8E8ED9",
+    dark: "#4E4EA6"
   },
   "Funk": {
     category: "Funk",
-    primary: "#FF77EE", // Pastell-Magenta
-    light: "#FF99FF",
-    dark: "#DD44CC"
+    primary: "#C96B8B", // Pink-Rot (Hue: 340°)
+    light: "#D98EA8",
+    dark: "#A64E6E"
   },
   "Spiritual": {
     category: "Spiritual",
-    primary: "#FF99CC", // Pastell-Rosa
-    light: "#FFBBDD",
-    dark: "#FF6699"
+    primary: "#A86BC9", // Lila (Hue: 280°)
+    light: "#C08ED9",
+    dark: "#864EA6"
   },
   "Asian Pop": {
     category: "Asian Pop",
-    primary: "#FF5588", // Pastell-Rot-Pink
-    light: "#FF7799",
-    dark: "#DD2255"
+    primary: "#C96B9C", // Rosa-Magenta (Hue: 330°)
+    light: "#D98EB8",
+    dark: "#A64E7C"
   },
   "Specialty": {
     category: "Specialty",
-    primary: "#999999", // Pastell-Grau
-    light: "#BBBBBB",
-    dark: "#777777"
+    primary: "#8B8B8B", // Neutral-Grau (achromatic)
+    light: "#A8A8A8",
+    dark: "#6E6E6E"
   }
 };
 

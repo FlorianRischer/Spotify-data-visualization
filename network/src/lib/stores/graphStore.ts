@@ -42,28 +42,14 @@ export const visibleNodes = derived(
   }
 );
 
+// PERFORMANCE OPTIMIZATION: Only compute visible edge set once (not on every frame)
+// Position updates are done in the renderer directly to avoid derived store recalculation
 export const visibleEdges = derived(
-  [graphData, visibleState, positions],
-  ([$g, $v, $p]) => {
+  [graphData, visibleState],
+  ([$g, $v]) => {
     if (!$g) return [];
-    return $g.edges
-      .filter((e) => $v.edges.has(e.id))
-      .filter((e) => {
-        // Nur Edges rendern, bei denen BEIDE Nodes gültige Positionen haben
-        // Sonst werden Edges zur Mitte (0,0) gezeichnet
-        const sourcePos = $p[e.source];
-        const targetPos = $p[e.target];
-        return sourcePos && targetPos && 
-               (sourcePos.x !== 0 || sourcePos.y !== 0) && 
-               (targetPos.x !== 0 || targetPos.y !== 0);
-      })
-      .map((e) => ({
-        ...e,
-        x1: $p[e.source].x,
-        y1: $p[e.source].y,
-        x2: $p[e.target].x,
-        y2: $p[e.target].y
-      }));
+    // Return base edges without position calculation - positions are applied in renderer
+    return $g.edges.filter((e) => $v.edges.has(e.id));
   }
 );
 

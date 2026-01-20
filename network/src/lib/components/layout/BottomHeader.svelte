@@ -155,8 +155,7 @@
     uiStore.update(state => ({
       ...state,
       isOverviewModeManual: true,
-      isScrollLocked: true,
-      showConnections: true
+      isScrollLocked: true
     }));
   }
 
@@ -184,8 +183,7 @@
     uiStore.update(state => ({
       ...state,
       isOverviewModeManual: false,
-      isScrollLocked: false,
-      showConnections: true  // Enable display links in timeline view
+      isScrollLocked: false
     }));
     
     // Clear search if active

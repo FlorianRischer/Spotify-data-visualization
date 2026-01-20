@@ -761,6 +761,9 @@
     // Get search state for rendering
     const searchState = get(searchStore);
     
+    // PERFORMANCE: Pass positions directly for edge rendering
+    const currentPositions = get(positionsStore);
+    
     renderGraph(ctx, canvas, nodes, edges, {
       hoveredId,
       focusedId,
@@ -785,7 +788,9 @@
       // Search state
       searchMatchedIds: searchState.matchedNodeIds,
       isSearchActive: searchState.isSearchActive,
-      isFocusMode: searchState.isFocusMode
+      isFocusMode: searchState.isFocusMode,
+      // PERFORMANCE: Direct position lookup for edges
+      nodePositions: currentPositions
     });
     
     frameId = requestAnimationFrame(loop);
