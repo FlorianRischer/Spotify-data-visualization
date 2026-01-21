@@ -179,6 +179,7 @@ export async function getArtistsWithGenres(uniqueArtists: string[]): Promise<any
 
 /**
  * Streaming history file paths - loaded from R2 bucket
+ * Extended format files (detailed Spotify export)
  */
 const STREAMING_FILE_NAMES = [
   "Streaming_History_Audio_2018-2020_0.json",
@@ -192,7 +193,8 @@ const STREAMING_FILE_NAMES = [
   "Streaming_History_Audio_2023-2024_8.json",
   "Streaming_History_Audio_2024_9.json",
   "Streaming_History_Audio_2024-2025_10.json",
-  "Streaming_History_Audio_2025_11.json"
+  "Streaming_History_Audio_2025_11.json",
+  "StreamingHistory_music_2.json" // 2025-10-27 to 2026-01-17 (simple format, auto-normalized)
 ];
 
 /**

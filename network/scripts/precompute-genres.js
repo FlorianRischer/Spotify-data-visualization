@@ -95,14 +95,48 @@ async function searchArtist(artistName, token, retries = MAX_RETRIES) {
 }
 
 async function loadStreamingHistory() {
+  // Load extended format files (spotify-data) - Audio files
   const dataDir = path.join(__dirname, '..', 'static', 'spotify-data');
-  const files = fs.readdirSync(dataDir).filter(f => f.endsWith('.json') && f.includes('Audio'));
+  const audioFiles = fs.readdirSync(dataDir).filter(f => f.endsWith('.json') && f.includes('Audio'));
   
   let allEntries = [];
-  for (const file of files) {
+  for (const file of audioFiles) {
     const content = fs.readFileSync(path.join(dataDir, file), 'utf-8');
     const entries = JSON.parse(content);
     allEntries = allEntries.concat(entries);
+  }
+  
+  // Load simple format files (music files in spotify-data folder)
+  const musicFiles = fs.readdirSync(dataDir).filter(f => f.endsWith('.json') && f.includes('music'));
+  for (const file of musicFiles) {
+    const content = fs.readFileSync(path.join(dataDir, file), 'utf-8');
+    const entries = JSON.parse(content);
+    // Normalize simple format to extended format
+    const normalized = entries.map(e => ({
+      ts: e.endTime ? e.endTime.replace(' ', 'T') + ':00Z' : e.ts,
+      master_metadata_album_artist_name: e.artistName || e.master_metadata_album_artist_name,
+      master_metadata_track_name: e.trackName || e.master_metadata_track_name,
+      ms_played: e.msPlayed || e.ms_played
+    }));
+    allEntries = allEntries.concat(normalized);
+  }
+  
+  // Also check spotify-data-2 folder if it exists
+  const dataDir2 = path.join(__dirname, '..', 'static', 'spotify-data-2');
+  if (fs.existsSync(dataDir2)) {
+    const files2 = fs.readdirSync(dataDir2).filter(f => f.endsWith('.json') && f.includes('music'));
+    for (const file of files2) {
+      const content = fs.readFileSync(path.join(dataDir2, file), 'utf-8');
+      const entries = JSON.parse(content);
+      // Normalize simple format to extended format
+      const normalized = entries.map(e => ({
+        ts: e.endTime ? e.endTime.replace(' ', 'T') + ':00Z' : e.ts,
+        master_metadata_album_artist_name: e.artistName || e.master_metadata_album_artist_name,
+        master_metadata_track_name: e.trackName || e.master_metadata_track_name,
+        ms_played: e.msPlayed || e.ms_played
+      }));
+      allEntries = allEntries.concat(normalized);
+    }
   }
   
   return allEntries;
@@ -113,12 +147,37 @@ async function main() {
   
   // Load existing cache if available
   const cacheFile = path.join(__dirname, '..', 'static', 'artist-cache.json');
+  const precomputedFile = path.join(__dirname, '..', 'data', 'artist-data-2025-12-13.json');
   let existingCache = {};
   
+  // First load the precomputed artist data as base cache
+  if (fs.existsSync(precomputedFile)) {
+    const content = fs.readFileSync(precomputedFile, 'utf-8');
+    const precomputed = JSON.parse(content);
+    // Convert keys to lowercase for consistent lookup
+    for (const [key, value] of Object.entries(precomputed)) {
+      if (key !== '_info') {
+        existingCache[key.toLowerCase()] = value;
+      }
+    }
+    console.log(`📂 Loaded precomputed data with ${Object.keys(existingCache).length} artists`);
+  }
+  
+  // Then merge any additional cache entries
   if (fs.existsSync(cacheFile)) {
     const content = fs.readFileSync(cacheFile, 'utf-8');
-    existingCache = JSON.parse(content);
-    console.log(`📂 Loaded existing cache with ${Object.keys(existingCache).length} artists`);
+    const cache = JSON.parse(content);
+    let newEntries = 0;
+    for (const [key, value] of Object.entries(cache)) {
+      const lowerKey = key.toLowerCase();
+      if (!existingCache[lowerKey]) {
+        existingCache[lowerKey] = value;
+        newEntries++;
+      }
+    }
+    if (newEntries > 0) {
+      console.log(`📂 Added ${newEntries} additional entries from artist-cache.json`);
+    }
   }
   
   // Load streaming history and extract unique artists
@@ -132,8 +191,8 @@ async function main() {
   )];
   console.log(`🎤 Found ${uniqueArtists.length} unique artists`);
   
-  // Filter out already cached artists
-  const uncachedArtists = uniqueArtists.filter(name => !existingCache[name]);
+  // Filter out already cached artists (case-insensitive)
+  const uncachedArtists = uniqueArtists.filter(name => !existingCache[name.toLowerCase()]);
   console.log(`📡 Need to fetch ${uncachedArtists.length} new artists\n`);
   
   if (uncachedArtists.length === 0) {

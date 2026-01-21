@@ -1,11 +1,43 @@
 // Data Loader — transforms Spotify streaming history into GraphBuildInput
 import type { GraphBuildInput, GenreStat, ArtistGenre } from "$lib/graph/types";
 
+// Extended format (from Spotify Data Export - detailed)
 export interface SpotifyStreamEntry {
   ts: string;
   master_metadata_track_name: string | null;
   master_metadata_album_artist_name: string | null;
   ms_played: number;
+}
+
+// Simple format (from Spotify Data Export - basic)
+export interface SpotifyStreamEntrySimple {
+  endTime: string;
+  artistName: string;
+  trackName: string;
+  msPlayed: number;
+}
+
+// Union type for both formats
+export type AnySpotifyStreamEntry = SpotifyStreamEntry | SpotifyStreamEntrySimple;
+
+/**
+ * Normalize any stream entry format to the standard format
+ */
+export function normalizeStreamEntry(entry: AnySpotifyStreamEntry): SpotifyStreamEntry {
+  // Check if it's the simple format (has endTime instead of ts)
+  if ('endTime' in entry) {
+    const simple = entry as SpotifyStreamEntrySimple;
+    // Convert endTime "2025-01-16 12:00" to ISO format "2025-01-16T12:00:00Z"
+    const isoTs = simple.endTime.replace(' ', 'T') + ':00Z';
+    return {
+      ts: isoTs,
+      master_metadata_track_name: simple.trackName,
+      master_metadata_album_artist_name: simple.artistName,
+      ms_played: simple.msPlayed
+    };
+  }
+  // Already in extended format
+  return entry as SpotifyStreamEntry;
 }
 
 export interface ArtistWithGenres {
@@ -185,6 +217,7 @@ function formatGenreLabel(id: string): string {
 /**
  * Load streaming history JSON files - OPTIMIZED with parallel loading
  * Supports fallback URLs if primary source fails
+ * Automatically normalizes both extended and simple Spotify export formats
  */
 export async function loadStreamingHistory(
   fileUrls: string[],
@@ -197,7 +230,9 @@ export async function loadStreamingHistory(
     fileUrls.map(async (url) => {
       const response = await fetch(url);
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      return response.json() as Promise<SpotifyStreamEntry[]>;
+      const data = await response.json() as AnySpotifyStreamEntry[];
+      // Normalize all entries to the standard format
+      return data.map(normalizeStreamEntry);
     })
   );
   
@@ -222,7 +257,9 @@ export async function loadStreamingHistory(
       fallbackUrls.map(async (url) => {
         const response = await fetch(url);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        return response.json() as Promise<SpotifyStreamEntry[]>;
+        const data = await response.json() as AnySpotifyStreamEntry[];
+        // Normalize all entries to the standard format
+        return data.map(normalizeStreamEntry);
       })
     );
     

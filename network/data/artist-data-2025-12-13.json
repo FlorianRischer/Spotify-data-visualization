@@ -42,7 +42,8 @@
   "_info": {
     "exportDate": "2025-12-13T14:46:36.606Z",
     "artistCount": 3777,
-    "instructions": "Copy this file to /static/artist-cache.json to use as precomputed cache"
+    "instructions": "Copy this file to /static/artist-cache.json to use as precomputed cache",
+    "mergedDate": "2026-01-20T21:27:08.308Z"
   },
   "martin garrix": {
     "originalName": "Martin Garrix",
