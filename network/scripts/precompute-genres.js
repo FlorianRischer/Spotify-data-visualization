@@ -24,6 +24,73 @@ const BATCH_SIZE = 1;
 const DELAY_MS = 600; // 600ms between requests to stay well under rate limits
 const MAX_RETRIES = 3;
 
+// Minimum similarity threshold (0-1) for artist name matching
+const MIN_SIMILARITY_THRESHOLD = 0.75; // 75% similarity required
+
+/**
+ * Calculate Levenshtein distance between two strings
+ */
+function levenshteinDistance(str1, str2) {
+  const m = str1.length;
+  const n = str2.length;
+  
+  // Create matrix
+  const dp = Array(m + 1).fill(null).map(() => Array(n + 1).fill(0));
+  
+  // Initialize first column and row
+  for (let i = 0; i <= m; i++) dp[i][0] = i;
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  
+  // Fill the matrix
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      if (str1[i - 1] === str2[j - 1]) {
+        dp[i][j] = dp[i - 1][j - 1];
+      } else {
+        dp[i][j] = 1 + Math.min(
+          dp[i - 1][j],     // deletion
+          dp[i][j - 1],     // insertion
+          dp[i - 1][j - 1]  // substitution
+        );
+      }
+    }
+  }
+  
+  return dp[m][n];
+}
+
+/**
+ * Calculate similarity score (0-1) between two strings
+ * 1 = identical, 0 = completely different
+ */
+function calculateSimilarity(str1, str2) {
+  const s1 = str1.toLowerCase().trim();
+  const s2 = str2.toLowerCase().trim();
+  
+  // Exact match
+  if (s1 === s2) return 1;
+  
+  // Check if one contains the other (common for "Artist" vs "Artist feat. X")
+  if (s1.includes(s2) || s2.includes(s1)) {
+    const shorter = Math.min(s1.length, s2.length);
+    const longer = Math.max(s1.length, s2.length);
+    return shorter / longer;
+  }
+  
+  const distance = levenshteinDistance(s1, s2);
+  const maxLength = Math.max(s1.length, s2.length);
+  
+  return 1 - (distance / maxLength);
+}
+
+/**
+ * Check if found artist name is similar enough to the searched name
+ */
+function isValidMatch(searchedName, foundName) {
+  const similarity = calculateSimilarity(searchedName, foundName);
+  return similarity >= MIN_SIMILARITY_THRESHOLD;
+}
+
 async function getSpotifyToken() {
   const credentials = Buffer.from(SPOTIFY_CLIENT_ID + ':' + SPOTIFY_CLIENT_SECRET).toString('base64');
   
@@ -72,6 +139,14 @@ async function searchArtist(artistName, token, retries = MAX_RETRIES) {
       
       if (data.artists?.items?.length > 0) {
         const artist = data.artists.items[0];
+        
+        // Check if the found artist name is similar enough to the searched name
+        const similarity = calculateSimilarity(artistName, artist.name);
+        if (!isValidMatch(artistName, artist.name)) {
+          console.warn(`\n⚠️ Name mismatch: searched "${artistName}" but found "${artist.name}" (similarity: ${(similarity * 100).toFixed(0)}%) - marking as notFound`);
+          return { notFound: true, searchedFor: artistName, foundInstead: artist.name, similarity: similarity };
+        }
+        
         return {
           id: artist.id,
           name: artist.name,
@@ -159,13 +234,21 @@ async function main() {
     
     const artistInfo = await searchArtist(artistName, token);
     
-    cache[artistName] = {
-      originalName: artistName,
-      ...artistInfo
-    };
-    
-    if (artistInfo?.genres?.length > 0) {
-      successCount++;
+    // Handle different result types
+    if (artistInfo?.notFound) {
+      // Name mismatch - store as null so we don't retry but also don't use wrong data
+      cache[artistName] = null;
+    } else if (artistInfo) {
+      cache[artistName] = {
+        originalName: artistName,
+        ...artistInfo
+      };
+      if (artistInfo.genres?.length > 0) {
+        successCount++;
+      }
+    } else {
+      // No result found
+      cache[artistName] = null;
     }
     
     // Save periodically

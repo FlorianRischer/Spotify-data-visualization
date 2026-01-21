@@ -383,10 +383,13 @@ export function computeGenreYearlyStats(
     let topYearMinutes = 0;
     let topYearPlayCount = 0;
     
-    // Find discovered year
+    // Find discovered year from discovery data
     const genreDiscovery = discoveryData.genres.find(g => g.genreId === genreId);
     const discoveredYear = genreDiscovery?.year || 2018;
-    let discoveredYearMinutes = 0;
+    
+    // Get discovered year minutes from yearlyMap (may be 0 if no plays recorded)
+    const discoveredYearStats = yearlyMap.get(discoveredYear);
+    let discoveredYearMinutes = discoveredYearStats?.totalMinutes || 0;
 
     const yearlyStats: GenreYearlyStats[] = [];
 
@@ -404,10 +407,17 @@ export function computeGenreYearlyStats(
         topYearPlayCount = stats.playCount;
         topYear = year;
       }
-      
-      // Track minutes in discovered year
-      if (year === discoveredYear) {
-        discoveredYearMinutes = stats.totalMinutes;
+    }
+    
+    // If discovered year has 0 minutes but we have yearly stats,
+    // use the first year with actual listening time instead
+    // This handles edge cases where discovery was based on a very short play
+    if (discoveredYearMinutes === 0 && yearlyStats.length > 0) {
+      // Sort by year and find first year with actual minutes
+      const sortedStats = [...yearlyStats].sort((a, b) => a.year - b.year);
+      const firstYearWithMinutes = sortedStats.find(s => s.totalMinutes > 0);
+      if (firstYearWithMinutes) {
+        discoveredYearMinutes = firstYearWithMinutes.totalMinutes;
       }
     }
 
