@@ -16,7 +16,8 @@
     TimelineTitle,
     TimelineDetail,
     LoadingScreen,
-    LandingHero
+    LandingHero,
+    NavigationNotice
   } from "$lib/components";
   import { graphData, initVisible, setPositions } from "$lib/stores";
   import { uiStore, isStartAnimationRunning } from "$lib/stores/uiStore";
@@ -342,6 +343,7 @@
       <ExploreDetail />
       <OverviewDetail />
       <Tooltip />
+      <NavigationNotice />
       {#if showBottomHeader}
         <div transition:fade={{ duration: 400 }}>
           <BottomHeader />

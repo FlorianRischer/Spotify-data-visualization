@@ -338,8 +338,9 @@ export function activateOverview() {
 }
 
 /**
- * Navigiert zum nächsten Step (Pfeiltaste runter)
- * Intro/Kategorisierung → Genre 1 → Genre 2 → ... → Overview → Timeline
+ * Navigiert zum nächsten Step (Pfeiltaste runter/rechts)
+ * Circular Navigation: Genre 1 → Genre 2 → ... → Genre N → Genre 1 (Kreis)
+ * Intro/Kategorisierung → erstes Genre
  */
 export function navigateToNextStep(): boolean {
   const state = get(scrollyStore);
@@ -361,40 +362,32 @@ export function navigateToNextStep(): boolean {
     return true;
   }
   
-  // Zoom: Nächste Kategorie oder zu Overview
+  // Zoom: Nächste Kategorie (circular - nach letztem kommt erstes)
   if (state.phase === 'zoom') {
-    const nextIndex = state.focusedCategoryIndex + 1;
-    
-    if (nextIndex < totalCategories) {
-      // Nächste Kategorie
-      const nextCategory = state.genreGroupQueue[nextIndex];
-      scrollyStore.update(s => ({
-        ...s,
-        focusedCategoryIndex: nextIndex,
-        focusedCategory: nextCategory,
-        isScrollingDown: true
-      }));
-      return true;
-    } else {
-      // Alle Kategorien durch → Overview
-      scrollyStore.update(s => ({
-        ...s,
-        phase: 'overview',
-        isScrollingDown: true,
-        isInOverview: true
-      }));
-      return true;
-    }
-  }
-  
-  // Overview → Timeline
-  if (state.phase === 'overview') {
+    const nextIndex = (state.focusedCategoryIndex + 1) % totalCategories;
+    const nextCategory = state.genreGroupQueue[nextIndex];
     scrollyStore.update(s => ({
       ...s,
-      phase: 'timeline',
-      isScrollingDown: true,
-      isInOverview: false
+      focusedCategoryIndex: nextIndex,
+      focusedCategory: nextCategory,
+      isScrollingDown: true
     }));
+    return true;
+  }
+  
+  // Overview → erstes Genre (Kreis-Navigation)
+  if (state.phase === 'overview') {
+    const firstCategory = state.genreGroupQueue[0];
+    if (firstCategory) {
+      scrollyStore.update(s => ({
+        ...s,
+        phase: 'zoom',
+        focusedCategoryIndex: 0,
+        focusedCategory: firstCategory,
+        isScrollingDown: true,
+        isInOverview: false
+      }));
+    }
     return true;
   }
   
@@ -402,8 +395,9 @@ export function navigateToNextStep(): boolean {
 }
 
 /**
- * Navigiert zum vorherigen Step (Pfeiltaste hoch)
- * Timeline → Overview → letztes Genre → ... → Genre 1 → Kategorisierung → Intro
+ * Navigiert zum vorherigen Step (Pfeiltaste hoch/links)
+ * Circular Navigation: Genre 1 → Genre N → ... → Genre 2 → Genre 1 (Kreis rückwärts)
+ * Beim ersten Genre rückwärts → letztes Genre
  */
 export function navigateToPreviousStep(): boolean {
   const state = get(scrollyStore);
@@ -437,31 +431,21 @@ export function navigateToPreviousStep(): boolean {
     return true;
   }
   
-  // Zoom: Vorherige Kategorie oder zurück zur Kategorisierung/Übersicht
+  // Zoom: Vorherige Kategorie (circular - vor erstem kommt letztes)
   if (state.phase === 'zoom') {
-    const prevIndex = state.focusedCategoryIndex - 1;
+    // Circular: Wenn Index 0, gehe zu letztem; sonst eins zurück
+    const prevIndex = state.focusedCategoryIndex === 0 
+      ? totalCategories - 1 
+      : state.focusedCategoryIndex - 1;
     
-    if (prevIndex >= 0) {
-      // Vorherige Kategorie
-      const prevCategory = state.genreGroupQueue[prevIndex];
-      scrollyStore.update(s => ({
-        ...s,
-        focusedCategoryIndex: prevIndex,
-        focusedCategory: prevCategory,
-        isScrollingDown: false
-      }));
-      return true;
-    } else {
-      // Beim ersten Genre: Zurück zur Kategorisierungsübersicht
-      scrollyStore.update(s => ({
-        ...s,
-        phase: 'categorization',
-        focusedCategoryIndex: -1,
-        focusedCategory: null,
-        isScrollingDown: false
-      }));
-      return true;
-    }
+    const prevCategory = state.genreGroupQueue[prevIndex];
+    scrollyStore.update(s => ({
+      ...s,
+      focusedCategoryIndex: prevIndex,
+      focusedCategory: prevCategory,
+      isScrollingDown: false
+    }));
+    return true;
   }
   
   // Kategorisierung: Bleibt hier (kein weiteres Zurück zu intro)

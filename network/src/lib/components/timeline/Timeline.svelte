@@ -75,6 +75,22 @@
   let scrollDirection = 1;
   let previousYearIndex = 0;
   
+  // Navigation animation state
+  let navAnimationDirection: 'left' | 'right' | null = null;
+  let navAnimationTimeout: ReturnType<typeof setTimeout> | null = null;
+  
+  function triggerNavAnimation(direction: 'left' | 'right') {
+    // Clear previous timeout
+    if (navAnimationTimeout) clearTimeout(navAnimationTimeout);
+    
+    navAnimationDirection = direction;
+    
+    // Reset after animation completes
+    navAnimationTimeout = setTimeout(() => {
+      navAnimationDirection = null;
+    }, 300);
+  }
+  
   // Update scroll direction when year changes
   $: {
     if (currentYearIndex !== previousYearIndex) {
@@ -129,9 +145,11 @@
     
     if (event.key === 'ArrowRight') {
       event.preventDefault();
+      triggerNavAnimation('right');
       navigateToNextYear();
     } else if (event.key === 'ArrowLeft') {
       event.preventDefault();
+      triggerNavAnimation('left');
       navigateToPreviousYear();
     }
   }
@@ -152,10 +170,12 @@
     scrollAccumulator += deltaX;
     
     if (scrollAccumulator > SCROLL_THRESHOLD) {
+      triggerNavAnimation('right');
       navigateToNextYear();
       scrollAccumulator = 0;
     }
     else if (scrollAccumulator < -SCROLL_THRESHOLD) {
+      triggerNavAnimation('left');
       navigateToPreviousYear();
       scrollAccumulator = 0;
     }
@@ -266,6 +286,35 @@
         {/each}
       </div>
     </div>
+
+    <!-- Navigation Arrows -->
+    {#if currentYearIndex > 0}
+      <button 
+        class="nav-arrow nav-arrow-left" 
+        class:nav-animating={navAnimationDirection === 'left'}
+        transition:fade={{ duration: 200 }}
+        on:click={() => { triggerNavAnimation('left'); navigateToPreviousYear(); }}
+        aria-label="Previous year"
+      >
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
+          <path d="M15 18L9 12L15 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+    {/if}
+    
+    {#if currentYearIndex < totalYears - 1}
+      <button 
+        class="nav-arrow nav-arrow-right" 
+        class:nav-animating={navAnimationDirection === 'right'}
+        transition:fade={{ duration: 200 }}
+        on:click={() => { triggerNavAnimation('right'); navigateToNextYear(); }}
+        aria-label="Next year"
+      >
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
+          <path d="M9 6L15 12L9 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+    {/if}
   </div>
 {/if}
 
@@ -468,6 +517,84 @@
   .month-label:nth-child(11).visible { transition-delay: 0.55s; }
   .month-label:nth-child(12).visible { transition-delay: 0.6s; }
 
+  /* Navigation Arrows */
+  .nav-arrow {
+    position: fixed;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 152;
+    pointer-events: auto;
+    color: rgba(140, 135, 130, 0.4);
+    transition: color 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94), 
+                transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    background: none;
+    border: none;
+    padding: 12px;
+    cursor: pointer;
+  }
+
+  .nav-arrow:hover {
+    color: rgba(100, 95, 90, 0.85);
+  }
+
+  .nav-arrow:active {
+    transition: color 0.1s ease, transform 0.1s ease;
+  }
+
+  .nav-arrow-left {
+    left: 24px;
+  }
+
+  .nav-arrow-left:hover {
+    transform: translateY(-50%) translateX(-4px);
+  }
+
+  .nav-arrow-left:active {
+    transform: translateY(-50%) translateX(-8px);
+  }
+
+  .nav-arrow-right {
+    right: 24px;
+  }
+
+  .nav-arrow-right:hover {
+    transform: translateY(-50%) translateX(4px);
+  }
+
+  .nav-arrow-right:active {
+    transform: translateY(-50%) translateX(8px);
+  }
+
+  .nav-arrow svg {
+    width: 32px;
+    height: 32px;
+    display: block;
+    transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+
+  .nav-arrow:hover svg {
+    transform: scale(1.08);
+  }
+
+  /* Animation when navigating via keyboard/touchpad */
+  .nav-arrow-left.nav-animating {
+    transform: translateY(-50%) translateX(-8px);
+    color: rgba(100, 95, 90, 0.85);
+  }
+
+  .nav-arrow-left.nav-animating svg {
+    transform: scale(1.1);
+  }
+
+  .nav-arrow-right.nav-animating {
+    transform: translateY(-50%) translateX(8px);
+    color: rgba(100, 95, 90, 0.85);
+  }
+
+  .nav-arrow-right.nav-animating svg {
+    transform: scale(1.1);
+  }
+
   /* Responsive */
   @media (max-width: 1200px) {
     .timeline-container {
@@ -532,6 +659,19 @@
     .month-tick {
       height: 8px;
       top: -3px;
+    }
+
+    .nav-arrow-left {
+      left: 12px;
+    }
+
+    .nav-arrow-right {
+      right: 12px;
+    }
+
+    .nav-arrow svg {
+      width: 24px;
+      height: 24px;
     }
   }
 </style>

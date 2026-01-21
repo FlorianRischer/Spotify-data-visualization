@@ -384,7 +384,7 @@
       }, CAMERA_ANIMATION_DURATION);
     }
 
-    // Zoom → Overview (nach letzter Kategorie)
+    // Zoom → Overview (nur durch explizite Aktion, nicht mehr automatisch nach letztem Genre)
     if (oldPhase === 'zoom' && newPhase === 'overview' && isScrollingDown) {
       console.log('📍 Wechsel zu Overview-Modus');
       
@@ -413,12 +413,12 @@
       }, CAMERA_ANIMATION_DURATION);
     }
 
-    // Overview → Zoom (zurück zum letzten Genre)
-    if (oldPhase === 'overview' && newPhase === 'zoom' && !isScrollingDown) {
-      console.log('📍 Zurück zu Zoom aus Overview');
+    // Overview → Zoom (kreisförmige Navigation - zu erstem oder letztem Genre)
+    if (oldPhase === 'overview' && newPhase === 'zoom') {
+      console.log('📍 Von Overview zu Zoom (circular navigation)');
       // Deaktiviere Explore-Modus
       uiStore.update(s => ({ ...s, isOverviewModeManual: false }));
-      // lastFocusedCategory wird durch navigateToPreviousStep bereits gesetzt
+      // focusedCategory wird durch navigateToNextStep/navigateToPreviousStep bereits gesetzt
     }
     
     // Overview → Timeline (nach Overview kommt Timeline)
