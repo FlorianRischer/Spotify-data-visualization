@@ -229,11 +229,11 @@
       <button class="nav-button" class:active={isOverviewActive} on:click={handleGoToOverview} title="Zurück zum Overview (Kategorien-Navigation)">
         Overview
       </button>
-      <button class="nav-button" class:active={isExploreActive} on:click={handleExplore} title="Explore aktivieren/deaktivieren (Suche)">
-        Explore
-      </button>
       <button class="nav-button timeline-button" class:active={isTimelineActive} on:click={handleTimeline} title="Timeline aktivieren/deaktivieren">
         Timeline
+      </button>
+      <button class="nav-button" class:active={isExploreActive} on:click={handleExplore} title="Explore aktivieren/deaktivieren (Suche)">
+        Explore
       </button>
       <button class="nav-button" class:active={isLinksActive} on:click={handleDisplayLinks} title="Links anzeigen/verbergen">
         Display Links
