@@ -12,7 +12,7 @@
 {#if isTimelinePhase && isFirstYear}
   <div class="timeline-title-panel" in:fly={{ x: -100, duration: 500, easing: cubicOut }} out:fly={{ x: -100, duration: 500 }}>
     <div class="rotated-text">
-      <p class="timeline-title">Timeline</p>
+      <p class="timeline-title">TIMELINE</p>
     </div>
   </div>
 {/if}

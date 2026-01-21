@@ -129,6 +129,19 @@
   $: isAnimatingCamera = $scrollyStore.isAnimatingCamera;
   $: isTimelinePhase = phase === 'timeline';
 
+  // Synchronisiere lastPhase und lastFocusedCategory wenn von außen geändert (z.B. durch BottomHeader)
+  // Dies verhindert Bugs wenn man über Buttons zu Overview/Categorization navigiert
+  $: {
+    // Wenn Phase zu overview/categorization wechselt, reset lastFocusedCategory
+    if (phase === 'overview' || phase === 'categorization') {
+      lastFocusedCategory = null;
+    }
+    // Aktualisiere lastPhase für externe Änderungen (aber nur wenn nicht durch Navigation)
+    if (!isNavigating) {
+      lastPhase = phase;
+    }
+  }
+
   // Kategorie-Wechsel werden jetzt durch handlePhaseTransitions in handleKeyDown gesteuert
 
   // Keyboard Navigation Handler
@@ -181,6 +194,26 @@
     // Prüfe ob vorwärts oder rückwärts navigiert werden soll
     const isForward = isForwardKey(event.key, forwardDirection);
     const isBackward = isBackwardKey(event.key, backwardDirection);
+    
+    // In Overview oder Categorization: alle 4 Pfeiltasten führen zum ersten Genre
+    // (Categorization wird vom BottomHeader "Overview" Button gesetzt)
+    const isInOverviewState = currentState.phase === 'overview' || currentState.phase === 'categorization';
+    const isAnyArrowKey = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key);
+    
+    if (isInOverviewState && isAnyArrowKey) {
+      event.preventDefault();
+      isNavigating = true;
+      
+      if (navigateToNextStep()) {
+        lastCameraAnimationTime = now;
+        handlePhaseTransitions(true);
+      }
+      
+      setTimeout(() => {
+        isNavigating = false;
+      }, MIN_ANIMATION_INTERVAL);
+      return;
+    }
     
     if (isForward) {
       event.preventDefault();
@@ -388,6 +421,9 @@
     if (oldPhase === 'zoom' && newPhase === 'overview' && isScrollingDown) {
       console.log('📍 Wechsel zu Overview-Modus');
       
+      // Reset lastFocusedCategory damit nächste Navigation zur Kategorie die Kamera bewegt
+      lastFocusedCategory = null;
+      
       // Starte Kamera-Animation zur Overview
       scrollyStore.update(state => ({
         ...state,
@@ -418,7 +454,38 @@
       console.log('📍 Von Overview zu Zoom (circular navigation)');
       // Deaktiviere Explore-Modus
       uiStore.update(s => ({ ...s, isOverviewModeManual: false }));
-      // focusedCategory wird durch navigateToNextStep/navigateToPreviousStep bereits gesetzt
+      
+      // Trigger camera animation to focused category
+      const currentState = get(scrollyStore);
+      const focusedCategory = currentState.focusedCategory;
+      if (focusedCategory) {
+        const position = currentState.categoryPositions[focusedCategory];
+        if (position) {
+          console.log(`🎯 Navigation zu Kategorie von Overview: ${focusedCategory}`, position);
+          scrollyStore.update(state => ({
+            ...state,
+            isAnimatingCamera: true
+          }));
+          
+          // Starte Kamera-Animation
+          cameraController.animateToCategoryPosition(position.x, position.y, CAMERA_ANIMATION_DURATION, 2.5);
+          
+          // Titel-Animation startet später
+          setTimeout(() => {
+            setDisplayedCategory(focusedCategory);
+          }, TITLE_START_DELAY);
+          
+          // Kamera-Animation abschließen
+          setTimeout(() => {
+            scrollyStore.update(state => ({
+              ...state,
+              isAnimatingCamera: false
+            }));
+          }, CAMERA_ANIMATION_DURATION);
+          
+          lastFocusedCategory = focusedCategory;
+        }
+      }
     }
     
     // Overview → Timeline (nach Overview kommt Timeline)
@@ -432,6 +499,9 @@
     // Timeline → Overview (zurück von Timeline)
     if (oldPhase === 'timeline' && newPhase === 'overview' && !isScrollingDown) {
       console.log('📍 Zurück zu Overview aus Timeline');
+      
+      // Reset lastFocusedCategory damit nächste Navigation zur Kategorie die Kamera bewegt
+      lastFocusedCategory = null;
       
       // Starte Kamera-Animation zur Overview
       scrollyStore.update(state => ({
