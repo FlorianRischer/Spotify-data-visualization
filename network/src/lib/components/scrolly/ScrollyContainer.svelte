@@ -195,9 +195,12 @@
     const isForward = isForwardKey(event.key, forwardDirection);
     const isBackward = isBackwardKey(event.key, backwardDirection);
     
-    // In Overview oder Categorization: alle 4 Pfeiltasten führen zum ersten Genre
+    // In Overview, Categorization oder Intro: alle 4 Pfeiltasten führen zum ersten Genre
+    // (Intro ist der Zustand nach der Start-Animation)
     // (Categorization wird vom BottomHeader "Overview" Button gesetzt)
-    const isInOverviewState = currentState.phase === 'overview' || currentState.phase === 'categorization';
+    const isInOverviewState = currentState.phase === 'overview' || 
+                               currentState.phase === 'categorization' || 
+                               currentState.phase === 'intro';
     const isAnyArrowKey = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key);
     
     if (isInOverviewState && isAnyArrowKey) {
