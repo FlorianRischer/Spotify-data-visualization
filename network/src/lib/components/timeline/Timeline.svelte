@@ -235,6 +235,11 @@
             <span class="stat-value">{yearlySummary.topArtist}</span>
             <span class="stat-label">Top Artist · {formatListeningTime(yearlySummary.topArtistMinutes)}</span>
           </div>
+          <div class="stat-divider"></div>
+          <div class="stat-item">
+            <span class="stat-value">{yearDiscovery?.totalDiscovered || 0}</span>
+            <span class="stat-label">Genres Discovered</span>
+          </div>
         </div>
       {/key}
     {/if}
@@ -358,19 +363,19 @@
     transform: translateX(-50%);
     display: flex;
     align-items: center;
-    gap: 24px;
-    padding: 12px 24px;
+    gap: 18px;
+    padding: 12px 20px;
     background: none;
     backdrop-filter: blur(8px);
     border-radius: 12px;
     
-    z-index: 152;
+    z-index: 200;
     transition: left 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   /* Im ersten Jahr (2018) weiter rechts positionieren, da Timeline erst im August beginnt */
   .yearly-stats.first-year {
-    left: 75%;
+    left: 68%;
   }
 
   .stat-item {
