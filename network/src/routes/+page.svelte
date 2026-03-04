@@ -16,7 +16,6 @@
     TimelineTitle,
     TimelineDetail,
     LoadingScreen,
-    LandingHero,
     NavigationNotice
   } from "$lib/components";
   import { graphData, initVisible, setPositions } from "$lib/stores";
@@ -31,7 +30,7 @@
   import "./page.css";
 
   let isLoading = true;
-  let showLandingHero = true; // Show landing hero after loading
+  let showLandingHero = false; // Animation plays directly after loading
   let loadingStatus = "Lädt Streaming-Daten...";
   let lastGraphInput: any = null;
   
@@ -315,8 +314,8 @@
   {#if isLoading}
     <LoadingScreen status={loadingStatus} />
   {:else}
-    <!-- Graph is always mounted but hidden behind Landing Hero -->
-    <div class="visualization-layer" class:hidden={showLandingHero}>
+    <!-- Graph is always mounted -->
+    <div class="visualization-layer">
       <ScrollyContainer>
         <div class="layout">
           {#if !$isStartAnimationRunning && !isInTimelinePhase}
@@ -350,15 +349,5 @@
         </div>
       {/if}
     </div>
-    
-    <!-- Landing Hero overlay -->
-    {#if showLandingHero}
-      <LandingHero 
-        visible={showLandingHero} 
-        on:exit={() => {
-          showLandingHero = false;
-        }} 
-      />
-    {/if}
   {/if}
 </main>
