@@ -30,7 +30,6 @@
   import "./page.css";
 
   let isLoading = true;
-  let showLandingHero = false; // Animation plays directly after loading
   let loadingStatus = "Lädt Streaming-Daten...";
   let lastGraphInput: any = null;
   
@@ -325,7 +324,7 @@
           {/if}
 
           <section class="graph-container">
-            <GraphCanvas startAnimation={!showLandingHero} />
+            <GraphCanvas startAnimation={true} />
             <GenreDetail />
           </section>
         </div>

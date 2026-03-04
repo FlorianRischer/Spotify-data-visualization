@@ -20,13 +20,8 @@ export const visibleState = writable<VisibleState>({
 
 // ============ Layout Positions ============
 export const positions = writable<Record<string, { x: number; y: number }>>({});
-export const layoutSeed = writable<number>(1);
 
 // ============ Derived Stores ============
-export const visibleNodeIds = derived(visibleState, ($v) => Array.from($v.nodes));
-export const visibleEdgeIds = derived(visibleState, ($v) => Array.from($v.edges));
-export const pinnedNodeIds = derived(visibleState, ($v) => Array.from($v.pinned));
-
 export const visibleNodes = derived(
   [graphData, visibleState, positions],
   ([$g, $v, $p]) => {
@@ -74,7 +69,7 @@ export function initVisible() {
   visibleState.set({ nodes, edges, pinned: new Set() });
 }
 
-export function addVisibleNode(nodeId: string) {
+function addVisibleNode(nodeId: string) {
   const g = get(graphData);
   if (!g) return;
   
@@ -111,7 +106,7 @@ export function addNeighbors(nodeId: string, limit = 8): string[] {
   return added;
 }
 
-export function pinNode(nodeId: string) {
+function pinNode(nodeId: string) {
   visibleState.update((state) => {
     const pinned = new Set(state.pinned);
     pinned.add(nodeId);
@@ -121,7 +116,7 @@ export function pinNode(nodeId: string) {
   });
 }
 
-export function unpinNode(nodeId: string) {
+function unpinNode(nodeId: string) {
   visibleState.update((state) => {
     const pinned = new Set(state.pinned);
     pinned.delete(nodeId);
@@ -136,43 +131,6 @@ export function togglePin(nodeId: string) {
   } else {
     pinNode(nodeId);
   }
-}
-
-export function reset() {
-  initVisible();
-}
-
-export function showAllNodes() {
-  const g = get(graphData);
-  if (!g) return;
-  
-  // Add all nodes and edges to visible state
-  const nodes = new Set(g.nodes.map(n => n.id));
-  const edges = new Set(g.edges.map(e => e.id));
-  
-  visibleState.set({ nodes, edges, pinned: new Set() });
-}
-
-export function pruneUnpinned() {
-  const g = get(graphData);
-  if (!g) return;
-  
-  visibleState.update((state) => {
-    const keepNodes = new Set([...state.pinned, ...g.topK]);
-    const nodes = new Set<string>();
-    for (const id of keepNodes) {
-      nodes.add(id);
-    }
-    
-    const edges = new Set<string>();
-    for (const e of g.edges) {
-      if (nodes.has(e.source) && nodes.has(e.target)) {
-        edges.add(e.id);
-      }
-    }
-    
-    return { nodes, edges, pinned: new Set(state.pinned) };
-  });
 }
 
 export function setPositions(newPositions: Record<string, { x: number; y: number }>) {

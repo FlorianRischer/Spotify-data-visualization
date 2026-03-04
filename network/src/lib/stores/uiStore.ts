@@ -1,36 +1,16 @@
-// UI Store — hover, expansion queue, reduced motion, keyboard focus
+// UI Store — hover, reduced motion, keyboard focus
 import { writable, derived, get } from "svelte/store";
-import { browser } from "$app/environment";
 
 // ============ Hover State ============
 export const hoverNodeId = writable<string | null>(null);
 export const hoverPosition = writable<{ x: number; y: number } | null>(null);
 
-// ============ Expansion Queue ============
-interface ExpansionQueueItem {
-  nodeId: string;
-  addedAt: number;
-}
-export const expansionQueue = writable<ExpansionQueueItem[]>([]);
-
 // ============ Reduced Motion ============
-function getSystemReducedMotion(): boolean {
-  if (!browser) return false;
-  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-}
-
-export const reducedMotionOverride = writable<boolean | null>(null);
+const reducedMotionOverride = writable<boolean | null>(null);
 export const reducedMotion = derived(reducedMotionOverride, ($override) => {
   if ($override !== null) return $override;
   return false; // Always enable motion
 });
-
-export function toggleReducedMotion() {
-  reducedMotionOverride.update((v) => {
-    if (v === null) return !getSystemReducedMotion();
-    return !v;
-  });
-}
 
 // ============ Keyboard Focus ============
 export const focusedNodeId = writable<string | null>(null);

@@ -16,8 +16,5 @@ export * from './timeline';
 // Scrolly Components
 export * from './scrolly';
 
-// Landing Page Components
-export * from './landing';
-
 // Visualization Components
 export * from './visualization';

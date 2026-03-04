@@ -1,23 +1,15 @@
 // Graph module exports
 export { buildGraph } from "./graphBuilder";
-export { computeLayout, computeForceLayout, computeTreeLayout, seedFromString } from "./layoutEngine";
+export { computeForceLayout } from "./layoutEngine";
 export { renderGraph, hitTest } from "./renderer";
 export { transformSpotifyData, loadStreamingHistory, createDemoGraphInput } from "./dataLoader";
 export { createGenreAnchors, createCategoryBasedGenreAnchors, createOverviewAnchors, createOverviewCategoryLabels, stepPhysics } from "./physics";
 export { 
   getGenreCategory, 
-  getGenresByCategory, 
-  getAllCategories, 
-  createGenreCategoryMap,
-  GENRE_MAPPING 
+  getAllCategories
 } from "./genreMapping";
 export {
-  getCategoryColor,
-  getCategoryColorLight,
-  getCategoryColorDark,
-  hexToRgba,
-  getCategoryColorScheme,
-  CATEGORY_COLORS
+  getCategoryColor
 } from "./categoryColors";
 
 // Types
@@ -53,7 +45,3 @@ export type {
   GenreCategory,
   GenreInfo
 } from "./genreMapping";
-
-export type {
-  CategoryColorScheme
-} from "./categoryColors";

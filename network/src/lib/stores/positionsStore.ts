@@ -49,22 +49,4 @@ export function hasSnapshot(category: string): boolean {
   return result;
 }
 
-/**
- * Löscht alle Snapshots (z.B. bei Neustart)
- */
-export function clearAllSnapshots() {
-  snapshots.set({});
-}
-
-/**
- * Löscht Snapshot für spezifische Kategorie
- */
-export function clearSnapshot(category: string) {
-  snapshots.update(current => {
-    const updated = { ...current };
-    delete updated[category];
-    return updated;
-  });
-}
-
 export const positionsStore = snapshots;

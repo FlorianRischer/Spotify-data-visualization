@@ -3,32 +3,19 @@ export {
   graphData,
   visibleState,
   positions,
-  layoutSeed,
-  visibleNodeIds,
-  visibleEdgeIds,
-  pinnedNodeIds,
   visibleNodes,
   visibleEdges,
   topK,
   initVisible,
-  addVisibleNode,
   addNeighbors,
-  pinNode,
-  unpinNode,
   togglePin,
-  reset,
-  showAllNodes,
-  pruneUnpinned,
   setPositions
 } from "./graphStore";
 
 export {
   hoverNodeId,
   hoverPosition,
-  expansionQueue,
-  reducedMotionOverride,
   reducedMotion,
-  toggleReducedMotion,
   focusedNodeId,
   keyboardMode,
   tooltipData,
@@ -42,17 +29,11 @@ export type { TooltipData } from "./uiStore";
 
 export {
   timelineStore,
-  activateTimeline,
-  deactivateTimeline,
-  setTimelineData,
   navigateToNextYear,
   navigateToPreviousYear,
-  jumpToYear,
-  getCurrentYear,
   currentYear,
   currentYearNumber,
-  isTimelineActive,
-  timelineYears
+  isTimelineActive
 } from "./timelineStore";
 
 export type { YearData, YearlyGenreData, MonthlyData, TimelineState } from "./timelineStore";
