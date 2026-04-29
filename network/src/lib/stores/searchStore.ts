@@ -1,6 +1,6 @@
 // Search Store — manages search state for Overview mode
-import { writable, derived } from "svelte/store";
-import { getAllCategories, getGenresByCategory, getGenreCategory, type GenreCategory } from "$lib/graph/genreMapping";
+import { writable } from "svelte/store";
+import { getAllCategories, getGenreCategory, type GenreCategory } from "$lib/graph/genreMapping";
 
 export type SearchType = 'genre' | 'artist' | 'category';
 
@@ -181,17 +181,6 @@ export function setSearchBarPosition(x: number, y: number) {
     ...state,
     centerPosition: { x, y }
   }));
-}
-
-/**
- * Derived store to check if a specific node matches the search
- */
-export function isNodeMatched(nodeId: string): boolean {
-  let matched = false;
-  searchStore.subscribe(state => {
-    matched = state.matchedNodeIds.has(nodeId);
-  })();
-  return matched;
 }
 
 /**

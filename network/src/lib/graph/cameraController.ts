@@ -7,21 +7,10 @@ export interface CameraTarget {
   y: number;
 }
 
-// Easing functions
-function easeOutCubic(t: number): number {
-  return 1 - Math.pow(1 - t, 3);
-}
-
 function easeInOutCubic(t: number): number {
-  return t < 0.5 
-    ? 4 * t * t * t 
+  return t < 0.5
+    ? 4 * t * t * t
     : 1 - Math.pow(-2 * t + 2, 3) / 2;
-}
-
-function easeInOutQuad(t: number): number {
-  return t < 0.5 
-    ? 2 * t * t 
-    : 1 - Math.pow(-2 * t + 2, 2) / 2;
 }
 
 export class CameraController {

@@ -35,7 +35,6 @@ export async function loadPrecomputedCache(): Promise<Map<string, any>> {
 
   for (const source of dataSources) {
     try {
-      console.log(`📂 Trying to load cache from: ${source}`);
       const response = await fetch(source);
       if (response.ok) {
         const data = await response.json();
@@ -45,17 +44,15 @@ export async function loadPrecomputedCache(): Promise<Map<string, any>> {
         );
 
         if (validEntries.length > 0) {
-          console.log(`✅ Loaded ${validEntries.length} artists from ${source}`);
           const normalizedEntries: Array<[string, any]> = validEntries.map(([key, val]) => [normKey(key), val]);
           return new Map(normalizedEntries);
         }
       }
     } catch (e) {
-      console.log(`📂 Source ${source} not available`);
+      // Source not available, try next
     }
   }
 
-  console.log("📂 No precomputed cache available from any source");
   return new Map();
 }
 
@@ -146,7 +143,6 @@ export function exportCacheToJSON() {
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
 
-    console.log(`✅ Downloaded cache with ${exportData._info.artistCount} artists`);
     alert(`✅ Cache mit ${exportData._info.artistCount} Artists heruntergeladen!\n\nDie Datei in /static/artist-cache.json kopieren um API-Calls zu sparen.`);
   } catch (e) {
     console.error("Failed to export cache:", e);

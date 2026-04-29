@@ -1,7 +1,7 @@
 // Simple physics engine for genre nodes
 import type { GenreNode, GenreEdge, ArtistGroup } from "$lib/graph/types";
 import type { GenreCategory } from "$lib/graph/genreMapping";
-import { getMonthWorldPosition, TIMELINE_CONFIG, YEAR_WIDTH } from "$lib/stores/timelineStore";
+import { getMonthWorldPosition, TIMELINE_CONFIG } from "$lib/stores/timelineStore";
 
 export interface PhysicsState {
   vx: Record<string, number>;
@@ -246,8 +246,8 @@ export function createOverviewAnchors(
     const genresInCategory = categoriesMap.get(category)!;
     const genreCount = genresInCategory.length;
     
-    // Kleinere Cluster für jede Kategorie
-    const clusterRadius = Math.min(30, 150 / genreCount);
+    const baseCluster = canvasWidth / 40;
+    const clusterRadius = Math.min(baseCluster, (baseCluster * 5) / genreCount);
     
     for (let genreIdx = 0; genreIdx < genreCount; genreIdx++) {
       const genre = genresInCategory[genreIdx];
@@ -387,10 +387,11 @@ export function createTimelineAnchors(
         const noDataIndex = nodes.filter(n => !discoveryData.has(n.id)).indexOf(node);
         const col = noDataIndex % 5;
         const row = Math.floor(noDataIndex / 5);
+        const cellScale = canvasWidth / 1200;
         anchors.push({
           genreId: node.id,
-          x: -YEAR_WIDTH * 0.3 + col * 40,
-          y: areaTop + 100 + row * 50
+          x: -canvasWidth * 0.3 + col * 40 * cellScale,
+          y: areaTop + 100 * cellScale + row * 50 * cellScale
         });
         continue;
       }
@@ -401,16 +402,16 @@ export function createTimelineAnchors(
         discovery.month,
         discovery.year,
         minYear,
-        YEAR_WIDTH
+        canvasWidth
       );
       
       // Vertikale Verteilung basierend auf Kategorie
       const categoryHash = hashString(node.category || "Other");
       const verticalOffset = ((categoryHash % 100) / 100 - 0.5) * areaHeight * 0.7;
       
-      // Leichte Streuung für Nodes im gleichen Monat
-      const scatterX = (hashString(node.id) % 30) - 15;
-      const scatterY = ((hashString(node.id + "y") % 60) - 30);
+      const scatterScale = canvasWidth / 1200;
+      const scatterX = ((hashString(node.id) % 30) - 15) * scatterScale;
+      const scatterY = (((hashString(node.id + "y") % 60) - 30)) * scatterScale;
       
       anchors.push({
         genreId: node.id,

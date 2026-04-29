@@ -1,4 +1,4 @@
-import { writable } from 'svelte/store';
+import { writable, get } from 'svelte/store';
 
 export interface NodeSnapshot {
   id: string;
@@ -31,22 +31,11 @@ export function savePositionSnapshot(category: string, nodes: NodeSnapshot[]) {
  * Holt gespeicherte Positionen für eine Kategorie
  */
 export function getPositionSnapshot(category: string): NodeSnapshot[] | null {
-  let result: NodeSnapshot[] | null = null;
-  snapshots.subscribe(current => {
-    result = current[category] || null;
-  })();
-  return result;
+  return get(snapshots)[category] || null;
 }
 
-/**
- * Prüft, ob ein Snapshot für eine Kategorie existiert
- */
 export function hasSnapshot(category: string): boolean {
-  let result = false;
-  snapshots.subscribe(current => {
-    result = !!current[category];
-  })();
-  return result;
+  return !!get(snapshots)[category];
 }
 
 export const positionsStore = snapshots;

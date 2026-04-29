@@ -190,8 +190,6 @@ export async function loadStreamingHistory(
   fileUrls: string[],
   fallbackUrls?: string[]
 ): Promise<SpotifyStreamEntry[]> {
-  console.log(`📂 Loading streaming history from ${fileUrls.length} files...`);
-  
   // Parallel fetch all files at once (much faster than sequential)
   const results = await Promise.allSettled(
     fileUrls.map(async (url) => {
@@ -217,7 +215,6 @@ export async function loadStreamingHistory(
   
   // If no files loaded and fallback URLs provided, try fallback
   if (all.length === 0 && fallbackUrls && fallbackUrls.length > 0) {
-    console.log(`⚠️ Primary sources failed, trying fallback URLs...`);
     const fallbackResults = await Promise.allSettled(
       fallbackUrls.map(async (url) => {
         const response = await fetch(url);
@@ -235,7 +232,6 @@ export async function loadStreamingHistory(
     }
   }
   
-  console.log(`✅ Loaded ${all.length} streaming entries from ${successCount} files`);
   return all;
 }
 

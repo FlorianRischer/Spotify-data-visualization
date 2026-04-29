@@ -335,7 +335,6 @@
       const position = currentState.categoryPositions[newFocusedCategory];
       
       if (position) {
-        console.log(`🎯 Navigation zu Kategorie: ${newFocusedCategory}`, position);
         scrollyStore.update(state => ({
           ...state,
           isAnimatingCamera: true
@@ -361,14 +360,10 @@
       lastFocusedCategory = newFocusedCategory;
     }
 
-    // Backward Navigation: Overview → Zoom
-    if (newPhase === 'zoom' && lastPhase === 'overview' && !isScrollingDown) {
-      console.log('📍 Zurück von Overview zu Zoom');
-    }
+    // Backward Navigation: Overview → Zoom (no special handling needed)
   }
 
   function onPhaseChange(oldPhase: string, newPhase: string, isScrollingDown: boolean = true) {
-    console.log(`📍 Phase: ${oldPhase} → ${newPhase} (${isScrollingDown ? 'down' : 'up'})`);
 
     // Intro → Categorization: Aktiviere Genre-Gruppierung
     if (oldPhase === 'intro' && newPhase === 'categorization') {
@@ -422,8 +417,6 @@
 
     // Zoom → Overview (nur durch explizite Aktion, nicht mehr automatisch nach letztem Genre)
     if (oldPhase === 'zoom' && newPhase === 'overview' && isScrollingDown) {
-      console.log('📍 Wechsel zu Overview-Modus');
-      
       // Reset lastFocusedCategory damit nächste Navigation zur Kategorie die Kamera bewegt
       lastFocusedCategory = null;
       
@@ -454,7 +447,6 @@
 
     // Overview → Zoom (kreisförmige Navigation - zu erstem oder letztem Genre)
     if (oldPhase === 'overview' && newPhase === 'zoom') {
-      console.log('📍 Von Overview zu Zoom (circular navigation)');
       // Deaktiviere Explore-Modus
       uiStore.update(s => ({ ...s, isOverviewModeManual: false }));
       
@@ -464,7 +456,6 @@
       if (focusedCategory) {
         const position = currentState.categoryPositions[focusedCategory];
         if (position) {
-          console.log(`🎯 Navigation zu Kategorie von Overview: ${focusedCategory}`, position);
           scrollyStore.update(state => ({
             ...state,
             isAnimatingCamera: true
@@ -493,7 +484,6 @@
     
     // Overview → Timeline (nach Overview kommt Timeline)
     if (oldPhase === 'overview' && newPhase === 'timeline' && isScrollingDown) {
-      console.log('📍 Wechsel zu Timeline-Modus');
       // Deaktiviere Explore-Modus
       uiStore.update(s => ({ ...s, isOverviewModeManual: false }));
       setDisplayedCategory('Timeline' as any);
@@ -501,8 +491,6 @@
     
     // Timeline → Overview (zurück von Timeline)
     if (oldPhase === 'timeline' && newPhase === 'overview' && !isScrollingDown) {
-      console.log('📍 Zurück zu Overview aus Timeline');
-      
       // Reset lastFocusedCategory damit nächste Navigation zur Kategorie die Kamera bewegt
       lastFocusedCategory = null;
       

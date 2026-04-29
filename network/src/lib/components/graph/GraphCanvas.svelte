@@ -24,7 +24,7 @@
   } from "$lib/stores/uiStore";
   import { scrollyStore, setIntroComplete, setCameraPosition } from "$lib/stores/scrollyStore";
   import { searchStore } from "$lib/stores/searchStore";
-  import { timelineStore, genreDiscoveryData, timelineCameraX, YEAR_WIDTH, genreYearlyStatsData } from "$lib/stores/timelineStore";
+  import { timelineStore, genreDiscoveryData, timelineCameraX, genreYearlyStatsData } from "$lib/stores/timelineStore";
   import { cameraController } from "$lib/graph/cameraController";
   import { renderGraph, hitTest, type RenderNode, type RenderEdge } from "$lib/graph/renderer";
   import { stepPhysics, createPhysicsState, createGenreAnchors, createCategoryBasedGenreAnchors, createOverviewAnchors, createOverviewCategoryLabels, createTimelineAnchors, type GenreAnchor, type CategoryAnchor, type SearchBarForce, type CursorForce } from "$lib/graph/physics";
@@ -57,6 +57,7 @@
   let genreAnchors: GenreAnchor[] = []; // Vordefinierte Genre-Positionen
   let categoryLabels: CategoryAnchor[] = []; // Mini-Headings für Kategorien im Overview
   let originalRadii: Record<string, number> = {}; // Store original radii for search scaling
+  let animationPositions: Record<string, { x: number; y: number }> | null = null;
   
   // Drag state
   let draggedNodeId: string | null = null;
@@ -310,41 +311,48 @@
       return;
     }
     lastFrameTime = currentTime;
-    
+
+    // Cache all store reads once per frame to avoid repeated get() calls
+    const frameSearchState = get(searchStore);
+    const frameUiState = get(uiStore);
+    const frameGraphState = get(graphData);
+    const frameScrollState = get(scrollyStore);
+
     clearExpiredAnimations();
     
     // Handle start animation (spiral motion) - completely separate from physics
     if (startAnimationTime !== null && !rm && nodes.length > 0) {
-      // Setze animation state auf true
-      isStartAnimationRunning.set(true);
-      
       const elapsed = performance.now() - startAnimationTime;
       const animProgress = Math.min(1, elapsed / START_ANIMATION_DURATION);
       
       if (animProgress < 1) {
-        // Still animating: apply spiral motion only, no physics
-        const pos = get(positionsStore);
+        // Use local positions cache to avoid store thrashing (~600 .set() calls)
+        if (!animationPositions) {
+          animationPositions = { ...get(positionsStore) };
+        }
         const centerX = 0;
         const centerY = 0;
-        
+
         for (let i = 0; i < nodes.length; i++) {
           const nodeId = nodes[i].id;
-          // Stagger animation: each node starts slightly later
-          const staggerAmount = 0.15; // 15% of total animation per node
+          const staggerAmount = 0.15;
           const staggerDelay = (i / nodes.length) * staggerAmount;
           const nodeAnimProgress = Math.min(1, Math.max(0, (animProgress - staggerDelay) / (1 - staggerAmount)));
-          
+
           const spiralPos = getSpiralPosition(centerX, centerY, i, nodes.length, nodeAnimProgress);
-          pos[nodeId] = spiralPos;
+          animationPositions[nodeId] = spiralPos;
+          nodes[i].x = spiralPos.x;
+          nodes[i].y = spiralPos.y;
         }
-        // Reset physics state to prevent any interference
-        physicsState = createPhysicsState(nodes.map(n => n.id));
-        positionsStore.set(pos);
       } else {
-        // Animation complete - let physics settle nodes to stable positions
+        // Animation complete — sync final positions to store once, reset physics once
+        if (animationPositions) {
+          positionsStore.set(animationPositions);
+          animationPositions = null;
+        }
+        physicsState = createPhysicsState(nodes.map(n => n.id));
         startAnimationTime = null;
         settlingTime = performance.now();
-        // Setze animation state auf false
         isStartAnimationRunning.set(false);
       }
     }
@@ -383,11 +391,9 @@
     // Physics step (skip if reduced motion or during animation)
     // Keep running even while dragging so nearby nodes can react/escape
     if (!rm && nodes.length > 0 && startAnimationTime === null && settlingTime === null) {
-      // Get search state for physics collision radii
-      const searchState = get(searchStore);
-      const isSearchActive = searchState.isSearchActive;
-      const isFocusMode = searchState.isFocusMode;
-      const matchedIds = searchState.matchedNodeIds;
+      const isSearchActive = frameSearchState.isSearchActive;
+      const isFocusMode = frameSearchState.isFocusMode;
+      const matchedIds = frameSearchState.matchedNodeIds;
       
       // Build radii map mit proportionalem Scaling
       // scaleFactor berücksichtigt unterschiedliche Canvas-Größen
@@ -438,16 +444,12 @@
         physicsState.vy[draggedNodeId] = 0;
       }
       
-      // Get current UI state to determine if grouping is active
-      const uiState = get(uiStore);
-      const graphState = get(graphData);
-      const scrollState = get(scrollyStore);
-      const groups = uiState.showArtistGroups ? graphState?.groups : undefined;
+      const groups = frameUiState.showArtistGroups ? frameGraphState?.groups : undefined;
       
       // Bestimme welche Ankerpunkte zu verwenden sind
       // Overview-Modus kann durch Scroll ODER manuellen Button aktiviert werden
-      const isOverviewMode = scrollState.phase === 'overview' || scrollState.isInOverview || uiState.isOverviewModeManual;
-      const isTimelineMode = scrollState.phase === 'timeline';
+      const isOverviewMode = frameScrollState.phase === 'overview' || frameScrollState.isInOverview || frameUiState.isOverviewModeManual;
+      const isTimelineMode = frameScrollState.phase === 'timeline';
       
       // Note: View state (isInOverviewView, isInExploreView, etc.) is computed reactively
       // at the top of the component using $: statements. See scrollyStore.ts for documentation.
@@ -530,14 +532,14 @@
         isInTimelineMode = false; // Reset Timeline-Flag
         // Starte Transition, damit Nodes neu positioniert werden
         transitionStartTime = performance.now();
-      } else if (!isOverviewMode && !isTimelineMode && uiState.showGenreGrouping && genreAnchors.length === 0 && nodes.length > 0) {
+      } else if (!isOverviewMode && !isTimelineMode && frameUiState.showGenreGrouping && genreAnchors.length === 0 && nodes.length > 0) {
         // Genre-Gruppierung aktiviert: erstelle Ankerpunkte im Kreis
         const scaledGenreAnchorRadius = 350 * scaleFactor;
         genreAnchors = createCategoryBasedGenreAnchors(nodes as any, scaledGenreAnchorRadius);
         categoryLabels = []; // Keine Mini-Headings im normalen Modus
         wasInOverviewMode = false; // Reset flag
         isInTimelineMode = false; // Reset Timeline-Flag
-      } else if (!isOverviewMode && !isTimelineMode && !uiState.showGenreGrouping && genreAnchors.length > 0) {
+      } else if (!isOverviewMode && !isTimelineMode && !frameUiState.showGenreGrouping && genreAnchors.length > 0) {
         // Genre-Gruppierung deaktiviert: entferne Ankerpunkte
         genreAnchors = [];
         categoryLabels = [];
@@ -551,7 +553,7 @@
         ? 0 
         : (isTimelineMode) 
           ? physicsParams.genreAnchorStrength * 3.0  // 3x stärker für Timeline
-          : uiState.showGenreGrouping 
+          : frameUiState.showGenreGrouping 
             ? physicsParams.genreAnchorStrength 
             : 0;
       
@@ -590,14 +592,13 @@
       };
       
       // SearchBar Force für Overview-Modus - IMMER aktiv im Overview (nicht nur bei Suche)
-      // searchState already declared above for radii calculation
       const searchBarForce: SearchBarForce | undefined = isOverviewMode ? {
-        position: { x: 0, y: 0 }, // Immer in der Mitte
-        repulsionRadius: 180, // Radius für Abstoßung
-        repulsionStrength: 120, // Stärkere Abstoßung für nicht-matchende Nodes
-        attractionStrength: searchState.matchedNodeIds.size > 0 ? 80 : 0, // Attraktion nur wenn Suche aktiv
-        matchedNodeIds: searchState.matchedNodeIds,
-        isActive: true // Immer aktiv im Overview
+        position: { x: 0, y: 0 },
+        repulsionRadius: 180 * scaleFactor,
+        repulsionStrength: 120 * scaleFactor,
+        attractionStrength: frameSearchState.matchedNodeIds.size > 0 ? 80 * scaleFactor : 0,
+        matchedNodeIds: frameSearchState.matchedNodeIds,
+        isActive: true
       } : undefined;
       
       // Cursor attraction force - different behavior for Overview vs Grouped mode
@@ -605,7 +606,7 @@
       // Also disabled when user is in focus mode (after pressing Enter on search)
       let cursorForce: CursorForce | undefined = undefined;
       const isInGenreDetailView = focusedCategory !== null || centeredNodeId !== null;
-      const isInSearchFocusMode = searchState.isFocusMode;
+      const isInSearchFocusMode = frameSearchState.isFocusMode;
       
       // Delay cursor attraction in overview mode until nodes have settled (2 seconds after transition start)
       const OVERVIEW_UI_DELAY = 2000; // 2 seconds delay
@@ -613,10 +614,9 @@
         (performance.now() - overviewTransitionStartTime) > OVERVIEW_UI_DELAY;
       
       // Update scrollyStore with overviewUIReady state for other components (BottomHeader, GenreTitle)
-      const currentScrollState = get(scrollyStore);
-      if (overviewCursorReady && !currentScrollState.overviewUIReady) {
+      if (overviewCursorReady && !frameScrollState.overviewUIReady) {
         scrollyStore.update(s => ({ ...s, overviewUIReady: true }));
-      } else if (!isOverviewMode && currentScrollState.overviewUIReady) {
+      } else if (!isOverviewMode && frameScrollState.overviewUIReady) {
         scrollyStore.update(s => ({ ...s, overviewUIReady: false }));
       }
       
@@ -632,7 +632,7 @@
             isActive: true,
             tetheredMode: false
           };
-        } else if (!isOverviewMode && uiState.showGenreGrouping && genreAnchors.length > 0) {
+        } else if (!isOverviewMode && frameUiState.showGenreGrouping && genreAnchors.length > 0) {
           // Grouped mode: tethered attraction - nodes stay near their anchors
           cursorForce = {
             position: cursorWorldPosition,
@@ -677,7 +677,7 @@
         const hoveredScale = hoverScaleMap.get(hoveredId)?.scale ?? 1;
         
         if (hoveredNode && hoveredScale > 1) {
-          const hoverInfluenceRadius = 220;
+          const hoverInfluenceRadius = 220 * scaleFactor;
           const hoverRepulsionForce = (hoveredScale - 1) * 0.18; // Slightly reduced from 0.25
           
           for (const n of nodes) {
@@ -758,22 +758,19 @@
       categoryFilterProgress = 0; // Instant zurück zu normal
     }
     
-    // Get search state for rendering
-    const searchState = get(searchStore);
-    
-    // PERFORMANCE: Pass positions directly for edge rendering
-    const currentPositions = get(positionsStore);
+    // PERFORMANCE: Use local cache during animation, store otherwise
+    const currentPositions = animationPositions || get(positionsStore);
     
     renderGraph(ctx, canvas, nodes, edges, {
       hoveredId,
       focusedId,
       centeredNodeId,
-      showConnections: get(uiStore).showConnections,
+      showConnections: frameUiState.showConnections,
       animatingNodes: animMap,
       reducedMotion: rm,
       dpr,
       now: performance.now(),
-      groups: (get(graphData)?.groups),
+      groups: frameGraphState?.groups,
       // Native canvas zoom
       cameraZoom,
       cameraX,
@@ -786,9 +783,9 @@
       overviewTransitionProgress,
       overviewTransitionStartTime,
       // Search state
-      searchMatchedIds: searchState.matchedNodeIds,
-      isSearchActive: searchState.isSearchActive,
-      isFocusMode: searchState.isFocusMode,
+      searchMatchedIds: frameSearchState.matchedNodeIds,
+      isSearchActive: frameSearchState.isSearchActive,
+      isFocusMode: frameSearchState.isFocusMode,
       // PERFORMANCE: Direct position lookup for edges
       nodePositions: currentPositions
     });
@@ -1283,7 +1280,7 @@
     
     // Prüfe ob wir in den Timeline-Modus gewechselt sind oder das Jahr sich geändert hat
     if (currentIsTimelineMode) {
-      const targetCameraX = timelineYearIndex * YEAR_WIDTH;
+      const targetCameraX = timelineYearIndex * width;
       
       // Nur animieren wenn Jahr-Index sich geändert hat
       if (lastTimelineYearIndex !== timelineYearIndex) {
@@ -1334,6 +1331,7 @@
     height: 100%;
     overflow: hidden;
     flex: 1;
+    will-change: transform;
   }
 
   .graph-canvas {
@@ -1343,6 +1341,7 @@
     background: transparent;
     outline: none;
     border: none;
+    will-change: contents;
   }
   
   .graph-canvas:focus {

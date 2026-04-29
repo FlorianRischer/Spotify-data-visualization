@@ -90,6 +90,7 @@
 
         setPositions(layoutResult.positions);
         initVisible();
+        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
         isLoading = false;
         return;
       }
@@ -246,6 +247,7 @@
 
       setPositions(layoutResult.positions);
       initVisible();
+      await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
       isLoading = false;
     } catch (error) {
       console.error("Error loading data:", error);
@@ -281,6 +283,7 @@
 
         setPositions(layoutResult.positions);
         initVisible();
+        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
         isLoading = false;
       } catch (fallbackError) {
         loadingStatus = `Kritischer Fehler: ${fallbackError}`;
