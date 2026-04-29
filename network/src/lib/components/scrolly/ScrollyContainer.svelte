@@ -14,11 +14,32 @@
     type ScrollyState
   } from '$lib/stores/scrollyStore';
   import { uiStore } from '$lib/stores/uiStore';
-  import { graphData } from '$lib/stores';
+  import { graphData, positions as positionsStore } from '$lib/stores';
   import { cameraController } from '$lib/graph/cameraController';
 
   let scrollContainer: HTMLDivElement;
   let initialized = false;
+
+  function getCategoryCentroid(category: GenreCategory): { x: number; y: number } | null {
+    const graph = get(graphData);
+    const pos = get(positionsStore);
+    if (!graph || !pos) return null;
+
+    const categoryNodes = graph.nodes.filter(n => (n.category || 'Specialty & Other') === category);
+    if (categoryNodes.length === 0) return null;
+
+    let sumX = 0, sumY = 0, count = 0;
+    for (const node of categoryNodes) {
+      const p = pos[node.id];
+      if (p) {
+        sumX += p.x;
+        sumY += p.y;
+        count++;
+      }
+    }
+    if (count === 0) return null;
+    return { x: sumX / count, y: sumY / count };
+  }
   let lastPhase: string = 'intro';
   let lastFocusedCategory: GenreCategory | null = null;
   let lastCameraAnimationTime = 0;
@@ -332,8 +353,8 @@
     
     // Kategorie-Wechsel in Zoom-Phase
     if (newPhase === 'zoom' && newFocusedCategory && newFocusedCategory !== lastFocusedCategory) {
-      const position = currentState.categoryPositions[newFocusedCategory];
-      
+      const position = getCategoryCentroid(newFocusedCategory) || currentState.categoryPositions[newFocusedCategory];
+
       if (position) {
         scrollyStore.update(state => ({
           ...state,
@@ -454,16 +475,16 @@
       const currentState = get(scrollyStore);
       const focusedCategory = currentState.focusedCategory;
       if (focusedCategory) {
-        const position = currentState.categoryPositions[focusedCategory];
+        const position = getCategoryCentroid(focusedCategory) || currentState.categoryPositions[focusedCategory];
         if (position) {
           scrollyStore.update(state => ({
             ...state,
             isAnimatingCamera: true
           }));
-          
+
           // Starte Kamera-Animation
           cameraController.animateToCategoryPosition(position.x, position.y, CAMERA_ANIMATION_DURATION, 2.5);
-          
+
           // Titel-Animation startet später
           setTimeout(() => {
             setDisplayedCategory(focusedCategory);

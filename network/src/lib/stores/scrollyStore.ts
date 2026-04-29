@@ -196,7 +196,7 @@ export function setGenreGroupQueue(
   // Berechne Positionen auf einem Kreis
   // 12 Uhr = -π/2, dann im Uhrzeigersinn
   const categoryPositions: Partial<Record<GenreCategory, { x: number; y: number }>> = {};
-  const radius = 400;
+  const radius = 350;
   const angleStep = (2 * Math.PI) / sortedQueue.length;
 
   sortedQueue.forEach((category, index) => {

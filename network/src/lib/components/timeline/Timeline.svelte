@@ -368,14 +368,16 @@
     background: none;
     backdrop-filter: blur(8px);
     border-radius: 12px;
-    
+    white-space: nowrap;
     z-index: 200;
     transition: left 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
-  /* Im ersten Jahr (2018) weiter rechts positionieren, da Timeline erst im August beginnt */
+  /* Im ersten Jahr (2018) rechts über der Timeline ausrichten, da Linie erst im August beginnt */
   .yearly-stats.first-year {
-    left: 68%;
+    left: auto;
+    right: 65px;
+    transform: none;
   }
 
   .stat-item {
@@ -383,6 +385,7 @@
     flex-direction: column;
     align-items: center;
     gap: 2px;
+    white-space: nowrap;
   }
 
   .stat-value {
@@ -392,6 +395,7 @@
     color: #000;
     line-height: 1.2;
     text-transform: capitalize;
+    white-space: nowrap;
   }
 
   .stat-label {
@@ -400,6 +404,7 @@
     color: #666;
     text-transform: uppercase;
     letter-spacing: 0.5px;
+    white-space: nowrap;
   }
 
   .stat-divider {
