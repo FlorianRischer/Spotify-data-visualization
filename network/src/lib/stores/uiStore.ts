@@ -108,7 +108,7 @@ interface UIState {
 
 export const uiStore = writable<UIState>({
   showArtistGroups: false,
-  showConnections: false,
+  showConnections: true,
   showGenreGrouping: true,
   isOverviewModeManual: false,
   isScrollLocked: false
