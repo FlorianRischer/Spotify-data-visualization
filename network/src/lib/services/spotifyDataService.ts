@@ -9,11 +9,52 @@ const CACHE_KEY = "spotify_artist_cache";
 const CACHE_VERSION = "v1";
 const CACHE_VERSION_LEGACY = ["v1", "v2"];
 
+export interface ArtistCacheEntry {
+  id?: string;
+  name?: string;
+  genres?: string[];
+  popularity?: number;
+  followers?: number;
+  notFound?: boolean;
+}
+
 /**
  * Cloudflare R2 Public Bucket URL
  * Set this to your R2 bucket's public URL after enabling public access
  */
 const R2_BUCKET_URL = "https://pub-db07bac972eb49449af4dd8101d40e57.r2.dev";
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+export function isValidArtistCacheEntry(value: unknown): value is ArtistCacheEntry {
+  if (!isRecord(value)) return false;
+  if (value.notFound === true) return true;
+  if (typeof value.id !== "string") return false;
+  return Array.isArray(value.genres) && value.genres.every((genre) => typeof genre === "string");
+}
+
+function safeReadStorage(key: string): string | null {
+  if (typeof window === "undefined") return null;
+
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function safeWriteStorage(key: string, value: string): boolean {
+  if (typeof window === "undefined") return false;
+
+  try {
+    window.localStorage.setItem(key, value);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Normalizes artist name for cache key lookup
@@ -25,8 +66,7 @@ export function normKey(name: string): string {
 /**
  * Loads precomputed artist-genre data from R2 bucket or local fallback
  */
-export async function loadPrecomputedCache(): Promise<Map<string, any>> {
-  // Try R2 bucket first, then local fallback
+export async function loadPrecomputedCache(): Promise<Map<string, ArtistCacheEntry>> {
   const dataSources = [
     `${R2_BUCKET_URL}/artist-cache.json`,
     "/artist-cache-2025-12-13.json",
@@ -36,19 +76,21 @@ export async function loadPrecomputedCache(): Promise<Map<string, any>> {
   for (const source of dataSources) {
     try {
       const response = await fetch(source);
-      if (response.ok) {
-        const data = await response.json();
+      if (!response.ok) continue;
 
-        const validEntries = Object.entries(data).filter(
-          ([key, val]: [string, any]) => key !== "_info" && val && typeof val === "object" && val.id
-        );
+      const data = await response.json();
+      if (!isRecord(data)) continue;
 
-        if (validEntries.length > 0) {
-          const normalizedEntries: Array<[string, any]> = validEntries.map(([key, val]) => [normKey(key), val]);
-          return new Map(normalizedEntries);
-        }
+      const validEntries = Object.entries(data).reduce<Array<[string, ArtistCacheEntry]>>((result, [key, value]) => {
+        if (key === "_info" || !isValidArtistCacheEntry(value)) return result;
+        result.push([normKey(key), value]);
+        return result;
+      }, []);
+
+      if (validEntries.length > 0) {
+        return new Map(validEntries);
       }
-    } catch (e) {
+    } catch {
       // Source not available, try next
     }
   }
@@ -56,54 +98,65 @@ export async function loadPrecomputedCache(): Promise<Map<string, any>> {
   return new Map();
 }
 
+export type ArtistCacheLookup = ArtistCacheEntry & { originalName: string };
+
 /**
  * Loads localStorage cache as fallback
  */
-export function loadLocalCache(): Map<string, any> {
+export function loadLocalCache(): Map<string, ArtistCacheEntry> {
   try {
-    const cached = localStorage.getItem(CACHE_KEY);
-    if (cached) {
-      const { version, data, timestamp } = JSON.parse(cached);
-      if (CACHE_VERSION_LEGACY.includes(version) && Date.now() - timestamp < 30 * 24 * 60 * 60 * 1000) {
-        const validEntries = Object.entries(data).filter(([_, val]: [string, any]) => {
-          if (!val || typeof val !== "object") return false;
-          if (val.notFound) return true;
-          return val.id && val.genres && val.genres.length > 0;
-        });
+    const cached = safeReadStorage(CACHE_KEY);
+    if (!cached) return new Map();
 
-        const normalizedEntries: Array<[string, any]> = validEntries.map(([key, val]) => [normKey(key), val]);
-        return new Map(normalizedEntries);
-      }
+    const parsed = JSON.parse(cached) as unknown;
+    if (!isRecord(parsed)) return new Map();
+
+    const { version, data, timestamp } = parsed;
+    if (
+      !CACHE_VERSION_LEGACY.includes(String(version)) ||
+      typeof timestamp !== "number" ||
+      Date.now() - timestamp > 30 * 24 * 60 * 60 * 1000 ||
+      !isRecord(data)
+    ) {
+      return new Map();
     }
-  } catch (e) {
-    console.warn("Failed to load localStorage cache:", e);
+
+    const validEntries = Object.entries(data).reduce<Array<[string, ArtistCacheEntry]>>((result, [key, value]) => {
+      if (!isValidArtistCacheEntry(value)) return result;
+      result.push([normKey(key), value]);
+      return result;
+    }, []);
+
+    return new Map(validEntries);
+  } catch {
+    return new Map();
   }
-  return new Map();
 }
 
 /**
  * Saves cache to localStorage
  */
-export function saveLocalCache(cache: Map<string, any>) {
-  try {
-    const data = Object.fromEntries(cache);
-    localStorage.setItem(
-      CACHE_KEY,
-      JSON.stringify({
-        version: CACHE_VERSION,
-        data,
-        timestamp: Date.now()
-      })
-    );
-  } catch (e) {
-    console.warn("Failed to save cache:", e);
-  }
+export function saveLocalCache(cache: Map<string, ArtistCacheEntry>) {
+  const data = Array.from(cache.entries()).reduce<Record<string, ArtistCacheEntry>>((result, [key, value]) => {
+    if (isValidArtistCacheEntry(value)) {
+      result[key] = value;
+    }
+    return result;
+  }, {});
+
+  const payload = JSON.stringify({
+    version: CACHE_VERSION,
+    data,
+    timestamp: Date.now()
+  });
+
+  safeWriteStorage(CACHE_KEY, payload);
 }
 
 /**
  * Combines all cache sources
  */
-export async function loadAllCaches(): Promise<Map<string, any>> {
+export async function loadAllCaches(): Promise<Map<string, ArtistCacheEntry>> {
   const precomputed = await loadPrecomputedCache();
   const local = loadLocalCache();
   return new Map([...precomputed, ...local]);
@@ -114,15 +167,19 @@ export async function loadAllCaches(): Promise<Map<string, any>> {
  */
 export function exportCacheToJSON() {
   try {
-    const cached = localStorage.getItem(CACHE_KEY);
+    const cached = safeReadStorage(CACHE_KEY);
     if (!cached) {
       console.warn("❌ No cache found to export");
       alert("Kein Cache zum Exportieren vorhanden. Lade erst Genres.");
       return;
     }
 
-    const { data } = JSON.parse(cached);
-    
+    const parsed = JSON.parse(cached) as unknown;
+    if (!isRecord(parsed) || !isRecord(parsed.data)) {
+      throw new Error("Invalid cache payload");
+    }
+
+    const { data } = parsed;
     const exportData = {
       _info: {
         exportDate: new Date().toISOString(),
@@ -153,11 +210,9 @@ export function exportCacheToJSON() {
 /**
  * Main function: Gets artists with genres from cache
  */
-export async function getArtistsWithGenres(uniqueArtists: string[]): Promise<any[]> {
+export async function getArtistsWithGenres(uniqueArtists: string[]): Promise<ArtistCacheLookup[]> {
   const cache = await loadAllCaches();
-
-  const artistsWithGenres: any[] = [];
-  let successCount = 0;
+  const artistsWithGenres: ArtistCacheLookup[] = [];
 
   for (const rawName of uniqueArtists) {
     const key = normKey(rawName);
@@ -165,7 +220,6 @@ export async function getArtistsWithGenres(uniqueArtists: string[]): Promise<any
 
     if (cached?.id && Array.isArray(cached.genres) && cached.genres.length > 0) {
       artistsWithGenres.push({ originalName: rawName, ...cached });
-      successCount++;
     }
   }
 

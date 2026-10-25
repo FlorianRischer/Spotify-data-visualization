@@ -18,19 +18,27 @@ export interface ArtistWithGenres {
 }
 
 /**
+ * Builds a normalized lookup of artist -> genres.
+ */
+export function buildArtistGenreMap(artistsWithGenres: ArtistWithGenres[]): Map<string, string[]> {
+  const artistGenreMap = new Map<string, string[]>();
+
+  for (const artist of artistsWithGenres) {
+    if (!artist.genres || artist.genres.length === 0) continue;
+    artistGenreMap.set(artist.originalName, artist.genres.map((genre) => normalizeGenreId(genre)));
+  }
+
+  return artistGenreMap;
+}
+
+/**
  * Transform Spotify streaming history + artist genres into GraphBuildInput
  */
 export function transformSpotifyData(
   streamingHistory: SpotifyStreamEntry[],
   artistsWithGenres: ArtistWithGenres[]
 ): GraphBuildInput {
-  // Build artist-to-genres lookup
-  const artistGenreMap = new Map<string, string[]>();
-  for (const artist of artistsWithGenres) {
-    if (artist.genres && artist.genres.length > 0) {
-      artistGenreMap.set(artist.originalName, artist.genres);
-    }
-  }
+  const artistGenreMap = buildArtistGenreMap(artistsWithGenres);
 
   // Aggregate plays and time per genre, AND track top artist per genre
   const genreStats = new Map<string, { playCount: number; totalMinutes: number }>();
@@ -164,7 +172,7 @@ export function transformSpotifyData(
 /**
  * Normalize genre string to a clean ID
  */
-function normalizeGenreId(genre: string): string {
+export function normalizeGenreId(genre: string): string {
   return genre
     .toLowerCase()
     .trim()
@@ -175,7 +183,7 @@ function normalizeGenreId(genre: string): string {
 /**
  * Format genre ID back to readable label
  */
-function formatGenreLabel(id: string): string {
+export function formatGenreLabel(id: string): string {
   return id
     .split("-")
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
@@ -183,56 +191,55 @@ function formatGenreLabel(id: string): string {
 }
 
 /**
- * Load streaming history JSON files - OPTIMIZED with parallel loading
+ * Fetches and normalizes JSON data from a list of URLs.
+ * Returns the first successful batch and ignores non-array payloads.
+ */
+async function fetchJsonArray<T>(urls: string[]): Promise<T[]> {
+  const uniqueUrls = Array.from(new Set(urls.filter(Boolean)));
+  const results = await Promise.allSettled(
+    uniqueUrls.map(async (url) => {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+      const payload = await response.json();
+      if (!Array.isArray(payload)) {
+        throw new Error(`Expected array payload for ${url}`);
+      }
+
+      return payload as T[];
+    })
+  );
+
+  const collected: T[] = [];
+
+  for (const [index, result] of results.entries()) {
+    if (result.status === "fulfilled") {
+      collected.push(...result.value);
+      continue;
+    }
+
+    console.warn(`Failed to load ${uniqueUrls[index]}:`, result.reason);
+  }
+
+  return collected;
+}
+
+/**
+ * Load streaming history JSON files - optimized with parallel loading
  * Supports fallback URLs if primary source fails
  */
 export async function loadStreamingHistory(
   fileUrls: string[],
   fallbackUrls?: string[]
 ): Promise<SpotifyStreamEntry[]> {
-  // Parallel fetch all files at once (much faster than sequential)
-  const results = await Promise.allSettled(
-    fileUrls.map(async (url) => {
-      const response = await fetch(url);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      return response.json() as Promise<SpotifyStreamEntry[]>;
-    })
-  );
-  
-  // Flatten successful results
-  const all: SpotifyStreamEntry[] = [];
-  let successCount = 0;
-  
-  for (let i = 0; i < results.length; i++) {
-    const result = results[i];
-    if (result.status === 'fulfilled') {
-      all.push(...result.value);
-      successCount++;
-    } else {
-      console.warn(`Failed to load ${fileUrls[i]}:`, result.reason);
-    }
+  const primaryData = await fetchJsonArray<SpotifyStreamEntry>(fileUrls);
+  if (primaryData.length > 0) return primaryData;
+
+  if (fallbackUrls && fallbackUrls.length > 0) {
+    return fetchJsonArray<SpotifyStreamEntry>(fallbackUrls);
   }
-  
-  // If no files loaded and fallback URLs provided, try fallback
-  if (all.length === 0 && fallbackUrls && fallbackUrls.length > 0) {
-    const fallbackResults = await Promise.allSettled(
-      fallbackUrls.map(async (url) => {
-        const response = await fetch(url);
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        return response.json() as Promise<SpotifyStreamEntry[]>;
-      })
-    );
-    
-    for (let i = 0; i < fallbackResults.length; i++) {
-      const result = fallbackResults[i];
-      if (result.status === 'fulfilled') {
-        all.push(...result.value);
-        successCount++;
-      }
-    }
-  }
-  
-  return all;
+
+  return [];
 }
 
 /**

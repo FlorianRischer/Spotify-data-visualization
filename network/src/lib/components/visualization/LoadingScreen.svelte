@@ -2,7 +2,7 @@
   export let status: string;
 </script>
 
-<div class="loading-screen">
+<div class="loading-screen" aria-live="polite" aria-busy="true">
   <div class="loading-content">
     <div class="spinner"></div>
     <p class="loading-text">{status}</p>
@@ -16,7 +16,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: #FAF1EC;
+    background: rgba(250, 241, 236, 0.96);
+    backdrop-filter: blur(4px);
     z-index: 9999;
   }
 
@@ -24,7 +25,8 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 24px;
+    gap: 16px;
+    min-width: min(80vw, 320px);
   }
 
   .spinner {
@@ -41,6 +43,8 @@
     font-size: 14px;
     color: #666;
     text-align: center;
+    letter-spacing: 0.02em;
+    margin: 0;
   }
 
   @keyframes spin {
@@ -58,7 +62,7 @@
 
   @media (max-width: 900px) {
     .loading-content {
-      gap: 20px;
+      gap: 14px;
     }
 
     .spinner {
@@ -73,7 +77,7 @@
 
   @media (max-width: 600px) {
     .loading-content {
-      gap: 16px;
+      gap: 12px;
     }
 
     .spinner {

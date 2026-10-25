@@ -134,6 +134,20 @@
     return () => window.removeEventListener('resize', handleResize);
   });
 
+  function navigateTimeline(direction: 'left' | 'right') {
+    const timelineState = get(timelineStore);
+    if (timelineState.isAnimating) return;
+
+    triggerNavAnimation(direction);
+
+    if (direction === 'right') {
+      navigateToNextYear();
+      return;
+    }
+
+    navigateToPreviousYear();
+  }
+
   // Keyboard navigation for timeline (Links/Rechts für Jahre)
   function handleKeyDown(event: KeyboardEvent) {
     const scrollState = get(scrollyStore);
@@ -145,17 +159,16 @@
     
     if (event.key === 'ArrowRight') {
       event.preventDefault();
-      triggerNavAnimation('right');
-      navigateToNextYear();
+      navigateTimeline('right');
     } else if (event.key === 'ArrowLeft') {
       event.preventDefault();
-      triggerNavAnimation('left');
-      navigateToPreviousYear();
+      navigateTimeline('left');
     }
   }
 
   // Horizontal Swipe/Scroll für Touchpad-Navigation
   let scrollAccumulator = 0;
+  let wheelFrameId: number | null = null;
   const SCROLL_THRESHOLD = 50;
   
   function handleWheel(event: WheelEvent) {
@@ -164,21 +177,23 @@
     if (scrollState.phase !== 'timeline' || timelineState.isAnimating) return;
     
     const deltaX = event.deltaX;
-    
     if (Math.abs(deltaX) < 2) return;
-    
+
     scrollAccumulator += deltaX;
-    
-    if (scrollAccumulator > SCROLL_THRESHOLD) {
-      triggerNavAnimation('right');
-      navigateToNextYear();
+
+    if (wheelFrameId !== null) return;
+
+    wheelFrameId = requestAnimationFrame(() => {
+      wheelFrameId = null;
+
+      if (scrollAccumulator > SCROLL_THRESHOLD) {
+        navigateTimeline('right');
+      } else if (scrollAccumulator < -SCROLL_THRESHOLD) {
+        navigateTimeline('left');
+      }
+
       scrollAccumulator = 0;
-    }
-    else if (scrollAccumulator < -SCROLL_THRESHOLD) {
-      triggerNavAnimation('left');
-      navigateToPreviousYear();
-      scrollAccumulator = 0;
-    }
+    });
     
     if (Math.abs(deltaX) > Math.abs(event.deltaY)) {
       event.preventDefault();

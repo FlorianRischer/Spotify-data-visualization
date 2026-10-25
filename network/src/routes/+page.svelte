@@ -29,6 +29,171 @@
   import "../app.css";
   import "./page.css";
 
+  type ArtistSearchEntry = {
+    artistId: string;
+    name: string;
+    genres: string[];
+    totalMinutes: number;
+    topSong?: string;
+    topSongMinutes?: number;
+  };
+
+  function extractUniqueArtists(streamingHistory: Array<{ master_metadata_album_artist_name?: string | null }>): string[] {
+    return Array.from(
+      new Set(
+        streamingHistory
+          .map((entry) => entry.master_metadata_album_artist_name)
+          .filter((name): name is string => Boolean(name))
+      )
+    );
+  }
+
+  function buildArtistSearchRows(
+    artistsWithGenres: Array<{ originalName: string; id?: string; name?: string; genres?: string[] }>,
+    artistBestSong: Map<string, { song: string; minutes: number }>,
+    artistPlaytime: Map<string, number>
+  ): ArtistSearchEntry[] {
+    return artistsWithGenres
+      .filter((artist) => artist.genres && artist.genres.length > 0)
+      .map((artist) => {
+        const topSongData = artistBestSong.get(artist.originalName);
+        return {
+          artistId: artist.id || artist.originalName,
+          name: artist.name || artist.originalName,
+          genres: artist.genres!.map((genre: string) => genre.toLowerCase().replace(/\s+/g, '-')),
+          totalMinutes: Math.round(artistPlaytime.get(artist.originalName) || 0),
+          topSong: topSongData?.song,
+          topSongMinutes: topSongData ? Math.round(topSongData.minutes) : undefined
+        };
+      })
+      .filter((artist) => artist.totalMinutes > 0);
+  }
+
+  function buildArtistMetrics(streamingHistory: Array<{ master_metadata_album_artist_name?: string | null; master_metadata_track_name?: string | null; ms_played: number }>) {
+    const artistPlaytime = new Map<string, number>();
+    const artistTopSong = new Map<string, { song: string; minutes: number }>();
+
+    for (const entry of streamingHistory) {
+      const artistName = entry.master_metadata_album_artist_name;
+      const trackName = entry.master_metadata_track_name;
+      if (!artistName) continue;
+
+      const minutes = entry.ms_played / 60000;
+      artistPlaytime.set(artistName, (artistPlaytime.get(artistName) || 0) + minutes);
+
+      if (trackName) {
+        const key = `${artistName}|||${trackName}`;
+        const current = artistTopSong.get(key) || { song: trackName, minutes: 0 };
+        current.minutes += minutes;
+        artistTopSong.set(key, current);
+      }
+    }
+
+    const artistBestSong = new Map<string, { song: string; minutes: number }>();
+    for (const [key, data] of artistTopSong.entries()) {
+      const artistName = key.split('|||')[0];
+      const existing = artistBestSong.get(artistName);
+      if (!existing || data.minutes > existing.minutes) {
+        artistBestSong.set(artistName, { song: data.song, minutes: data.minutes });
+      }
+    }
+
+    return { artistPlaytime, artistTopSong, artistBestSong };
+  }
+
+  function computeGlobalStats(streamingHistory: Array<{ ts?: string; ms_played: number }>, artistPlaytime: Map<string, number>, artistTopSong: Map<string, { song: string; minutes: number }>) {
+    const totalPlaytimeMinutes = Array.from(artistPlaytime.values()).reduce((sum, minutes) => sum + minutes, 0);
+
+    let topArtist = '';
+    let topArtistMinutes = 0;
+    for (const [artist, minutes] of artistPlaytime.entries()) {
+      if (minutes > topArtistMinutes) {
+        topArtist = artist;
+        topArtistMinutes = minutes;
+      }
+    }
+
+    let topSong = '';
+    let topSongArtist = '';
+    let topSongMinutes = 0;
+    for (const [key, data] of artistTopSong.entries()) {
+      if (data.minutes > topSongMinutes) {
+        const [artist] = key.split('|||');
+        topSong = data.song;
+        topSongArtist = artist;
+        topSongMinutes = data.minutes;
+      }
+    }
+
+    const timestamps = streamingHistory
+      .filter((entry) => entry.ts)
+      .map((entry) => new Date(entry.ts!).getTime());
+
+    let firstStream = Infinity;
+    let lastStream = -Infinity;
+    for (const timestamp of timestamps) {
+      if (timestamp < firstStream) firstStream = timestamp;
+      if (timestamp > lastStream) lastStream = timestamp;
+    }
+
+    const totalDays = Math.max(1, Math.ceil((lastStream - firstStream) / (1000 * 60 * 60 * 24)));
+    const avgMinutesPerDay = totalPlaytimeMinutes / totalDays;
+
+    return {
+      totalPlaytimeMinutes: Math.round(totalPlaytimeMinutes),
+      topArtist,
+      topArtistMinutes: Math.round(topArtistMinutes),
+      topSong,
+      topSongArtist,
+      topSongMinutes: Math.round(topSongMinutes),
+      avgMinutesPerDay: Math.round(avgMinutesPerDay),
+      totalDays
+    };
+  }
+
+  function buildGraphForInput(input: any) {
+    return buildGraph(input, {
+      topK: 10,
+      sizeScale: 1.0,
+      minSize: 10,
+      maxSize: 45,
+      groupByArtist: false
+    });
+  }
+
+  async function applyGraphLayout(built: ReturnType<typeof buildGraph>) {
+    loadingStatus = "Berechne Layout...";
+    const layoutResult = computeForceLayout(built.nodes, built.edges, {
+      seed: Math.floor(Math.random() * 10000),
+      iterations: 150,
+      chargeStrength: -150,
+      linkDistance: 200,
+      linkStrength: 0.05
+    });
+
+    setPositions(layoutResult.positions);
+    initVisible();
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    isLoading = false;
+  }
+
+  async function loadDemoGraphFallback() {
+    const { createDemoGraphInput } = await import("$lib/graph");
+    lastGraphInput = createDemoGraphInput();
+
+    const built = buildGraphForInput(lastGraphInput);
+    graphData.set(built);
+    setArtistsData(
+      lastGraphInput.artists.map((artist: any) => ({
+        artistId: artist.artistId,
+        name: artist.name,
+        genres: artist.genres
+      }))
+    );
+
+    await applyGraphLayout(built);
+  }
+
   let isLoading = true;
   let loadingStatus = "Lädt Streaming-Daten...";
   let lastGraphInput: any = null;
@@ -43,248 +208,54 @@
 
   onMount(async () => {
     try {
-      // Load all streaming history JSON files (R2 bucket with local fallback)
       loadingStatus = "Lädt Streaming-Daten...";
       const streamingHistory = await loadStreamingHistory(STREAMING_FILES, STREAMING_FILES_LOCAL);
 
-      // Extract unique artists
       loadingStatus = "Extrahiere Artists...";
-      const uniqueArtists = Array.from(
-        new Set(
-          streamingHistory
-            .map((d) => d.master_metadata_album_artist_name)
-            .filter((name): name is string => Boolean(name))
-        )
-      );
+      const uniqueArtists = extractUniqueArtists(streamingHistory);
 
-      // Load artists with genres (from cache)
       loadingStatus = "Lade Artist-Genres...";
       const artistsWithGenres = await getArtistsWithGenres(uniqueArtists);
 
-      // Fallback to demo data if no genres found
       if (artistsWithGenres.length === 0) {
         console.warn("No genres found, falling back to demo data");
         loadingStatus = "Keine Genres gefunden, verwende Demo-Daten...";
-
-        const { createDemoGraphInput } = await import("$lib/graph");
-        lastGraphInput = createDemoGraphInput();
-
-        const built = buildGraph(lastGraphInput, {
-          topK: 10,
-          sizeScale: 1.0,
-          minSize: 10,
-          maxSize: 45,
-          groupByArtist: false
-        });
-
-        graphData.set(built);
-
-        loadingStatus = "Berechne Layout...";
-        const layoutResult = computeForceLayout(built.nodes, built.edges, {
-          seed: Math.floor(Math.random() * 10000),
-          iterations: 150,
-          chargeStrength: -150,
-          linkDistance: 200,
-          linkStrength: 0.05
-        });
-
-        setPositions(layoutResult.positions);
-        initVisible();
-        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-        isLoading = false;
+        await loadDemoGraphFallback();
         return;
       }
 
-      // Transform data to graph input
       loadingStatus = "Erstelle Graph...";
       lastGraphInput = transformSpotifyData(streamingHistory, artistsWithGenres);
 
-      const built = buildGraph(lastGraphInput, {
-        topK: 10,
-        sizeScale: 1.0,
-        minSize: 10,
-        maxSize: 45,
-        groupByArtist: false
-      });
-
+      const built = buildGraphForInput(lastGraphInput);
       graphData.set(built);
-      
-      // Calculate total minutes per artist from streaming history
-      const artistPlaytime = new Map<string, number>();
-      // Calculate top song per artist (by total listening time)
-      const artistTopSong = new Map<string, { song: string; minutes: number }>();
-      
-      for (const entry of streamingHistory) {
-        const artistName = entry.master_metadata_album_artist_name;
-        const trackName = entry.master_metadata_track_name;
-        if (!artistName) continue;
-        const minutes = entry.ms_played / 60000;
-        artistPlaytime.set(artistName, (artistPlaytime.get(artistName) || 0) + minutes);
-        
-        // Track top song per artist
-        if (trackName) {
-          const key = `${artistName}|||${trackName}`;
-          const current = artistTopSong.get(key) || { song: trackName, minutes: 0 };
-          current.minutes += minutes;
-          artistTopSong.set(key, current);
-        }
-      }
-      
-      // Find the actual top song for each artist (with minutes)
-      const artistBestSong = new Map<string, { song: string; minutes: number }>();
-      for (const [key, data] of artistTopSong.entries()) {
-        const artistName = key.split('|||')[0];
-        const existing = artistBestSong.get(artistName);
-        if (!existing || data.minutes > existing.minutes) {
-          artistBestSong.set(artistName, { song: data.song, minutes: data.minutes });
-        }
-      }
-      
-      // Set artists data for search - include ALL artists with genres (not just 2+)
-      const artistGenreMap = new Map<string, string[]>();
-      for (const artist of artistsWithGenres) {
-        if (artist.genres && artist.genres.length > 0) {
-          artistGenreMap.set(artist.originalName, artist.genres);
-        }
-      }
-      
-      // Create artist data with playtime for weighted random selection
-      const artistsForSearch = artistsWithGenres
-        .filter(a => a.genres && a.genres.length > 0)
-        .map((a: any) => {
-          const topSongData = artistBestSong.get(a.originalName);
-          return {
-            artistId: a.id || a.originalName,
-            name: a.name || a.originalName,
-            genres: a.genres.map((g: string) => g.toLowerCase().replace(/\s+/g, '-')),
-            totalMinutes: Math.round(artistPlaytime.get(a.originalName) || 0),
-            topSong: topSongData?.song,
-            topSongMinutes: topSongData ? Math.round(topSongData.minutes) : undefined
-          };
-        })
-        .filter(a => a.totalMinutes > 0); // Only include artists with listening time
-      
+
+      const { artistPlaytime, artistTopSong, artistBestSong } = buildArtistMetrics(streamingHistory);
+      const artistsForSearch = buildArtistSearchRows(artistsWithGenres, artistBestSong, artistPlaytime);
       setArtistsData(artistsForSearch);
 
-      // Berechne Genre-Discovery-Daten für Timeline
       loadingStatus = "Analysiere Genre-Entdeckungen...";
       const discoveryData = computeGenreDiscovery(streamingHistory, artistsWithGenres);
       setGenreDiscoveryData(discoveryData);
 
-      // Berechne Genre-Yearly-Stats für Timeline-Tooltip
       loadingStatus = "Berechne Jahresstatistiken...";
       const yearlyStats = computeGenreYearlyStats(streamingHistory, artistsWithGenres, discoveryData);
       setGenreYearlyStats(yearlyStats);
 
-      // Berechne jährliche Zusammenfassungen (Hörzeit, Top Genre, Top Artist pro Jahr)
       loadingStatus = "Berechne Jahres-Zusammenfassungen...";
       const yearlySummary = computeYearlySummary(streamingHistory, artistsWithGenres);
       setYearlySummary(yearlySummary);
 
-      // Berechne globale Statistiken für Timeline
       loadingStatus = "Berechne globale Statistiken...";
-      const totalPlaytimeMinutes = Array.from(artistPlaytime.values()).reduce((sum, m) => sum + m, 0);
-      
-      // Find top artist
-      let topArtist = '';
-      let topArtistMinutes = 0;
-      for (const [artist, minutes] of artistPlaytime.entries()) {
-        if (minutes > topArtistMinutes) {
-          topArtist = artist;
-          topArtistMinutes = minutes;
-        }
-      }
-      
-      // Find top song overall
-      let topSong = '';
-      let topSongArtist = '';
-      let topSongMinutes = 0;
-      for (const [key, data] of artistTopSong.entries()) {
-        if (data.minutes > topSongMinutes) {
-          const [artist] = key.split('|||');
-          topSong = data.song;
-          topSongArtist = artist;
-          topSongMinutes = data.minutes;
-        }
-      }
-      
-      // Calculate total days from first to last stream
-      // Use reduce instead of spread to avoid stack overflow with large arrays
-      const timestamps = streamingHistory
-        .filter(e => e.ts)
-        .map(e => new Date(e.ts).getTime());
-      
-      let firstStream = Infinity;
-      let lastStream = -Infinity;
-      for (const ts of timestamps) {
-        if (ts < firstStream) firstStream = ts;
-        if (ts > lastStream) lastStream = ts;
-      }
-      
-      const totalDays = Math.max(1, Math.ceil((lastStream - firstStream) / (1000 * 60 * 60 * 24)));
-      const avgMinutesPerDay = totalPlaytimeMinutes / totalDays;
-      
-      setGlobalStats({
-        totalPlaytimeMinutes: Math.round(totalPlaytimeMinutes),
-        topArtist,
-        topArtistMinutes: Math.round(topArtistMinutes),
-        topSong,
-        topSongArtist,
-        topSongMinutes: Math.round(topSongMinutes),
-        avgMinutesPerDay: Math.round(avgMinutesPerDay),
-        totalDays
-      });
+      setGlobalStats(computeGlobalStats(streamingHistory, artistPlaytime, artistTopSong));
 
-      // Compute force layout
-      loadingStatus = "Berechne Layout...";
-      const layoutResult = computeForceLayout(built.nodes, built.edges, {
-        seed: Math.floor(Math.random() * 10000),
-        iterations: 150,
-        chargeStrength: -150,
-        linkDistance: 200,
-        linkStrength: 0.05
-      });
-
-      setPositions(layoutResult.positions);
-      initVisible();
-      await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-      isLoading = false;
+      await applyGraphLayout(built);
     } catch (error) {
       console.error("Error loading data:", error);
       loadingStatus = `Fehler: ${error instanceof Error ? error.message : String(error)}. Verwende Demo-Daten...`;
 
       try {
-        const { createDemoGraphInput } = await import("$lib/graph");
-        lastGraphInput = createDemoGraphInput();
-
-        const built = buildGraph(lastGraphInput, {
-          topK: 10,
-          sizeScale: 1.0,
-          minSize: 10,
-          maxSize: 45,
-          groupByArtist: false
-        });
-
-        graphData.set(built);
-        // Set artists data for search
-        setArtistsData(lastGraphInput.artists.map((a: any) => ({
-          artistId: a.artistId,
-          name: a.name,
-          genres: a.genres
-        })));
-
-        const layoutResult = computeForceLayout(built.nodes, built.edges, {
-          seed: Math.floor(Math.random() * 10000),
-          iterations: 150,
-          chargeStrength: -150,
-          linkDistance: 200,
-          linkStrength: 0.05
-        });
-
-        setPositions(layoutResult.positions);
-        initVisible();
-        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-        isLoading = false;
+        await loadDemoGraphFallback();
       } catch (fallbackError) {
         loadingStatus = `Kritischer Fehler: ${fallbackError}`;
         console.error("Fallback failed:", fallbackError);
