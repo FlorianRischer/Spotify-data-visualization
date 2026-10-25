@@ -23,7 +23,7 @@
   import { scrollyStore } from "$lib/stores/scrollyStore";
   import { setArtistsData } from "$lib/stores/searchStore";
   import { setGenreDiscoveryData, setGenreYearlyStats, setGlobalStats, setYearlySummary } from "$lib/stores/timelineStore";
-  import { buildGraph, computeForceLayout, transformSpotifyData, loadStreamingHistory } from "$lib/graph";
+  import { buildGraph, computeForceLayout, transformSpotifyData, loadStreamingHistory, loadUploadedStreamingHistory } from "$lib/graph";
   import { getArtistsWithGenres, STREAMING_FILES, STREAMING_FILES_LOCAL } from "$lib/services";
   import { computeGenreDiscovery, computeGenreYearlyStats, computeYearlySummary } from "$lib/wrangling/genreDiscovery";
   import "../app.css";
@@ -36,6 +36,13 @@
     totalMinutes: number;
     topSong?: string;
     topSongMinutes?: number;
+  };
+
+  type StreamingHistoryEntry = {
+    ts: string;
+    master_metadata_album_artist_name: string | null;
+    master_metadata_track_name: string | null;
+    ms_played: number;
   };
 
   function extractUniqueArtists(streamingHistory: Array<{ master_metadata_album_artist_name?: string | null }>): string[] {
@@ -194,22 +201,43 @@
     await applyGraphLayout(built);
   }
 
-  let isLoading = true;
+  let isLoading = false;
   let loadingStatus = "Lädt Streaming-Daten...";
   let lastGraphInput: any = null;
-  
-  // Check if we're in explore mode (SearchBar visible) or overview mode
-  $: isInExploreMode = $uiStore.isOverviewModeManual;
-  $: isInOverviewPhase = $scrollyStore.phase === 'overview' || $scrollyStore.isInOverview;
-  $: isInTimelinePhase = $scrollyStore.phase === 'timeline';
-  $: overviewUIReady = $scrollyStore.overviewUIReady;
-  // Show bottom header when: not during start animation AND (not in overview phase OR (in overview AND UI ready) OR in explore mode)
-  $: showBottomHeader = !$isStartAnimationRunning && (!isInOverviewPhase || overviewUIReady || isInExploreMode);
+  let dataSourceChoice: "default" | "custom" | null = null;
+  let customFileInput: HTMLInputElement | null = null;
+  let uploadError = "";
 
-  onMount(async () => {
+  async function initializeAppWithDefaultData() {
+    dataSourceChoice = "default";
+    uploadError = "";
+    await initializeAppWithHistory(await loadStreamingHistory(STREAMING_FILES, STREAMING_FILES_LOCAL));
+  }
+
+  async function initializeAppWithCustomData(files: File[]) {
+    dataSourceChoice = "custom";
+    uploadError = "";
+
+    if (files.length === 0) {
+      uploadError = "Bitte mindestens eine JSON-Datei auswählen.";
+      dataSourceChoice = null;
+      return;
+    }
+
+    const uploadedHistory = await loadUploadedStreamingHistory(files);
+    if (uploadedHistory.length === 0) {
+      uploadError = "Keine gültigen Spotify-Streamingdaten in den ausgewählten Dateien gefunden.";
+      dataSourceChoice = null;
+      return;
+    }
+
+    await initializeAppWithHistory(uploadedHistory);
+  }
+
+  async function initializeAppWithHistory(streamingHistory: StreamingHistoryEntry[]) {
     try {
+      isLoading = true;
       loadingStatus = "Lädt Streaming-Daten...";
-      const streamingHistory = await loadStreamingHistory(STREAMING_FILES, STREAMING_FILES_LOCAL);
 
       loadingStatus = "Extrahiere Artists...";
       const uniqueArtists = extractUniqueArtists(streamingHistory);
@@ -261,20 +289,42 @@
         console.error("Fallback failed:", fallbackError);
       }
     }
-  });
+  }
 
-  // Subscribe to UI state changes for artist grouping toggle
-  uiStore.subscribe((state) => {
-    if (lastGraphInput && isLoading === false) {
-      const rebuilt = buildGraph(lastGraphInput, {
-        topK: 10,
-        sizeScale: 1.0,
-        minSize: 10,
-        maxSize: 45,
-        groupByArtist: state.showArtistGroups
-      });
-      graphData.set(rebuilt);
-    }
+  async function handleCustomUpload(event: Event) {
+    const input = event.currentTarget as HTMLInputElement;
+    const files = Array.from(input.files ?? []);
+    input.value = "";
+    await initializeAppWithCustomData(files);
+  }
+
+  function openCustomFilePicker() {
+    customFileInput?.click();
+  }
+
+  // Check if we're in explore mode (SearchBar visible) or overview mode
+  $: isInExploreMode = $uiStore.isOverviewModeManual;
+  $: isInOverviewPhase = $scrollyStore.phase === 'overview' || $scrollyStore.isInOverview;
+  $: isInTimelinePhase = $scrollyStore.phase === 'timeline';
+  $: overviewUIReady = $scrollyStore.overviewUIReady;
+  // Show bottom header when: not during start animation AND (not in overview phase OR (in overview AND UI ready) OR in explore mode)
+  $: showBottomHeader = !$isStartAnimationRunning && (!isInOverviewPhase || overviewUIReady || isInExploreMode);
+
+  onMount(() => {
+    const unsubscribe = uiStore.subscribe((state) => {
+      if (lastGraphInput && isLoading === false) {
+        const rebuilt = buildGraph(lastGraphInput, {
+          topK: 10,
+          sizeScale: 1.0,
+          minSize: 10,
+          maxSize: 45,
+          groupByArtist: state.showArtistGroups
+        });
+        graphData.set(rebuilt);
+      }
+    });
+
+    return unsubscribe;
   });
 </script>
 
@@ -284,7 +334,37 @@
 </svelte:head>
 
 <main class="app">
-  {#if isLoading}
+  {#if dataSourceChoice === null}
+    <div class="data-choice-overlay">
+      <div class="data-choice-card">
+        <p class="choice-eyebrow">My Musical Journey</p>
+        <h1>Welche Daten möchtest du ansehen?</h1>
+        <p class="choice-text">Wähle zwischen den Standarddaten oder deinen eigenen Spotify-Export-Dateien.</p>
+
+        <div class="choice-actions">
+          <button class="choice-button primary" on:click={initializeAppWithDefaultData}>
+            Standarddaten
+          </button>
+          <button class="choice-button secondary" on:click={openCustomFilePicker}>
+            Eigene Daten hochladen
+          </button>
+        </div>
+
+        {#if uploadError}
+          <p class="upload-error">{uploadError}</p>
+        {/if}
+      </div>
+
+      <input
+        bind:this={customFileInput}
+        type="file"
+        accept=".json,application/json"
+        multiple
+        on:change={handleCustomUpload}
+        hidden
+      />
+    </div>
+  {:else if isLoading}
     <LoadingScreen status={loadingStatus} />
   {:else}
     <!-- Graph is always mounted -->

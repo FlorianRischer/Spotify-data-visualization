@@ -2,7 +2,7 @@
 export { buildGraph } from "./graphBuilder";
 export { computeForceLayout } from "./layoutEngine";
 export { renderGraph, hitTest } from "./renderer";
-export { transformSpotifyData, loadStreamingHistory, createDemoGraphInput } from "./dataLoader";
+export { transformSpotifyData, loadStreamingHistory, loadUploadedStreamingHistory, createDemoGraphInput } from "./dataLoader";
 export { createGenreAnchors, createCategoryBasedGenreAnchors, createOverviewAnchors, createOverviewCategoryLabels, stepPhysics } from "./physics";
 export { 
   getGenreCategory, 

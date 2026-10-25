@@ -17,6 +17,18 @@ export interface ArtistWithGenres {
   followers?: number;
 }
 
+export function isSpotifyStreamEntry(value: unknown): value is SpotifyStreamEntry {
+  if (!value || typeof value !== "object") return false;
+
+  const entry = value as Record<string, unknown>;
+  return (
+    typeof entry.ts === "string" &&
+    typeof entry.ms_played === "number" &&
+    (typeof entry.master_metadata_track_name === "string" || entry.master_metadata_track_name === null) &&
+    (typeof entry.master_metadata_album_artist_name === "string" || entry.master_metadata_album_artist_name === null)
+  );
+}
+
 /**
  * Builds a normalized lookup of artist -> genres.
  */
@@ -188,6 +200,36 @@ export function formatGenreLabel(id: string): string {
     .split("-")
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ");
+}
+
+/**
+ * Parses uploaded Spotify JSON files and extracts valid streaming entries.
+ */
+export async function loadUploadedStreamingHistory(files: File[]): Promise<SpotifyStreamEntry[]> {
+  const results = await Promise.allSettled(
+    files.map(async (file) => {
+      const text = await file.text();
+      const parsed = JSON.parse(text) as unknown;
+      if (!Array.isArray(parsed)) {
+        throw new Error(`Expected array payload in ${file.name}`);
+      }
+
+      const validEntries = parsed.filter(isSpotifyStreamEntry);
+      return validEntries;
+    })
+  );
+
+  const collected: SpotifyStreamEntry[] = [];
+
+  for (const result of results) {
+    if (result.status === "fulfilled") {
+      collected.push(...result.value);
+    } else {
+      console.warn("Failed to parse uploaded streaming history:", result.reason);
+    }
+  }
+
+  return collected;
 }
 
 /**
